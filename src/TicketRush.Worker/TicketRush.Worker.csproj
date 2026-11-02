@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <PropertyGroup>
+    <UserSecretsId>ticketrush-worker-0b9d7c21</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TicketRush.Application\TicketRush.Application.csproj" />
+    <ProjectReference Include="..\TicketRush.Infrastructure\TicketRush.Infrastructure.csproj" />
+    <ProjectReference Include="..\TicketRush.ServiceDefaults\TicketRush.ServiceDefaults.csproj" />
+  </ItemGroup>
+</Project>

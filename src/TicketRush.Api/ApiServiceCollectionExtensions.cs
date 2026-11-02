@@ -1,0 +1,86 @@
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.StackExchangeRedis;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Options;
+using StackExchange.Redis;
+using TicketRush.Api.Common.Errors;
+using TicketRush.Api.Common.Middleware;
+using TicketRush.Api.Features.ServerTime;
+using TicketRush.Application.Options;
+using TicketRush.Infrastructure.Redis;
+
+namespace TicketRush.Api;
+
+public static class ApiServiceCollectionExtensions
+{
+    public const string WebCorsPolicy = "web";
+
+    public static IServiceCollection AddApi(this IServiceCollection services)
+    {
+        services.AddProblemDetails(options => options.CustomizeProblemDetails = ProblemDetailsCustomizer.Customize);
+        services.AddExceptionHandler<GlobalExceptionHandler>();
+        services.AddOpenApi();
+        services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
+        services.AddCors();
+        services.AddOptions<Microsoft.AspNetCore.Cors.Infrastructure.CorsOptions>()
+            .Configure<IOptions<FrontendOptions>>((cors, frontend) => cors.AddPolicy(WebCorsPolicy, policy => policy
+                .WithOrigins(frontend.Value.BaseUrl.TrimEnd('/'))
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials()));
+
+        services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            // The reverse proxy / Next.js runs on a private network in every deployment we support.
+            options.KnownIPNetworks.Clear();
+            options.KnownProxies.Clear();
+        });
+
+        AddDataProtection(services);
+        return services;
+    }
+
+    public static WebApplication UseApiPipeline(this WebApplication app)
+    {
+        app.UseForwardedHeaders();
+        app.UseMiddleware<CorrelationIdMiddleware>();
+        app.UseMiddleware<RequestLoggingMiddleware>();
+        app.UseExceptionHandler();
+        app.UseStatusCodePages();
+
+        if (!app.Environment.IsDevelopment())
+        {
+            app.UseHsts();
+        }
+
+        app.UseMiddleware<SecurityHeadersMiddleware>();
+        app.UseCors(WebCorsPolicy);
+        return app;
+    }
+
+    public static WebApplication MapApiEndpoints(this WebApplication app)
+    {
+        if (app.Environment.IsDevelopment())
+        {
+            app.MapOpenApi();
+        }
+
+        var v1 = app.MapGroup("/api/v1");
+        v1.MapServerTimeEndpoints();
+        return app;
+    }
+
+    /// <summary>Keys live in Redis so every api instance can read cookies/tokens protected by another.</summary>
+    private static void AddDataProtection(IServiceCollection services)
+    {
+        services.AddDataProtection().SetApplicationName("TicketRush");
+        services.AddOptions<KeyManagementOptions>()
+            .Configure<IConnectionMultiplexer, RedisKeys>((options, redis, keys) =>
+                options.XmlRepository = new RedisXmlRepository(() => redis.GetDatabase(), $"{keys.Prefix}dataprotection:keys"));
+    }
+}

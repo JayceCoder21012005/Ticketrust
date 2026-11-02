@@ -34,7 +34,9 @@ TicketRush/
 └─ specs/
 ```
 
-**Dependency rule** (enforced by `ArchitectureTests`): Domain ← Application ← Infrastructure/Api/Worker. Domain references nothing. Application references only Domain and abstractions (`Microsoft.Extensions.*.Abstractions`).
+**Dependency rule** (enforced by `ArchitectureTests`): Domain ← Application ← Infrastructure/Api/Worker. Domain references nothing. Application references only Domain and abstractions (`Microsoft.Extensions.*.Abstractions`), plus core `Microsoft.EntityFrameworkCore` (never a provider) so handlers can query `DbSet<T>` through `IAppDbContext` and project to DTOs. Application must not reference Npgsql, StackExchange.Redis or ASP.NET Core.
+
+`src/TicketRush.MigrationService/` is an extra one-shot host (spec 01) that applies migrations and the dev seed.
 
 ### Feature folders (vertical slices inside layers)
 

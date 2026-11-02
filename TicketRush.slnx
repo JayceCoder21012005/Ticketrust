@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TicketRush.Api/TicketRush.Api.csproj" />
+    <Project Path="src/TicketRush.AppHost/TicketRush.AppHost.csproj" />
+    <Project Path="src/TicketRush.Application/TicketRush.Application.csproj" />
+    <Project Path="src/TicketRush.Domain/TicketRush.Domain.csproj" />
+    <Project Path="src/TicketRush.Infrastructure/TicketRush.Infrastructure.csproj" />
+    <Project Path="src/TicketRush.MigrationService/TicketRush.MigrationService.csproj" />
+    <Project Path="src/TicketRush.ServiceDefaults/TicketRush.ServiceDefaults.csproj" />
+    <Project Path="src/TicketRush.Worker/TicketRush.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TicketRush.Api.IntegrationTests/TicketRush.Api.IntegrationTests.csproj" />
+    <Project Path="tests/TicketRush.Application.Tests/TicketRush.Application.Tests.csproj" />
+    <Project Path="tests/TicketRush.ArchitectureTests/TicketRush.ArchitectureTests.csproj" />
+    <Project Path="tests/TicketRush.Domain.Tests/TicketRush.Domain.Tests.csproj" />
+  </Folder>
+</Solution>

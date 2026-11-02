@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <PropertyGroup>
+    <UserSecretsId>ticketrush-migrations-5e2a9f03</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TicketRush.Infrastructure\TicketRush.Infrastructure.csproj" />
+    <ProjectReference Include="..\TicketRush.ServiceDefaults\TicketRush.ServiceDefaults.csproj" />
+  </ItemGroup>
+</Project>
