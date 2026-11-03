@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clockOffsetMs, formatCountdown, remainingMs } from "./clock";
+import { clockOffsetMs, formatCountdown, formatOpensIn, remainingMs } from "./clock";
 
 describe("clockOffsetMs", () => {
   it("is how far the server clock is ahead of the device clock", () => {
@@ -33,5 +33,16 @@ describe("formatCountdown", () => {
     [3_600_000 + 61_000, "1:01:01"],
   ])("%i ms → %s", (ms, expected) => {
     expect(formatCountdown(ms)).toBe(expected);
+  });
+});
+
+describe("formatOpensIn", () => {
+  it.each([
+    [3 * 86_400_000 + 5 * 3_600_000 + 59 * 60_000, "3 ngày 5 giờ"],
+    [86_400_000, "1 ngày 0 giờ"],
+    [86_400_000 - 1000, "23:59:59"],
+    [65_000, "01:05"],
+  ])("%i ms → %s", (ms, expected) => {
+    expect(formatOpensIn(ms)).toBe(expected);
   });
 });

@@ -70,6 +70,10 @@ services:
     image: ${REGISTRY:-ghcr.io/ticketrush}/web:${TAG:-latest}
     build: { context: web, args: { API_URL: "http://api:8080" } }
     restart: unless-stopped
+    environment:
+      API_URL: http://api:8080
+      # Shared with the api: it calls POST /api/revalidate after event changes (spec 04/05).
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:?set REVALIDATE_SECRET}
     depends_on: [api]
 
   # TLS termination + HSTS. Only the web origin is public; /api is proxied by Next.js.

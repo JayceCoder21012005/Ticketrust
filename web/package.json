@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:e2e": "node e2e/build-with-mock.mjs",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",

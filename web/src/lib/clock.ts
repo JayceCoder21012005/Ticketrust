@@ -20,3 +20,13 @@ export function formatCountdown(ms: number): string {
 
   return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
 }
+
+/** Sale countdowns can be weeks away: whole days and hours until the last day, then `h:mm:ss`. */
+export function formatOpensIn(ms: number): string {
+  const day = 86_400_000;
+  if (ms < day) {
+    return formatCountdown(ms);
+  }
+
+  return `${Math.floor(ms / day)} ngày ${Math.floor((ms % day) / 3_600_000)} giờ`;
+}

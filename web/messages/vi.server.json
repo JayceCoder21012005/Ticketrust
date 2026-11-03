@@ -1,0 +1,59 @@
+{
+  "catalog": {
+    "home": {
+      "title": "Săn vé sự kiện",
+      "heroOnSale": "Đang mở bán",
+      "heroSoon": "Sắp mở bán",
+      "openingSoon": "Sắp mở bán",
+      "openingSoonDescription": "Canh giờ mở bán, vào phòng chờ trước 30 phút.",
+      "categories": "Khám phá theo danh mục",
+      "byCity": "Sự kiện theo thành phố",
+      "upcoming": "Sự kiện sắp diễn ra",
+      "viewAll": "Xem tất cả",
+      "empty": "Chưa có sự kiện nào đang mở",
+      "emptyDescription": "Quay lại sau nhé, sự kiện mới được thêm mỗi tuần."
+    },
+    "detail": {
+      "addToCalendar": "Thêm vào lịch",
+      "openMap": "Xem bản đồ",
+      "lineup": "Nghệ sĩ",
+      "about": "Giới thiệu",
+      "prices": "Giá vé",
+      "seated": "Ghế ngồi",
+      "standing": "Vé đứng",
+      "phases": "Các đợt mở bán",
+      "queue": "Có phòng chờ",
+      "maxPerUser": "Tối đa {count} vé/người",
+      "accessCode": "Cần mã truy cập",
+      "allIn": "Giá đã gồm phí, không phát sinh thêm khi thanh toán.",
+      "faq": "Câu hỏi thường gặp & chính sách",
+      "faqQ1": "Phòng chờ hoạt động thế nào?",
+      "faqA1": "Phòng chờ mở 30 phút trước giờ bán. Đúng giờ mở bán, thứ tự được xếp ngẫu nhiên công bằng cho mọi người đã vào phòng chờ, nên không cần bấm sớm hay tải lại trang.",
+      "faqQ2": "Tôi được mua tối đa bao nhiêu vé?",
+      "faqA2": "Mỗi đợt mở bán có giới hạn vé cho mỗi tài khoản, ghi ở mục “Các đợt mở bán”.",
+      "faqQ3": "Ghế được giữ trong bao lâu?",
+      "faqA3": "Ghế bạn chọn được giữ riêng trong 10 phút để thanh toán. Hết thời gian, ghế được trả lại cho người khác.",
+      "faqQ4": "Chính sách hoàn tiền",
+      "faqA4": "Vé không đổi trả sau khi mua. Nếu sự kiện bị huỷ, bạn được hoàn tiền tự động trong 7 ngày làm việc.",
+      "notFoundTitle": "Không tìm thấy sự kiện",
+      "notFoundDescription": "Sự kiện không tồn tại hoặc không còn được bán.",
+      "backToEvents": "Xem các sự kiện khác"
+    },
+    "badge": {
+      "onSale": "Đang mở bán",
+      "opens": "Mở bán {time}",
+      "soldOut": "Hết vé"
+    },
+    "listing": {
+      "title": "Khám phá sự kiện",
+      "description": "Hoà nhạc, lễ hội, sân khấu, thể thao và nhiều hơn nữa.",
+      "clearAll": "Xoá tất cả",
+      "removeFilter": "Bỏ lọc: {label}",
+      "searchChip": "“{q}”",
+      "results": "{count} sự kiện",
+      "resultsMore": "Hơn {count} sự kiện",
+      "noResults": "Không tìm thấy sự kiện phù hợp",
+      "noResultsHint": "Thử bỏ bớt bộ lọc hoặc tìm với từ khoá khác."
+    }
+  }
+}

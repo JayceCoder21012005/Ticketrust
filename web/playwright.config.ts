@@ -1,8 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const port = 3100;
+/** The catalog pages read the api on the server: e2e runs against a mock (e2e/mock-api.mjs), never a real api. */
+const mockApiPort = 3199;
 
-/** Runs against a production build (`npm run build` with ENABLE_DESIGN_PAGE=1 first). */
+/**
+ * Runs against a production build (`npm run build` with ENABLE_DESIGN_PAGE=1 and API_URL=http://localhost:3199
+ * first: the `/api` rewrite for browser calls is fixed at build time).
+ */
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -20,10 +25,18 @@ export default defineConfig({
       dependencies: ["chromium"],
     },
   ],
-  webServer: {
-    command: `npx next start -p ${port}`,
-    url: `http://localhost:${port}`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-  },
+  webServer: [
+    {
+      command: `node e2e/mock-api.mjs ${mockApiPort}`,
+      url: `http://localhost:${mockApiPort}/api/v1/time`,
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: `npx next start -p ${port}`,
+      url: `http://localhost:${port}`,
+      env: { API_URL: `http://localhost:${mockApiPort}` },
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+  ],
 });

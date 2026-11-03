@@ -25,6 +25,42 @@
         }
       }
     },
+    "/api/v1/categories": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "operationId": "ListCategories",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EventCategory"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cities": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "operationId": "ListCities",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/storage/uploads": {
       "put": {
         "tags": [
@@ -369,6 +405,231 @@
         }
       }
     },
+    "/api/v1/events": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "operationId": "ListEvents",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "priceMax",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events/{slug}": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "operationId": "GetEvent",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events/{id}/seat-map": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "operationId": "GetSeatMap",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatMap"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events/{id}/availability": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "operationId": "GetAvailability",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailabilityResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/user": {
       "get": {
         "tags": [
@@ -467,6 +728,46 @@
   },
   "components": {
     "schemas": {
+      "AvailabilityResponse": {
+        "required": [
+          "serverNow",
+          "version",
+          "unavailable",
+          "tiers"
+        ],
+        "type": "object",
+        "properties": {
+          "serverNow": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "unavailable": {
+            "type": "array",
+            "items": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          "tiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierRemaining"
+            }
+          }
+        }
+      },
       "AvatarUploadRequest": {
         "required": [
           "contentType",
@@ -500,6 +801,198 @@
           },
           "token": {
             "type": "string"
+          }
+        }
+      },
+      "EventCategory": {
+        "required": [
+          "slug",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "EventDetail": {
+        "required": [
+          "id",
+          "slug",
+          "title",
+          "description",
+          "category",
+          "lineup",
+          "coverImageUrl",
+          "startsAt",
+          "endsAt",
+          "status",
+          "isSoldOut",
+          "venue",
+          "tiers",
+          "phases"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "lineup": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "coverImageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EventStatus"
+          },
+          "isSoldOut": {
+            "type": "boolean"
+          },
+          "venue": {
+            "$ref": "#/components/schemas/VenueInfo"
+          },
+          "tiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierInfo"
+            }
+          },
+          "phases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PhaseInfo"
+            }
+          }
+        }
+      },
+      "EventPage": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "EventStatus": {
+        "enum": [
+          "Draft",
+          "Published",
+          "Ended",
+          "Cancelled"
+        ]
+      },
+      "EventSummary": {
+        "required": [
+          "id",
+          "slug",
+          "title",
+          "category",
+          "startsAt",
+          "venueName",
+          "city",
+          "coverImageUrl",
+          "priceFrom",
+          "nextSaleOpensAt",
+          "isOnSale",
+          "isSoldOut"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "venueName": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "coverImageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "priceFrom": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "nextSaleOpensAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "isOnSale": {
+            "type": "boolean"
+          },
+          "isSoldOut": {
+            "type": "boolean"
           }
         }
       },
@@ -596,6 +1089,49 @@
           }
         }
       },
+      "PhaseInfo": {
+        "required": [
+          "id",
+          "name",
+          "opensAt",
+          "closesAt",
+          "queueEnabled",
+          "maxTicketsPerUser",
+          "requiresAccessCode"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "opensAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "closesAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "queueEnabled": {
+            "type": "boolean"
+          },
+          "maxTicketsPerUser": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "requiresAccessCode": {
+            "type": "boolean"
+          }
+        }
+      },
       "ProblemDetails": {
         "type": "object",
         "properties": {
@@ -672,6 +1208,107 @@
           }
         }
       },
+      "SeatInfo": {
+        "required": [
+          "index",
+          "section",
+          "row",
+          "number",
+          "x",
+          "y",
+          "tierId"
+        ],
+        "type": "object",
+        "properties": {
+          "index": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "section": {
+            "type": "string"
+          },
+          "row": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          },
+          "x": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "y": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "tierId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "SeatMap": {
+        "required": [
+          "eventId",
+          "version",
+          "sections",
+          "seats"
+        ],
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "string"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeatMapSection"
+            }
+          },
+          "seats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeatInfo"
+            }
+          }
+        }
+      },
+      "SeatMapSection": {
+        "required": [
+          "name",
+          "seatCount"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "seatCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "ServerTimeResponse": {
         "required": [
           "serverNow"
@@ -681,6 +1318,70 @@
           "serverNow": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "TicketKind": {
+        "enum": [
+          "Seated",
+          "GeneralAdmission"
+        ]
+      },
+      "TierInfo": {
+        "required": [
+          "id",
+          "name",
+          "price",
+          "currency",
+          "kind",
+          "color"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TicketKind"
+          },
+          "color": {
+            "type": "string"
+          }
+        }
+      },
+      "TierRemaining": {
+        "required": [
+          "tierId",
+          "remaining"
+        ],
+        "type": "object",
+        "properties": {
+          "tierId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "remaining": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -775,12 +1476,46 @@
             }
           }
         }
+      },
+      "VenueInfo": {
+        "required": [
+          "id",
+          "name",
+          "address",
+          "city",
+          "mapUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "mapUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
       }
     }
   },
   "tags": [
     {
       "name": "ServerTime"
+    },
+    {
+      "name": "Catalog"
     },
     {
       "name": "Storage"

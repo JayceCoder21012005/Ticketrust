@@ -57,7 +57,9 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - name: Build (with /design for the budget and a11y checks)
-        run: npm run build
+        # Builds against e2e/mock-api.mjs (started by the script), like a deploy with the api up: the home page and
+        # the soonest event pages are prerendered. E2E and Lighthouse then serve the catalog from the same mock.
+        run: npm run build:e2e
         env:
           ENABLE_DESIGN_PAGE: "1"
       - name: Install Playwright Chromium

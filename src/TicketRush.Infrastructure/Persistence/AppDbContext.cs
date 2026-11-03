@@ -6,6 +6,7 @@ using TicketRush.Domain.Events;
 using TicketRush.Domain.Primitives;
 using TicketRush.Domain.Users;
 using TicketRush.Domain.Venues;
+using TicketRush.Infrastructure.Catalog;
 using TicketRush.Infrastructure.Identity;
 using TicketRush.Infrastructure.Outbox;
 
@@ -21,6 +22,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<Venue> Venues => Set<Venue>();
 
+    public DbSet<EventSeat> EventSeats => Set<EventSeat>();
+
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
@@ -32,6 +35,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.HasPostgresExtension("unaccent").HasPostgresExtension("pg_trgm");
+        builder.HasDbFunction(typeof(CatalogDbFunctions).GetMethod(nameof(CatalogDbFunctions.Matches))!).HasName("catalog_matches");
         builder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
         RenameIdentityTables(builder);
         MapRowVersionOnAggregates(builder);

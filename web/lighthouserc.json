@@ -1,9 +1,15 @@
 {
   "ci": {
     "collect": {
-      "startServerCommand": "npx next start -p 3200",
+      "startServerCommand": "node e2e/serve.mjs 3200",
       "startServerReadyPattern": "Ready",
-      "url": ["http://localhost:3200/", "http://localhost:3200/login", "http://localhost:3200/design"],
+      "url": [
+        "http://localhost:3200/",
+        "http://localhost:3200/events",
+        "http://localhost:3200/events/son-tung-mtp-live",
+        "http://localhost:3200/login",
+        "http://localhost:3200/design"
+      ],
       "numberOfRuns": 5,
       "settings": {
         "preset": "perf",

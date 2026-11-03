@@ -26,6 +26,8 @@ using TicketRush.Infrastructure.Redis;
 using TicketRush.Infrastructure.Storage;
 using TicketRush.Domain.Users;
 using TicketRush.Infrastructure.Email;
+using TicketRush.Infrastructure.Catalog;
+using TicketRush.Application.Features.Catalog;
 
 namespace TicketRush.Infrastructure;
 
@@ -62,6 +64,7 @@ public static class DependencyInjection
         PersistDataProtectionKeysToRedis(services);
         AddAccounts(services);
         AddStorage(services, builder.Configuration);
+        AddCatalog(services);
         return builder;
     }
 
@@ -142,6 +145,17 @@ public static class DependencyInjection
         services.AddSingleton<IEmailSender, SmtpEmailSender>();
         services.AddIntegrationEventHandler<UserRegistered, SendConfirmationEmailHandler>();
         services.AddIntegrationEventHandler<PasswordResetRequested, SendPasswordResetEmailHandler>();
+    }
+
+    /// <summary>In-process HybridCache (no L2 yet): single-flight per key protects Postgres from stampedes (C6).</summary>
+    private static void AddCatalog(IServiceCollection services)
+    {
+        // Seat maps of large venues are a few MB of JSON; the 1 MB default would silently skip caching them.
+        services.AddHybridCache(options => options.MaximumPayloadBytes = 16 * 1024 * 1024);
+        services.AddScoped<EventCatalogReader>();
+        services.AddScoped<CachedEventCatalogReader>();
+        services.AddScoped<IEventCatalogReader>(sp => sp.GetRequiredService<CachedEventCatalogReader>());
+        services.AddScoped<ICatalogCacheInvalidator>(sp => sp.GetRequiredService<CachedEventCatalogReader>());
     }
 
     private static void AddStorage(IServiceCollection services, IConfiguration configuration)

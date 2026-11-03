@@ -16,10 +16,14 @@ RUN npm run build
 
 FROM node:24-alpine AS final
 WORKDIR /app
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
+# Server components also call the api directly (catalog pages, spec 04), so the origin is needed at runtime too.
+ARG API_URL=http://api:8080
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0 API_URL=$API_URL
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public
+# Be Vietnam Pro for Open Graph images (read from disk at request time).
+COPY --from=build --chown=node:node /app/assets ./assets
 USER node
 EXPOSE 3000
 CMD ["node", "server.js"]

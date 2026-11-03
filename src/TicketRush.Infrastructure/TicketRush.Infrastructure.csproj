@@ -15,6 +15,7 @@
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.StackExchangeRedis" />
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
     <PackageReference Include="MailKit" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" />
   </ItemGroup>
   <ItemGroup>
     <!-- Identity token providers and Data Protection. The Identity package already pulls this framework in

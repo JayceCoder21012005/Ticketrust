@@ -18,7 +18,8 @@ export function SiteHeader() {
         {t("common.skipToContent")}
       </a>
       <div className="mx-auto flex h-16 max-w-content items-center gap-4 px-4">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg">
+        {/* No prefetch: the home page's JS would be downloaded on every page (counted in the 170 KB budget). */}
+        <Link href="/" prefetch={false} className="flex items-center gap-2 font-bold text-lg">
           <Ticket aria-hidden className="size-6 text-primary" />
           <span>TicketRush</span>
         </Link>

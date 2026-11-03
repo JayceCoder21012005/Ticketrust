@@ -31,3 +31,22 @@ export function formatDateTime(value: DateInput): string {
 export function formatEventDate(value: DateInput): string {
   return eventDate.format(new Date(value));
 }
+
+const tileParts = new Intl.DateTimeFormat("en-US", { timeZone: TIME_ZONE, day: "numeric", month: "numeric" });
+
+/** `20:00 15/11`: sale-opening badges, where the year is obvious. */
+export function formatDayMonth(value: DateInput): string {
+  // vi-VN renders day + month alone as "15-11"; the slash form matches formatDateTime.
+  return formatDateTime(value).replace(/\/\d{4}$/, "");
+}
+
+export function formatTimeRange(start: DateInput, end: DateInput): string {
+  return `${formatTime(start)} – ${formatTime(end)}`;
+}
+
+/** Month and day for the Luma-style calendar tile on the event page ("Th12" / "15"). */
+export function calendarTile(value: DateInput): { month: string; day: string } {
+  const parts = tileParts.formatToParts(new Date(value));
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
+  return { month: `Th${part("month")}`, day: part("day") };
+}
