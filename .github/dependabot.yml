@@ -9,6 +9,13 @@ updates:
   - package-ecosystem: npm
     directory: /web
     schedule: { interval: weekly }
+    # One PR for minor/patch bumps: separate PRs all touch package-lock.json and conflict with each other.
+    groups:
+      web-minor-patch: { update-types: ["minor", "patch"] }
+    ignore:
+      # typescript-eslint (via eslint-config-next) refuses to run on TS 7; revisit when it supports TS 7.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }

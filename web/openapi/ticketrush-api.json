@@ -1,0 +1,50 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "TicketRush.Api | v1",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/time": {
+      "get": {
+        "tags": [
+          "ServerTime"
+        ],
+        "operationId": "GetServerTime",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerTimeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ServerTimeResponse": {
+        "required": [
+          "serverNow"
+        ],
+        "type": "object",
+        "properties": {
+          "serverNow": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "ServerTime"
+    }
+  ]
+}

@@ -26,11 +26,11 @@ export function ApiStatus() {
   }
 
   if (status.kind === "error") {
-    return <p role="alert" className="text-red-600">Không kết nối được API: {status.message}</p>;
+    return <p role="alert" className="text-danger">Không kết nối được API: {status.message}</p>;
   }
 
   return (
-    <p role="status" className="text-green-700">
+    <p role="status" className="text-success">
       API OK · giờ máy chủ {status.serverNow.toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}
     </p>
   );

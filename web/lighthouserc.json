@@ -1,0 +1,44 @@
+{
+  "ci": {
+    "collect": {
+      "startServerCommand": "npx next start -p 3200",
+      "startServerReadyPattern": "Ready",
+      "url": ["http://localhost:3200/", "http://localhost:3200/design"],
+      "numberOfRuns": 5,
+      "settings": {
+        "preset": "perf",
+        "formFactor": "mobile",
+        "throttlingMethod": "devtools",
+        "screenEmulation": { "mobile": true, "width": 412, "height": 823, "deviceScaleFactor": 1.75 },
+        "onlyCategories": ["performance", "accessibility", "best-practices"]
+      }
+    },
+    "assert": {
+      "assertMatrix": [
+        {
+          "matchingUrlPattern": "^(?!.*/design$).*",
+          "assertions": {
+            "largest-contentful-paint": ["error", { "maxNumericValue": 2500, "aggregationMethod": "median-run" }],
+            "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1, "aggregationMethod": "median-run" }],
+            "total-blocking-time": ["error", { "maxNumericValue": 300, "aggregationMethod": "median-run" }],
+            "resource-summary:script:size": ["error", { "maxNumericValue": 174080 }],
+            "categories:performance": ["error", { "minScore": 0.9, "aggregationMethod": "median-run" }],
+            "categories:accessibility": ["error", { "minScore": 0.9 }]
+          }
+        },
+        {
+          "matchingUrlPattern": ".*/design$",
+          "assertions": {
+            "largest-contentful-paint": ["warn", { "maxNumericValue": 2500, "aggregationMethod": "median-run" }],
+            "total-blocking-time": ["warn", { "maxNumericValue": 300, "aggregationMethod": "median-run" }],
+            "categories:performance": ["warn", { "minScore": 0.9, "aggregationMethod": "median-run" }],
+            "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1, "aggregationMethod": "median-run" }],
+            "resource-summary:script:size": ["error", { "maxNumericValue": 174080 }],
+            "categories:accessibility": ["error", { "minScore": 0.9 }]
+          }
+        }
+      ]
+    },
+    "upload": { "target": "filesystem", "outputDir": ".lighthouseci" }
+  }
+}

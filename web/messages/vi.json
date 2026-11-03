@@ -1,0 +1,42 @@
+{
+  "common": {
+    "retry": "Thử lại",
+    "loading": "Đang tải…",
+    "search": "Tìm sự kiện, nghệ sĩ, địa điểm",
+    "searchLabel": "Tìm kiếm",
+    "account": "Tài khoản",
+    "login": "Đăng nhập",
+    "close": "Đóng",
+    "skipToContent": "Bỏ qua đến nội dung chính"
+  },
+  "theme": {
+    "toggle": "Đổi giao diện",
+    "light": "Sáng",
+    "dark": "Tối",
+    "system": "Theo hệ thống"
+  },
+  "nav": {
+    "events": "Sự kiện",
+    "myTickets": "Vé của tôi",
+    "organizer": "Nhà tổ chức"
+  },
+  "price": {
+    "from": "từ {price}",
+    "allIn": "Giá đã gồm phí"
+  },
+  "countdown": {
+    "label": "Thời gian còn lại"
+  },
+  "states": {
+    "emptyTitle": "Chưa có gì ở đây",
+    "errorTitle": "Không tải được dữ liệu",
+    "errorDescription": "Đã có lỗi xảy ra. Vui lòng thử lại."
+  },
+  "footer": {
+    "tagline": "Săn vé nhanh, công bằng, không bao giờ bán trùng ghế.",
+    "rights": "© {year} TicketRush"
+  },
+  "event": {
+    "buy": "Mua vé"
+  }
+}
