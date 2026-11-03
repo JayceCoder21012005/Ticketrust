@@ -71,6 +71,7 @@ Error codes: `auth.invalid_credentials` (same message for wrong email or wrong p
 - Worker and MigrationService images use `dotnet/aspnet`: Identity needs the ASP.NET Core shared framework.
 - Form schemas use `zod/mini` and load on the first validation (`lazyResolver`), so zod isn't in first-load JS. The strength meter uses a zod-free copy of the password rules.
 - In dark mode `--primary` is lighter (`oklch(0.72 0.16 285)`, dark text on it) so `text-primary` links pass 4.5:1 on cards. The token test now checks this too.
+- `LoginForm` reads `?returnUrl=` from the address bar on submit, so `/login` stays a fully static page. Reading `searchParams` on the server made it partially prerendered, and the streamed part pushed the HTML past the first TCP window, adding ~150 ms to first paint. The header's login link has `prefetch={false}`, so public pages don't download the auth forms' JS.
 - `proxy.ts` guards `/account`, `/my-tickets`, `/orders`, `/checkout`, `/queue`, `/organizer`, `/admin`, `/gate`.
 
 ## Acceptance criteria

@@ -92,6 +92,7 @@ How the budgets are measured:
 - `/design` is on in development and in production builds with `ENABLE_DESIGN_PAGE=1` (CI uses this for Lighthouse and axe).
 - The OpenAPI document is committed at `web/openapi/ticketrush-api.json`. `OpenApiDocumentTests` fails when it differs from the API (`UPDATE_OPENAPI=1` rewrites it), and CI fails when `schema.d.ts` differs from `npm run api:gen`.
 - Token contrast is computed from the authored oklch values (`lib/contrast.ts`) in unit tests and on `/design`.
+- Dependency audit in CI: shipped code (`--omit=dev`) must have no known vulnerability of any severity. Tooling must have nothing high or critical. `package.json` `overrides` lift vulnerable transitive versions where a compatible fix exists (`minimatch` 10→11, `glob` 13→14, `basic-ftp` 5→6). They also declare ESLint 10 for the plugins of `eslint-config-next`, which Next.js supports from 16.4.0. The remaining moderate/low advisories (`minimatch` 3/5 in older plugins, `deepmerge` in the shadcn CLI) have no compatible upstream fix yet.
 - `t()` serves Vietnamese only: every catalog it imports ships with each client component that uses it. `messages/en.json` stays key-for-key in sync (tested) for a later language switch.
 
 ## Acceptance criteria
