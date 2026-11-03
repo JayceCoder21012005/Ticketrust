@@ -20,6 +20,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListCategories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListCities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/storage/uploads": {
         parameters: {
             query?: never;
@@ -497,6 +529,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetEvent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events/{id}/seat-map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetSeatMap"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events/{id}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetAvailability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/user": {
         parameters: {
             query?: never;
@@ -676,6 +772,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AvailabilityResponse: {
+            /** Format: date-time */
+            serverNow: string;
+            /** Format: int64 */
+            version: number | string;
+            unavailable: (number | string)[];
+            tiers: components["schemas"]["TierRemaining"][];
+        };
         AvatarUploadRequest: {
             contentType: string;
             /** Format: int64 */
@@ -685,6 +789,53 @@ export interface components {
             /** Format: uuid */
             userId: string;
             token: string;
+        };
+        EventCategory: {
+            slug: string;
+            name: string;
+        };
+        EventDetail: {
+            /** Format: uuid */
+            id: string;
+            slug: string;
+            title: string;
+            description: string;
+            category: string;
+            lineup: string[];
+            coverImageUrl: null | string;
+            /** Format: date-time */
+            startsAt: string;
+            /** Format: date-time */
+            endsAt: string;
+            status: components["schemas"]["EventStatus"];
+            isSoldOut: boolean;
+            venue: components["schemas"]["VenueInfo"];
+            tiers: components["schemas"]["TierInfo"][];
+            phases: components["schemas"]["PhaseInfo"][];
+        };
+        EventPage: {
+            items: components["schemas"]["EventSummary"][];
+            nextCursor: null | string;
+        };
+        /** @enum {unknown} */
+        EventStatus: "Draft" | "Published" | "Ended" | "Cancelled";
+        EventSummary: {
+            /** Format: uuid */
+            id: string;
+            slug: string;
+            title: string;
+            category: string;
+            /** Format: date-time */
+            startsAt: string;
+            venueName: string;
+            city: string;
+            coverImageUrl: null | string;
+            /** Format: int64 */
+            priceFrom: null | number | string;
+            /** Format: date-time */
+            nextSaleOpensAt: null | string;
+            isOnSale: boolean;
+            isSoldOut: boolean;
         };
         ForgotPasswordCommand: {
             email: string;
@@ -710,6 +861,19 @@ export interface components {
             expiresAt: string;
             user: components["schemas"]["UserAccount"];
         };
+        PhaseInfo: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: date-time */
+            opensAt: string;
+            /** Format: date-time */
+            closesAt: string;
+            queueEnabled: boolean;
+            /** Format: int32 */
+            maxTicketsPerUser: number | string;
+            requiresAccessCode: boolean;
+        };
         ProblemDetails: {
             type?: null | string;
             title?: null | string;
@@ -728,9 +892,52 @@ export interface components {
             token: string;
             newPassword: string;
         };
+        SeatInfo: {
+            /** Format: int32 */
+            index: number | string;
+            section: string;
+            row: string;
+            number: string;
+            /** Format: double */
+            x: number | string;
+            /** Format: double */
+            y: number | string;
+            /** Format: uuid */
+            tierId: string;
+        };
+        SeatMap: {
+            /** Format: uuid */
+            eventId: string;
+            version: string;
+            sections: components["schemas"]["SeatMapSection"][];
+            seats: components["schemas"]["SeatInfo"][];
+        };
+        SeatMapSection: {
+            name: string;
+            /** Format: int32 */
+            seatCount: number | string;
+        };
         ServerTimeResponse: {
             /** Format: date-time */
             serverNow: string;
+        };
+        /** @enum {unknown} */
+        TicketKind: "Seated" | "GeneralAdmission";
+        TierInfo: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: int64 */
+            price: number | string;
+            currency: string;
+            kind: components["schemas"]["TicketKind"];
+            color: string;
+        };
+        TierRemaining: {
+            /** Format: uuid */
+            tierId: string;
+            /** Format: int32 */
+            remaining: number | string;
         };
         UpdateProfileRequest: {
             fullName: string;
@@ -754,6 +961,14 @@ export interface components {
             avatarUrl: null | string;
             emailConfirmed: boolean;
             roles: string[];
+        };
+        VenueInfo: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            address: string;
+            city: string;
+            mapUrl: null | string;
         };
     };
     responses: never;
@@ -780,6 +995,182 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServerTimeResponse"];
+                };
+            };
+        };
+    };
+    ListCategories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventCategory"][];
+                };
+            };
+        };
+    };
+    ListCities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ListEvents: {
+        parameters: {
+            query?: {
+                q?: string;
+                city?: string;
+                category?: string;
+                from?: string;
+                to?: string;
+                priceMax?: number | string;
+                cursor?: string;
+                limit?: number | string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventPage"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventDetail"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetSeatMap: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeatMap"];
+                };
+            };
+            /** @description Not Modified */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetAvailability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvailabilityResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
         };

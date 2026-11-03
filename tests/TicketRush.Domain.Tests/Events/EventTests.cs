@@ -1,5 +1,6 @@
 using TicketRush.Domain.Events;
 using TicketRush.Domain.Primitives;
+using TicketRush.Domain.Venues;
 
 namespace TicketRush.Domain.Tests.Events;
 
@@ -7,14 +8,42 @@ public sealed class EventTests
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 3, 0, 0, 0, TimeSpan.Zero);
 
+    private static readonly Venue Venue = Venue.Create("Nhà hát Lớn", "1 Tràng Tiền", "Hà Nội", null, 600);
+
     private static Event NewDraft() =>
-        Event.CreateDraft(Guid.CreateVersion7(), "slug", "Title", "concert", Guid.CreateVersion7(), Now.AddDays(30), Now.AddDays(30).AddHours(4));
+        Event.CreateDraft(Guid.CreateVersion7(), "slug", "Title", "concert", Venue, Now.AddDays(30), Now.AddDays(30).AddHours(4));
+
+    [Fact]
+    public void CreateDraft_copies_the_venue_and_its_city_so_search_and_city_filters_stay_on_events()
+    {
+        var evt = NewDraft();
+
+        evt.VenueId.ShouldBe(Venue.Id);
+        evt.City.ShouldBe("Hà Nội");
+    }
+
+    [Fact]
+    public void CreateDraft_rejects_an_unknown_category()
+    {
+        Should.Throw<DomainException>(() =>
+                Event.CreateDraft(Guid.NewGuid(), "s", "t", "karaoke", Venue, Now, Now.AddHours(1)))
+            .Code.ShouldBe("event.invalid_category");
+    }
+
+    [Fact]
+    public void Categories_have_unique_slugs_and_vietnamese_names()
+    {
+        EventCategories.All.Select(c => c.Slug).ShouldBeUnique();
+        EventCategories.All.ShouldAllBe(c => c.Name.Length > 0);
+        EventCategories.IsKnown("concert").ShouldBeTrue();
+        EventCategories.IsKnown("CONCERT").ShouldBeFalse();
+    }
 
     [Fact]
     public void CreateDraft_rejects_an_event_that_ends_before_it_starts()
     {
         var ex = Should.Throw<DomainException>(() =>
-            Event.CreateDraft(Guid.NewGuid(), "s", "t", "c", Guid.NewGuid(), Now, Now.AddMinutes(-1)));
+            Event.CreateDraft(Guid.NewGuid(), "s", "t", "concert", Venue, Now, Now.AddMinutes(-1)));
 
         ex.Code.ShouldBe("event.invalid_schedule");
     }

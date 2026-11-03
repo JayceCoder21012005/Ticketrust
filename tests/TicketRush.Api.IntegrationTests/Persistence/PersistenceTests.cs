@@ -45,11 +45,32 @@ public sealed class PersistenceTests(ContainersFixture containers) : IAsyncLifet
         await using var check = Scope();
         var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
         (await db.Users.CountAsync(Ct)).ShouldBe(4);
-        (await db.Venues.CountAsync(Ct)).ShouldBe(2);
-        (await db.Events.CountAsync(Ct)).ShouldBe(6);
+        (await db.Venues.CountAsync(Ct)).ShouldBe(3);
+        (await db.Events.CountAsync(Ct)).ShouldBe(15);
+        (await db.Events.Select(e => e.Category).Distinct().CountAsync(Ct)).ShouldBe(EventCategories.All.Count);
+        (await db.Events.Select(e => e.City).Distinct().CountAsync(Ct)).ShouldBe(3);
         (await db.Events.Select(e => e.Status).Distinct().CountAsync(Ct)).ShouldBe(Enum.GetValues<EventStatus>().Length);
         var openingSoon = await db.Events.Include(e => e.Phases).SingleAsync(e => e.Slug == "ha-anh-tuan-chan-troi-ruc-ro", Ct);
         openingSoon.Phases.ShouldHaveSingleItem().OpensAt.ShouldBe(DateTimeOffset.UtcNow.AddMinutes(5), TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public async Task Seed_gives_seated_events_a_seat_map_with_compact_indexes_on_seated_tiers()
+    {
+        await using (var seed = Scope())
+        {
+            await seed.ServiceProvider.GetRequiredService<DevDataSeeder>().SeedAsync(Ct);
+        }
+
+        await using var check = Scope();
+        var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
+        var evt = await db.Events.Include(e => e.Tiers).SingleAsync(e => e.Slug == "son-tung-mtp-live", Ct);
+        var seats = await db.EventSeats.Where(s => s.EventId == evt.Id).OrderBy(s => s.Index).ToListAsync(Ct);
+
+        seats.Count.ShouldBe(SeedEventCatalog.SeatsPerSeatedEvent);
+        seats.Select(s => s.Index).ShouldBe(Enumerable.Range(0, seats.Count));
+        var seatedTiers = evt.Tiers.Where(t => t.Kind == TicketKind.Seated).Select(t => t.Id).ToHashSet();
+        seats.ShouldAllBe(s => seatedTiers.Contains(s.TierId));
     }
 
     [Fact]
@@ -122,6 +143,18 @@ public sealed class PersistenceTests(ContainersFixture containers) : IAsyncLifet
     }
 
     [Fact]
+    public async Task Search_text_is_generated_unaccented_and_lower_cased_from_title_lineup_and_city()
+    {
+        await using var scope = Scope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var evt = await NewPublishedEventAsync(db, "search-text", "Sơn Tùng M-TP Live", ["Sơn Tùng M-TP", "Đen Vâu"]);
+
+        var text = await db.Events.Where(e => e.Id == evt.Id).Select(e => EF.Property<string>(e, "SearchText")).SingleAsync(Ct);
+
+        text.ShouldBe("son tung m-tp live son tung m-tp den vau ha noi");
+    }
+
+    [Fact]
     public async Task Audit_timestamps_are_set_on_insert_and_update()
     {
         await using var scope = Scope();
@@ -136,11 +169,12 @@ public sealed class PersistenceTests(ContainersFixture containers) : IAsyncLifet
         evt.UpdatedAt.ShouldBeGreaterThan(created);
     }
 
-    private static async Task<Event> NewPublishedEventAsync(AppDbContext db, string slug)
+    private static async Task<Event> NewPublishedEventAsync(AppDbContext db, string slug, string title = "Title", string[]? lineup = null)
     {
         var venue = Domain.Venues.Venue.Create("Venue", "Address", "Hà Nội", null, 100);
         var now = DateTimeOffset.UtcNow;
-        var evt = Event.CreateDraft(Guid.CreateVersion7(), slug, "Title", "concert", venue.Id, now.AddDays(10), now.AddDays(10).AddHours(2));
+        var evt = Event.CreateDraft(Guid.CreateVersion7(), slug, title, "concert", venue, now.AddDays(10), now.AddDays(10).AddHours(2));
+        evt.UpdateDetails(string.Empty, lineup ?? [], null);
         evt.Publish();
         db.Venues.Add(venue);
         db.Events.Add(evt);

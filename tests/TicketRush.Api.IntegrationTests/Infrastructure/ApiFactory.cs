@@ -5,12 +5,14 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TicketRush.Api.Common.Auth;
 using TicketRush.Api.Common.Http;
 using TicketRush.Application.Abstractions.Notifications;
 using TicketRush.Domain.Primitives;
 using TicketRush.Infrastructure.Outbox;
+using TicketRush.Infrastructure.Persistence;
 
 namespace TicketRush.Api.IntegrationTests.Infrastructure;
 
@@ -31,6 +33,8 @@ public sealed class ApiFactory(string databaseConnectionString, string redisConn
     : WebApplicationFactory<Program>
 {
     public CapturingEmailSender Emails { get; } = new();
+
+    public QueryCounter Queries { get; } = new();
 
     public string StorageRoot { get; } = Path.Combine(Path.GetTempPath(), "ticketrush-tests", Guid.NewGuid().ToString("N"));
 
@@ -53,7 +57,11 @@ public sealed class ApiFactory(string databaseConnectionString, string redisConn
 
         builder.UseSetting("Storage:LocalRootPath", StorageRoot);
         builder.ConfigureServices(services => services.AddSingleton<IStartupFilter, TestEndpointsStartupFilter>());
-        builder.ConfigureTestServices(services => services.AddSingleton<IEmailSender>(Emails));
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton<IEmailSender>(Emails);
+            services.ConfigureDbContext<AppDbContext>(options => options.AddInterceptors(Queries));
+        });
     }
 
     protected override void Dispose(bool disposing)

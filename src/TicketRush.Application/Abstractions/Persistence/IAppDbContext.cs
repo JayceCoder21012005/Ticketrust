@@ -15,6 +15,8 @@ public interface IAppDbContext
 
     DbSet<Venue> Venues { get; }
 
+    DbSet<EventSeat> EventSeats { get; }
+
     DbSet<RefreshToken> RefreshTokens { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);

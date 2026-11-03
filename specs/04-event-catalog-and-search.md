@@ -54,11 +54,30 @@ Error codes: `event.not_found`.
 
 - Open Graph image per event (`opengraph-image.tsx`) for social sharing.
 
+## Implementation notes
+
+- UI/UX references and decisions: `docs/superpowers/specs/2026-11-03-event-catalog-and-search-design.md` (Ticketbox prices, Luma event page, DICE single accent, Eventbrite badges, removable filter chips).
+- `Event.City` is copied from the venue when the event is created (`CreateDraft` takes the `Venue`): a generated column can't read another table, and the city filter and search then need no join. Categories are a fixed list (`EventCategories`); unknown categories are rejected.
+- Search: `events.search_text` and `events.search_vector` are stored generated columns over `catalog_search_text(title, lineup, city)` (lower-cased, `unaccent`ed through an IMMUTABLE wrapper). `catalog_matches()` combines `websearch_to_tsquery('simple', …)` with trigram word similarity (`<%`), so "son tunng" still finds "Sơn Tùng". GIN indexes on both columns.
+- Reads go through `IEventCatalogReader` (Infrastructure, EF projections, one SQL query per call) wrapped by `CachedEventCatalogReader` (HybridCache, in-process): list 30 s (`events:list`), detail 10 min, availability 1 s. Detail is looked up by slug before its id is known, so it is tagged `event-slug:{slug}`; seat map and availability use `event:{id}`. `ICatalogCacheInvalidator.InvalidateEventAsync(id, slug)` evicts all three for spec 05.
+- Keyset cursor: base64url JSON of `(startsAt, id)`, compared as a Postgres row value. Page size 20 by default, 50 max. Invalid `cursor`, unknown `category`, `to < from`, negative `priceMax` → 400.
+- Ended events keep their detail page (`status: "Ended"`, CTA disabled) so old links work; draft and cancelled events are 404.
+- Seat map ETag is a content hash of the layout (`version` in the body too). Availability returns every tier as available (capacity or seat count) until spec 07.
+- Web data: server components call the api through `"use cache"` functions tagged like the api (`events:list`, `event:{id}`, `event-slug:{slug}`). `POST /api/revalidate` (header `x-revalidate-secret`, `REVALIDATE_SECRET`) calls `revalidateTag(tag, "max")` for catalog tags only.
+- Home and event pages are ISR pages (Cache Components): `/` is static HTML regenerated every 30 s; `generateStaticParams` prerenders the 20 soonest events, and any other slug gets the app shell on its first visit, then a complete static page from the ISR cache. This matters for LCP: React 19 reveals streamed Suspense boundaries up to 300 ms late (batching), so the poster/title must be in the initial HTML. The listing (`/events`) reads `searchParams` and stays partially prerendered; its LCP (the h1) is in the static shell.
+- When the api is unreachable during `next build` (Docker image builds), reads return empty data with the `seconds` cache profile, which turns that part into a per-request dynamic hole instead of baking an empty catalog into the image. `npm run build:e2e` builds against the mock api.
+- Unknown slugs render the 404 page inside the streamed part of the page, so the HTTP status stays 200 and Next adds `noindex` (documented Next.js behaviour for streamed routes). The api answers 404.
+- Events without a cover get a generated poster (category hue + title, white text ≥ 4.5:1); the same design is used for the Open Graph image, rendered with a bundled Be Vietnam Pro (the default OG font has no Vietnamese diacritics).
+- CTA: `computeCtaState()` (pure) plus `EventCta`, which reads `/availability` for the server clock offset and re-renders on a timer at the next state change. "Nhắc tôi" (09) and "Vào danh sách chờ" (13) are disabled placeholders; `/queue` (06) and `/seats` (07) links point to pages built later.
+- JS budget: page-only copy lives in `messages/vi.server.json` (server `t` from `@/lib/i18n.server`), because `messages/vi.json` ships with every client component on every page; a test keeps client components off the server catalog. "Xem thêm" is a server action returning rendered cards, so card/image code isn't client JS. Cross-route catalog links use `prefetch={false}` (Lighthouse counts prefetched route JS). Phone filters use a native `<dialog>` instead of a Radix Sheet. "Thêm vào lịch" is a plain link to `/events/[slug]/calendar.ics`. The FAQ uses `<details>`. Description is shown as plain paragraphs (organizer text is never rendered as HTML).
+- E2E and Lighthouse run against `web/e2e/mock-api.mjs` (fixture catalog relative to start-up); CI builds with `API_URL=http://localhost:3199`.
+- Dev seed: 3 cities, 15 events covering every status and category; "Sơn Tùng M-TP Live" and "Hà Anh Tuấn" have 600-seat maps; "Hà Anh Tuấn" opens 5 minutes and "Vũ Cát Tường" 20 minutes after seeding.
+
 ## Acceptance criteria
 
-- [ ] Searching "son tung" finds "Sơn Tùng M-TP Live".
-- [ ] 1,000 concurrent requests for one uncached event detail cause exactly one DB query (test with HybridCache).
-- [ ] Draft and cancelled events never appear in `/events` and return 404 on detail.
-- [ ] Seat-map returns 304 with a matching `If-None-Match`.
-- [ ] CTA switches from countdown to "Vào phòng chờ" at T-30 min without a page reload, even when the device clock is 5 minutes off.
-- [ ] Event detail page passes the performance budgets in 02.
+- [x] Searching "son tung" finds "Sơn Tùng M-TP Live".
+- [x] 1,000 concurrent requests for one uncached event detail cause exactly one DB query (test with HybridCache).
+- [x] Draft and cancelled events never appear in `/events` and return 404 on detail.
+- [x] Seat-map returns 304 with a matching `If-None-Match`.
+- [x] CTA switches from countdown to "Vào phòng chờ" at T-30 min without a page reload, even when the device clock is 5 minutes off.
+- [x] Event detail page passes the performance budgets in 02 (Lighthouse CI, median of 5: LCP 2466 ms, TBT 168 ms, CLS 0, JS 162 KB, performance 0.92).

@@ -113,5 +113,45 @@
     "avatarType": "Chỉ hỗ trợ ảnh JPEG, PNG, WebP hoặc AVIF.",
     "logout": "Đăng xuất",
     "emailUnconfirmed": "Email chưa được xác nhận. Kiểm tra hộp thư để xác nhận trước khi mua vé."
+  },
+  "catalog": {
+    "listing": {
+      "searchPlaceholder": "Tìm theo tên sự kiện, nghệ sĩ, thành phố",
+      "filters": "Bộ lọc",
+      "filtersCount": "Bộ lọc ({count})",
+      "category": "Danh mục",
+      "city": "Thành phố",
+      "date": "Thời gian",
+      "price": "Giá vé",
+      "any": "Tất cả",
+      "today": "Hôm nay",
+      "weekend": "Cuối tuần này",
+      "month": "Tháng này",
+      "from": "Từ ngày",
+      "to": "Đến ngày",
+      "priceUpTo": "Đến {price}",
+      "loadMore": "Xem thêm",
+      "loadingMore": "Đang tải thêm…",
+      "loadMoreError": "Không tải thêm được.",
+      "showResults": "Xem kết quả"
+    },
+    "cta": {
+      "label": "Mua vé",
+      "opensIn": "Mở bán sau",
+      "remindMe": "Nhắc tôi",
+      "remindSoon": "Tính năng nhắc lịch sắp ra mắt.",
+      "enterQueue": "Vào phòng chờ",
+      "queueHint": "Phòng chờ đã mở. Thứ tự được xếp ngẫu nhiên lúc mở bán.",
+      "buy": "Mua vé",
+      "soldOut": "Hết vé — Vào danh sách chờ",
+      "soldOutHint": "Danh sách chờ sẽ sớm ra mắt.",
+      "ended": "Sự kiện đã kết thúc",
+      "cancelled": "Sự kiện đã bị huỷ",
+      "cancelledHint": "Vé đã mua sẽ được hoàn tiền tự động.",
+      "salesClosed": "Đã ngừng bán vé",
+      "notScheduled": "Chưa mở bán",
+      "notScheduledHint": "Ban tổ chức chưa công bố lịch mở bán.",
+      "prices": "Giá vé"
+    }
   }
 }

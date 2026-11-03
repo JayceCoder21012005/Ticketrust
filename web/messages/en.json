@@ -113,5 +113,45 @@
     "avatarType": "Only JPEG, PNG, WebP or AVIF images are supported.",
     "logout": "Sign out",
     "emailUnconfirmed": "Your email is not confirmed yet. Check your inbox before buying tickets."
+  },
+  "catalog": {
+    "listing": {
+      "searchPlaceholder": "Search by event, artist or city",
+      "filters": "Filters",
+      "filtersCount": "Filters ({count})",
+      "category": "Category",
+      "city": "City",
+      "date": "Date",
+      "price": "Price",
+      "any": "Any",
+      "today": "Today",
+      "weekend": "This weekend",
+      "month": "This month",
+      "from": "From",
+      "to": "To",
+      "priceUpTo": "Up to {price}",
+      "loadMore": "Show more",
+      "loadingMore": "Loading more…",
+      "loadMoreError": "Couldn't load more.",
+      "showResults": "Show results"
+    },
+    "cta": {
+      "label": "Buy tickets",
+      "opensIn": "On sale in",
+      "remindMe": "Remind me",
+      "remindSoon": "Reminders are coming soon.",
+      "enterQueue": "Join the waiting room",
+      "queueHint": "The waiting room is open. Places are drawn at random when the sale opens.",
+      "buy": "Buy tickets",
+      "soldOut": "Sold out — Join the waitlist",
+      "soldOutHint": "The waitlist is coming soon.",
+      "ended": "This event has ended",
+      "cancelled": "This event was cancelled",
+      "cancelledHint": "Tickets you bought are refunded automatically.",
+      "salesClosed": "Sales have closed",
+      "notScheduled": "Not on sale yet",
+      "notScheduledHint": "The organizer hasn't announced the sale dates.",
+      "prices": "Tickets"
+    }
   }
 }

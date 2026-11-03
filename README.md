@@ -23,7 +23,8 @@ nhanh và **không bao giờ bán trùng một ghế**. Toàn bộ đặc tả n
 | [01](specs/01-project-setup-and-infrastructure.md) | Khung dự án, Aspire, outbox, CI | ✅ Hoàn thành |
 | [02](specs/02-frontend-design-system.md) | Design system, component dùng chung, budget hiệu năng | ✅ Hoàn thành |
 | [03](specs/03-auth-and-user-accounts.md) | Đăng ký, đăng nhập, refresh token, hồ sơ, phân quyền | ✅ Hoàn thành |
-| [04](specs/04-event-catalog-and-search.md) – [17](specs/17-load-testing-and-observability.md) | Danh mục sự kiện, phòng chờ, chọn ghế, thanh toán… | ⏳ Chưa làm |
+| [04](specs/04-event-catalog-and-search.md) | Trang chủ, danh sách và tìm kiếm sự kiện, trang chi tiết, cache | ✅ Hoàn thành |
+| [05](specs/05-organizer-event-management.md) – [17](specs/17-load-testing-and-observability.md) | Quản lý sự kiện, phòng chờ, chọn ghế, thanh toán… | ⏳ Chưa làm |
 
 ## Yêu cầu
 
@@ -88,15 +89,27 @@ trùng với email. Email xác nhận nằm trong **Mailpit** (mở từ dashboa
 Tài khoản chưa xác nhận vẫn đăng nhập được, nhưng sẽ không vào được phòng chờ và không mua được vé.
 
 **Dữ liệu mẫu khác:**
-- 2 địa điểm: Nhà thi đấu Phú Thọ (TP.HCM) và Sân vận động Mỹ Đình (Hà Nội).
-- 6 sự kiện ở nhiều trạng thái khác nhau.
-- Sự kiện "Hà Anh Tuấn - Chân Trời Rực Rỡ" mở bán **5 phút sau lần seed đầu tiên**, dùng để test phòng chờ.
+- 3 địa điểm: Nhà thi đấu Phú Thọ (TP.HCM), Sân vận động Mỹ Đình (Hà Nội), Cung thể thao Tiên Sơn (Đà Nẵng).
+- 15 sự kiện thuộc đủ 6 danh mục và mọi trạng thái: 12 đang hiển thị, 1 bản nháp, 1 đã kết thúc, 1 đã huỷ.
+- "Sơn Tùng M-TP Live" và "Hà Anh Tuấn - Chân Trời Rực Rỡ" có sơ đồ 600 ghế (3 khu × 10 hàng × 20 ghế).
+- Các mốc mở bán tính từ **lần seed đầu tiên**:
+
+  | Sự kiện | Mở bán | Dùng để thử |
+  |---|---|---|
+  | Sơn Tùng M-TP Live, Mỹ Tâm, V.League… | Đang mở | Nút "Mua vé" |
+  | Hà Anh Tuấn - Chân Trời Rực Rỡ | Sau 5 phút | Phòng chờ (spec 06) |
+  | Vũ Cát Tường - Inner Space | Sau 20 phút | Nút đổi từ đếm ngược sang "Vào phòng chờ" lúc còn 30 phút |
+  | Đen Vâu, HOZO, Marathon Đà Nẵng… | Sau vài ngày | Đếm ngược, badge "Mở bán …" |
+
+  Seed chỉ thêm những gì chưa có. Muốn các mốc trên tính lại từ bây giờ, xoá volume Postgres (xem [Xử lý sự cố](#xử-lý-sự-cố)).
 
 ## Những gì có thể thử
 
 | Đường dẫn | Nội dung |
 |---|---|
-| `/` | Trang chủ (tạm thời), có trạng thái kết nối API |
+| `/` | Trang chủ: sự kiện sắp mở bán kèm đếm ngược, danh mục, thành phố, sự kiện sắp diễn ra |
+| `/events` | Danh sách sự kiện: tìm không dấu ("son tung"), lọc theo danh mục, thành phố, ngày, giá; "Xem thêm" |
+| `/events/son-tung-mtp-live` | Trang chi tiết: nút mua vé theo trạng thái mở bán, "Thêm vào lịch" (.ics), bản đồ, bảng giá, FAQ |
 | `/login`, `/register` | Đăng nhập, đăng ký (hiện/ẩn mật khẩu, thanh độ mạnh mật khẩu) |
 | `/forgot-password`, `/reset-password` | Quên và đặt lại mật khẩu. Email nằm trong Mailpit, link có hiệu lực 1 giờ |
 | `/verify-email` | Trang mở từ link xác nhận email |
@@ -133,9 +146,9 @@ dotnet test --project tests/TicketRush.Api.IntegrationTests
 # Frontend
 cd web
 npm run lint && npm run typecheck && npm test
-ENABLE_DESIGN_PAGE=1 npm run build
+ENABLE_DESIGN_PAGE=1 npm run build:e2e   # build kèm mock api (e2e/mock-api.mjs), giống CI
 npx playwright install chromium     # lần đầu
-npm run test:e2e                    # axe, font tiếng Việt, INP, luồng đăng nhập
+npm run test:e2e                    # axe, font tiếng Việt, INP, đăng nhập, catalog (dùng mock api)
 npm run lighthouse                  # budget LCP/TBT/CLS/JS (cần Chrome)
 ```
 

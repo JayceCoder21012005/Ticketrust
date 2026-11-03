@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using NpgsqlTypes;
 using TicketRush.Infrastructure.Persistence;
 
 #nullable disable
@@ -21,6 +22,8 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                 .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "unaccent");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -165,6 +168,12 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("category");
 
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("city");
+
                     b.Property<string>("CoverImageUrl")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -196,6 +205,18 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OrganizerId")
                         .HasColumnType("uuid")
                         .HasColumnName("organizer_id");
+
+                    b.Property<string>("SearchText")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("text")
+                        .HasColumnName("search_text")
+                        .HasComputedColumnSql("catalog_search_text(title, lineup, city)", true);
+
+                    b.Property<NpgsqlTsVector>("SearchVector")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("tsvector")
+                        .HasColumnName("search_vector")
+                        .HasComputedColumnSql("to_tsvector('simple'::regconfig, catalog_search_text(title, lineup, city))", true);
 
                     b.Property<string>("Slug")
                         .IsRequired()
@@ -239,6 +260,17 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                     b.HasIndex("OrganizerId")
                         .HasDatabaseName("ix_events_organizer_id");
 
+                    b.HasIndex("SearchText")
+                        .HasDatabaseName("ix_events_search_text");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchText"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("SearchText"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("SearchVector")
+                        .HasDatabaseName("ix_events_search_vector");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchVector"), "gin");
+
                     b.HasIndex("Slug")
                         .IsUnique()
                         .HasDatabaseName("ix_events_slug");
@@ -246,10 +278,79 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                     b.HasIndex("VenueId")
                         .HasDatabaseName("ix_events_venue_id");
 
+                    b.HasIndex("Category", "StartsAt")
+                        .HasDatabaseName("ix_events_category_starts_at");
+
+                    b.HasIndex("City", "StartsAt")
+                        .HasDatabaseName("ix_events_city_starts_at");
+
                     b.HasIndex("Status", "StartsAt", "Id")
                         .HasDatabaseName("ix_events_status_starts_at_id");
 
                     b.ToTable("events", (string)null);
+                });
+
+            modelBuilder.Entity("TicketRush.Domain.Events.EventSeat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<int>("Index")
+                        .HasColumnType("integer")
+                        .HasColumnName("index");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("number");
+
+                    b.Property<string>("Row")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("row");
+
+                    b.Property<string>("Section")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("section");
+
+                    b.Property<Guid>("TierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tier_id");
+
+                    b.Property<decimal>("X")
+                        .HasPrecision(9, 2)
+                        .HasColumnType("numeric(9,2)")
+                        .HasColumnName("x");
+
+                    b.Property<decimal>("Y")
+                        .HasPrecision(9, 2)
+                        .HasColumnType("numeric(9,2)")
+                        .HasColumnName("y");
+
+                    b.HasKey("Id")
+                        .HasName("pk_event_seats");
+
+                    b.HasIndex("TierId")
+                        .HasDatabaseName("ix_event_seats_tier_id");
+
+                    b.HasIndex("EventId", "Index")
+                        .IsUnique()
+                        .HasDatabaseName("ix_event_seats_event_id_index");
+
+                    b.HasIndex("EventId", "Section", "Row", "Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_event_seats_event_id_section_row_number");
+
+                    b.ToTable("event_seats", (string)null);
                 });
 
             modelBuilder.Entity("TicketRush.Domain.Events.SalePhase", b =>
@@ -752,6 +853,23 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_events_venues_venue_id");
+                });
+
+            modelBuilder.Entity("TicketRush.Domain.Events.EventSeat", b =>
+                {
+                    b.HasOne("TicketRush.Domain.Events.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_event_seats_events_event_id");
+
+                    b.HasOne("TicketRush.Domain.Events.TicketTier", null)
+                        .WithMany()
+                        .HasForeignKey("TierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_event_seats_ticket_tier_tier_id");
                 });
 
             modelBuilder.Entity("TicketRush.Domain.Events.SalePhase", b =>

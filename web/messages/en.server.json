@@ -1,0 +1,59 @@
+{
+  "catalog": {
+    "home": {
+      "title": "Event tickets",
+      "heroOnSale": "On sale now",
+      "heroSoon": "On sale soon",
+      "openingSoon": "On sale soon",
+      "openingSoonDescription": "Watch the clock and join the waiting room 30 minutes early.",
+      "categories": "Browse by category",
+      "byCity": "Events by city",
+      "upcoming": "Upcoming events",
+      "viewAll": "View all",
+      "empty": "No events on sale yet",
+      "emptyDescription": "Check back soon, new events are added every week."
+    },
+    "detail": {
+      "addToCalendar": "Add to calendar",
+      "openMap": "Open map",
+      "lineup": "Line-up",
+      "about": "About",
+      "prices": "Tickets",
+      "seated": "Seated",
+      "standing": "Standing",
+      "phases": "Sale phases",
+      "queue": "Waiting room",
+      "maxPerUser": "Up to {count} tickets per person",
+      "accessCode": "Access code required",
+      "allIn": "All-in prices, no fees added at checkout.",
+      "faq": "FAQ & policies",
+      "faqQ1": "How does the waiting room work?",
+      "faqA1": "The waiting room opens 30 minutes before the sale. When the sale opens, everyone inside gets a fair random place in line, so there is no need to click early or refresh.",
+      "faqQ2": "How many tickets can I buy?",
+      "faqA2": "Each sale phase has a per-account limit, shown under “Sale phases”.",
+      "faqQ3": "How long are seats held?",
+      "faqA3": "Seats you pick are held for you for 10 minutes while you pay. After that they are released to others.",
+      "faqQ4": "Refund policy",
+      "faqA4": "Tickets can't be returned after purchase. If the event is cancelled you are refunded automatically within 7 working days.",
+      "notFoundTitle": "Event not found",
+      "notFoundDescription": "The event doesn't exist or is no longer on sale.",
+      "backToEvents": "See other events"
+    },
+    "badge": {
+      "onSale": "On sale",
+      "opens": "On sale {time}",
+      "soldOut": "Sold out"
+    },
+    "listing": {
+      "title": "Discover events",
+      "description": "Concerts, festivals, theatre, sports and more.",
+      "clearAll": "Clear all",
+      "removeFilter": "Remove filter: {label}",
+      "searchChip": "“{q}”",
+      "results": "{count} events",
+      "resultsMore": "More than {count} events",
+      "noResults": "No matching events",
+      "noResultsHint": "Try removing a filter or searching for something else."
+    }
+  }
+}

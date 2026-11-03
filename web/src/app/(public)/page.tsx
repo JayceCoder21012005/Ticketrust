@@ -1,12 +1,39 @@
-import { ApiStatus } from "@/components/api-status";
+import { Suspense } from "react";
+import { CategoryChips } from "@/components/catalog/category-chips";
+import { Skeleton } from "@/components/ui/skeleton";
+import { HomeHero, HomeLists } from "@/features/catalog/home/home-sections";
+import { t } from "@/lib/i18n.server";
 
-/** Placeholder home; the real catalog home arrives with spec 04. */
+/**
+ * Home (spec 04): the next sale to open, categories, sales opening soon with live countdowns, cities and the
+ * upcoming grid. An ISR page: static HTML from the cached catalog, regenerated in the background every 30 s.
+ */
 export default function Home() {
   return (
-    <div className="mx-auto flex w-full max-w-content flex-1 flex-col justify-center gap-4 px-4 py-24">
-      <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">TicketRush</h1>
-      <p className="max-w-prose text-muted-foreground">Săn vé nhanh, công bằng, không bao giờ bán trùng ghế.</p>
-      <ApiStatus />
+    <div className="mx-auto flex w-full max-w-content flex-col gap-10 px-4 py-6 sm:gap-12 sm:py-10">
+      <h1 className="sr-only">{t("catalog.home.title")}</h1>
+      <Suspense fallback={<Skeleton className="aspect-video w-full rounded-2xl md:aspect-[21/8]" />}>
+        <HomeHero />
+      </Suspense>
+      <nav aria-labelledby="categories-title" className="flex flex-col gap-4">
+        <h2 id="categories-title" className="text-xl font-bold tracking-tight sm:text-2xl">
+          {t("catalog.home.categories")}
+        </h2>
+        <CategoryChips />
+      </nav>
+      <Suspense fallback={<GridSkeleton />}>
+        <HomeLists />
+      </Suspense>
+    </div>
+  );
+}
+
+function GridSkeleton() {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 6 }, (_, i) => (
+        <Skeleton key={i} className="aspect-[4/3] rounded-xl" />
+      ))}
     </div>
   );
 }

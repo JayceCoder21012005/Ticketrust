@@ -1,4 +1,5 @@
 using TicketRush.Domain.Primitives;
+using TicketRush.Domain.Venues;
 
 namespace TicketRush.Domain.Events;
 
@@ -19,6 +20,7 @@ public sealed class Event : AggregateRoot, IAuditable
         string title,
         string category,
         Guid venueId,
+        string city,
         DateTimeOffset startsAt,
         DateTimeOffset endsAt)
         : base(id)
@@ -28,6 +30,7 @@ public sealed class Event : AggregateRoot, IAuditable
         Title = title;
         Category = category;
         VenueId = venueId;
+        City = city;
         StartsAt = startsAt;
         EndsAt = endsAt;
         Status = EventStatus.Draft;
@@ -53,6 +56,9 @@ public sealed class Event : AggregateRoot, IAuditable
 
     public Guid VenueId { get; private set; }
 
+    /// <summary>Copied from the venue: the search vector and the city filter must not need a join.</summary>
+    public string City { get; private set; } = null!;
+
     public DateTimeOffset StartsAt { get; private set; }
 
     public DateTimeOffset EndsAt { get; private set; }
@@ -74,12 +80,17 @@ public sealed class Event : AggregateRoot, IAuditable
         string slug,
         string title,
         string category,
-        Guid venueId,
+        Venue venue,
         DateTimeOffset startsAt,
         DateTimeOffset endsAt)
     {
         EnsureValidSchedule(startsAt, endsAt);
-        return new Event(Guid.CreateVersion7(), organizerId, slug, title.Trim(), category, venueId, startsAt, endsAt);
+        if (!EventCategories.IsKnown(category))
+        {
+            throw new DomainException("event.invalid_category", $"Unknown event category '{category}'.");
+        }
+
+        return new Event(Guid.CreateVersion7(), organizerId, slug, title.Trim(), category, venue.Id, venue.City, startsAt, endsAt);
     }
 
     public void UpdateDetails(string description, IEnumerable<string> lineup, string? coverImageUrl)
