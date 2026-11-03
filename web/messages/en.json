@@ -1,0 +1,42 @@
+{
+  "common": {
+    "retry": "Try again",
+    "loading": "Loading…",
+    "search": "Search events, artists, venues",
+    "searchLabel": "Search",
+    "account": "Account",
+    "login": "Sign in",
+    "close": "Close",
+    "skipToContent": "Skip to main content"
+  },
+  "theme": {
+    "toggle": "Toggle theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "nav": {
+    "events": "Events",
+    "myTickets": "My tickets",
+    "organizer": "Organizer"
+  },
+  "price": {
+    "from": "from {price}",
+    "allIn": "All-in price"
+  },
+  "countdown": {
+    "label": "Time left"
+  },
+  "states": {
+    "emptyTitle": "Nothing here yet",
+    "errorTitle": "Couldn't load this",
+    "errorDescription": "Something went wrong. Please try again."
+  },
+  "footer": {
+    "tagline": "Fast, fair tickets. Never the same seat twice.",
+    "rights": "© {year} TicketRush"
+  },
+  "event": {
+    "buy": "Buy tickets"
+  }
+}
