@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TicketRush.Domain.Events;
+using TicketRush.Domain.Users;
 using TicketRush.Domain.Venues;
 
 namespace TicketRush.Application.Abstractions.Persistence;
@@ -13,6 +14,8 @@ public interface IAppDbContext
     DbSet<Event> Events { get; }
 
     DbSet<Venue> Venues { get; }
+
+    DbSet<RefreshToken> RefreshTokens { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

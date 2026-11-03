@@ -55,11 +55,29 @@ Error codes: `auth.invalid_credentials` (same message for wrong email or wrong p
 - Forms: show/hide password, a strength meter, the submit button disables while pending, `?returnUrl=` after login (same-origin paths only, to prevent open redirects).
 - Layout: centred card on mobile, split layout with event artwork on desktop.
 
+## Implementation notes
+
+- `RefreshToken` also stores `CreatedAt` and `FamilyExpiresAt` (the 30-day absolute limit, copied on rotation). It is an aggregate, so it gets the `xmin` row version: when two refreshes present the same token at once, one wins and the other gets `auth.refresh_invalid` without revoking the family.
+- Registering an email that already exists also returns 202, sends nothing and changes nothing (no account enumeration).
+- Roles are reference data, inserted by the `AddAuth` migration (`ON CONFLICT DO NOTHING`), not only by the dev seed.
+- Emails go through the outbox. `AppUser` raises `UserRegistered` / `PasswordResetRequested`; the worker generates the token when it sends (Data Protection keys are shared through Redis), so tokens never sit in `outbox_messages`. Confirmation links last 3 days, reset links 1 hour. The copy is inline Vietnamese until spec 09 adds templates.
+- The 5th failed login already answers `auth.locked_out`. Reset password also clears the lockout.
+- Extra error codes: `auth.invalid_token` (confirm/reset links), `auth.csrf_header_missing` (403), `user.not_found`, `user.avatar_invalid`, `storage.upload_forbidden`, `storage.content_type_mismatch`, `storage.too_large`, `validation.failed`.
+- The access token also carries `name` and `email_verified`. Queue and checkout (06, 08) enforce `auth.email_not_confirmed` from it.
+- Policies are strict per role: `RequireOrganizer` admits Organizer only, not Admin.
+- `tr_session` is not HttpOnly: the web reads it to skip the refresh call for anonymous visitors and to show the account link. Both cookies are `Secure`.
+- Avatar storage: only the `Local` provider exists (`S3` fails at startup). The upload URL carries a time-limited Data Protection token for one key, type and size; `PUT /api/v1/storage/uploads` stores the file, which is served under `/media` (the web proxies `/media` like `/api`). Accepted types: JPEG, PNG, WebP, AVIF (no SVG). `PUT /me` only accepts avatar URLs under the user's own `avatars/<userId>/` prefix.
+- Rate limiting of login and register is in spec 12.
+- Worker and MigrationService images use `dotnet/aspnet`: Identity needs the ASP.NET Core shared framework.
+- Form schemas use `zod/mini` and load on the first validation (`lazyResolver`), so zod isn't in first-load JS. The strength meter uses a zod-free copy of the password rules.
+- In dark mode `--primary` is lighter (`oklch(0.72 0.16 285)`, dark text on it) so `text-primary` links pass 4.5:1 on cards. The token test now checks this too.
+- `proxy.ts` guards `/account`, `/my-tickets`, `/orders`, `/checkout`, `/queue`, `/organizer`, `/admin`, `/gate`.
+
 ## Acceptance criteria
 
-- [ ] Reusing a rotated refresh token revokes the family; the next refresh with the newest token also fails.
-- [ ] Wrong email and wrong password return the identical response body and similar timing.
-- [ ] `forgot-password` returns 202 for unknown emails.
-- [ ] Access token is never written to localStorage or sessionStorage (checked by a test).
-- [ ] `returnUrl=https://evil.com` is ignored.
-- [ ] Integration tests cover register → confirm → login → refresh → logout.
+- [x] Reusing a rotated refresh token revokes the family; the next refresh with the newest token also fails.
+- [x] Wrong email and wrong password return the identical response body and similar timing.
+- [x] `forgot-password` returns 202 for unknown emails.
+- [x] Access token is never written to localStorage or sessionStorage (checked by a test).
+- [x] `returnUrl=https://evil.com` is ignored.
+- [x] Integration tests cover register → confirm → login → refresh → logout.

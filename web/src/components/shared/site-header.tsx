@@ -1,12 +1,12 @@
 import { Search, Ticket } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
+import { AccountLink } from "./account-link";
 import { ThemeToggle } from "./theme-toggle";
 
 /**
  * Global header. Search is a plain GET form so it works before hydration and keeps filters in the URL
- * (spec 04). The account menu replaces "Đăng nhập" once auth lands (spec 03).
+ * (spec 04). The account link replaces "Đăng nhập" when the session hint cookie is present (spec 03).
  */
 export function SiteHeader() {
   return (
@@ -34,9 +34,7 @@ export function SiteHeader() {
         </form>
         <nav className="ml-auto flex items-center gap-1 sm:ml-0">
           <ThemeToggle />
-          <Button asChild size="sm">
-            <Link href="/login">{t("common.login")}</Link>
-          </Button>
+          <AccountLink />
         </nav>
       </div>
     </header>

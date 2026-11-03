@@ -1,10 +1,19 @@
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.StackExchangeRedis;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using StackExchange.Redis;
+using TicketRush.Application;
+using TicketRush.Application.Abstractions.Identity;
 using TicketRush.Application.Abstractions.Locking;
+using TicketRush.Application.Abstractions.Notifications;
 using TicketRush.Application.Abstractions.Persistence;
+using TicketRush.Application.Abstractions.Storage;
 using TicketRush.Application.Options;
 using TicketRush.Infrastructure.Identity;
 using TicketRush.Infrastructure.Locking;
@@ -14,6 +23,9 @@ using TicketRush.Infrastructure.Persistence;
 using TicketRush.Infrastructure.Persistence.Interceptors;
 using TicketRush.Infrastructure.Persistence.Seed;
 using TicketRush.Infrastructure.Redis;
+using TicketRush.Infrastructure.Storage;
+using TicketRush.Domain.Users;
+using TicketRush.Infrastructure.Email;
 
 namespace TicketRush.Infrastructure;
 
@@ -46,6 +58,10 @@ public static class DependencyInjection
         services.AddSingleton<DomainEventTypeRegistry>();
         services.AddSingleton<OutboxMetrics>();
         services.AddSingleton<OutboxProcessor>();
+
+        PersistDataProtectionKeysToRedis(services);
+        AddAccounts(services);
+        AddStorage(services, builder.Configuration);
         return builder;
     }
 
@@ -71,9 +87,16 @@ public static class DependencyInjection
         builder.EnrichNpgsqlDbContext<AppDbContext>(settings => settings.DisableRetry = true);
         services.AddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
 
-        services.AddIdentityCore<AppUser>()
+        // UserManager resolves its token providers on construction, so every host with Identity needs Data Protection.
+        services.AddDataProtection().SetApplicationName("TicketRush");
+        services.AddIdentityCore<AppUser>(ConfigureIdentity)
             .AddRoles<AppRole>()
-            .AddEntityFrameworkStores<AppDbContext>();
+            .AddEntityFrameworkStores<AppDbContext>()
+            .AddDefaultTokenProviders()
+            .AddTokenProvider<EmailConfirmationTokenProvider>(EmailConfirmationTokenProvider.ProviderName)
+            .AddPasswordValidator<LetterAndNotEmailPasswordValidator>();
+        // Reset links expire after 1 hour (spec 09); confirmation links use their own 3-day provider.
+        services.Configure<DataProtectionTokenProviderOptions>(options => options.TokenLifespan = TimeSpan.FromHours(1));
         services.AddScoped<DevDataSeeder>();
         return builder;
     }
@@ -86,5 +109,50 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
         return services;
+    }
+
+    /// <summary>Spec 03: 10+ characters with a digit (letter and not-the-email are a custom validator), 5 failures lock 15 min.</summary>
+    private static void ConfigureIdentity(IdentityOptions options)
+    {
+        options.User.RequireUniqueEmail = true;
+        options.Password.RequiredLength = 10;
+        options.Password.RequireDigit = true;
+        options.Password.RequireLowercase = false;
+        options.Password.RequireUppercase = false;
+        options.Password.RequireNonAlphanumeric = false;
+        options.Password.RequiredUniqueChars = 1;
+        options.Lockout.AllowedForNewUsers = true;
+        options.Lockout.MaxFailedAccessAttempts = 5;
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+        options.Tokens.EmailConfirmationTokenProvider = EmailConfirmationTokenProvider.ProviderName;
+    }
+
+    /// <summary>Keys live in Redis so every api and worker instance can read tokens protected by another.</summary>
+    private static void PersistDataProtectionKeysToRedis(IServiceCollection services)
+    {
+        services.AddOptions<KeyManagementOptions>()
+            .Configure<IConnectionMultiplexer, RedisKeys>((options, redis, keys) =>
+                options.XmlRepository = new RedisXmlRepository(() => redis.GetDatabase(), $"{keys.Prefix}dataprotection:keys"));
+    }
+
+    private static void AddAccounts(IServiceCollection services)
+    {
+        services.AddScoped<IIdentityService, IdentityService>();
+        services.AddSingleton<IAccessTokenIssuer, JwtAccessTokenIssuer>();
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
+        services.AddIntegrationEventHandler<UserRegistered, SendConfirmationEmailHandler>();
+        services.AddIntegrationEventHandler<PasswordResetRequested, SendPasswordResetEmailHandler>();
+    }
+
+    private static void AddStorage(IServiceCollection services, IConfiguration configuration)
+    {
+        var provider = configuration[$"{StorageOptions.SectionName}:Provider"];
+        if (string.Equals(provider, "S3", StringComparison.Ordinal))
+        {
+            throw new NotSupportedException("Storage:Provider S3 is not implemented yet; use Local.");
+        }
+
+        services.AddSingleton<LocalFileStorage>();
+        services.AddSingleton<IFileStorage>(sp => sp.GetRequiredService<LocalFileStorage>());
     }
 }

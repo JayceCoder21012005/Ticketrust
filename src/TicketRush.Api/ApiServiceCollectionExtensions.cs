@@ -1,15 +1,14 @@
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.DataProtection.KeyManagement;
-using Microsoft.AspNetCore.DataProtection.StackExchangeRedis;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
-using StackExchange.Redis;
+using TicketRush.Api.Common.Auth;
 using TicketRush.Api.Common.Errors;
 using TicketRush.Api.Common.Middleware;
+using TicketRush.Api.Features.Auth;
 using TicketRush.Api.Features.ServerTime;
+using TicketRush.Api.Features.Storage;
+using TicketRush.Api.Features.Users;
 using TicketRush.Application.Options;
-using TicketRush.Infrastructure.Redis;
 
 namespace TicketRush.Api;
 
@@ -41,7 +40,7 @@ public static class ApiServiceCollectionExtensions
             options.KnownProxies.Clear();
         });
 
-        AddDataProtection(services);
+        services.AddApiAuthentication();
         return services;
     }
 
@@ -60,6 +59,9 @@ public static class ApiServiceCollectionExtensions
 
         app.UseMiddleware<SecurityHeadersMiddleware>();
         app.UseCors(WebCorsPolicy);
+        app.UseLocalMedia();
+        app.UseAuthentication();
+        app.UseAuthorization();
         return app;
     }
 
@@ -72,15 +74,9 @@ public static class ApiServiceCollectionExtensions
 
         var v1 = app.MapGroup("/api/v1");
         v1.MapServerTimeEndpoints();
+        v1.MapAuthEndpoints();
+        v1.MapMeEndpoints();
+        v1.MapLocalStorageEndpoints();
         return app;
-    }
-
-    /// <summary>Keys live in Redis so every api instance can read cookies/tokens protected by another.</summary>
-    private static void AddDataProtection(IServiceCollection services)
-    {
-        services.AddDataProtection().SetApplicationName("TicketRush");
-        services.AddOptions<KeyManagementOptions>()
-            .Configure<IConnectionMultiplexer, RedisKeys>((options, redis, keys) =>
-                options.XmlRepository = new RedisXmlRepository(() => redis.GetDatabase(), $"{keys.Prefix}dataprotection:keys"));
     }
 }

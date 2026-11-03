@@ -24,6 +24,28 @@ describe("toFriendlyMessage", () => {
   });
 });
 
+describe("spec 03 codes", () => {
+  it.each([
+    "auth.invalid_credentials",
+    "auth.email_not_confirmed",
+    "auth.locked_out",
+    "auth.refresh_invalid",
+    "auth.weak_password",
+    "auth.invalid_token",
+    "auth.csrf_header_missing",
+    "user.avatar_invalid",
+    "user.not_found",
+    "storage.upload_forbidden",
+    "storage.too_large",
+    "storage.content_type_mismatch",
+    "validation.failed",
+  ])("%s has its own Vietnamese message", (code) => {
+    const message = toFriendlyMessage(new ApiError(418, { code }));
+
+    expect(message).not.toBe(toFriendlyMessage(new ApiError(418, {})));
+  });
+});
+
 describe("ApiError", () => {
   it("exposes the problem code and status", () => {
     const error = new ApiError(404, { code: "event.not_found" });

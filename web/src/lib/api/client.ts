@@ -14,5 +14,8 @@ const authFetch = createAuthFetch({
   },
 });
 
-/** Typed client generated from the api's OpenAPI document (`npm run api:gen`). Same-origin `/api` only. */
-export const api = createClient<paths>({ baseUrl: "", fetch: authFetch });
+/**
+ * Typed client generated from the api's OpenAPI document (`npm run api:gen`). Same-origin `/api` only;
+ * the explicit origin keeps request URLs absolute, which `Request` needs outside the browser (tests).
+ */
+export const api = createClient<paths>({ baseUrl: globalThis.location?.origin ?? "", fetch: authFetch });

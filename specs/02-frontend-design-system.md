@@ -76,6 +76,7 @@ How the budgets are measured:
 - Lighthouse CI (`web/lighthouserc.json`), mobile, `devtools` throttling, median of 5 runs. Lantern simulation over-estimates LCP on `localhost`, so it is not used.
 - Lighthouse has no INP in the lab. TBT ≤ 300 ms is the lab proxy, plus `e2e/inp.spec.ts`: real clicks under 4× CPU throttling, the worst Event Timing duration must be < 200 ms.
 - LCP, TBT and the performance score block CI on public pages only. On `/design` (a long developer page) they are warnings. CLS, JS size and accessibility block everywhere.
+- The JS budget covers the public pages as defined below (home, catalog, event detail). Auth pages (spec 03) only warn on JS size: react-hook-form plus the session code don't fit next to Next's ~114 KB framework. Their LCP, TBT, CLS and accessibility still block.
 
 - Server Components by default. `'use client'` only on interactive leaves.
 - Public pages (home, catalog, event detail) use `"use cache"` with tags (`event:<id>`, `events:list`); the API calls a revalidate endpoint on change.
@@ -91,6 +92,7 @@ How the budgets are measured:
 - `/design` is on in development and in production builds with `ENABLE_DESIGN_PAGE=1` (CI uses this for Lighthouse and axe).
 - The OpenAPI document is committed at `web/openapi/ticketrush-api.json`. `OpenApiDocumentTests` fails when it differs from the API (`UPDATE_OPENAPI=1` rewrites it), and CI fails when `schema.d.ts` differs from `npm run api:gen`.
 - Token contrast is computed from the authored oklch values (`lib/contrast.ts`) in unit tests and on `/design`.
+- `t()` serves Vietnamese only: every catalog it imports ships with each client component that uses it. `messages/en.json` stays key-for-key in sync (tested) for a later language switch.
 
 ## Acceptance criteria
 

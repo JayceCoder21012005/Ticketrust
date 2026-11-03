@@ -1,35 +1,114 @@
+import { ApiError, type ProblemDetails } from "@/lib/errors";
+import type { components } from "./schema";
+
+export type SessionUser = components["schemas"]["UserAccount"];
+export type Session = components["schemas"]["LoginResponse"];
+
 /**
- * The access token lives in module memory only: never localStorage/sessionStorage (XSS-safe, spec 03).
- * The refresh token is an HttpOnly cookie the browser sends to `/api/v1/auth` automatically.
+ * The session (access token + user) lives in module memory only: never localStorage/sessionStorage, so an
+ * XSS can't lift it from storage (spec 03). The refresh token is an HttpOnly cookie the browser sends to
+ * `/api/v1/auth` by itself; a reload restores the session through one refresh call.
  */
-let accessToken: string | null = null;
+let session: Session | null = null;
+let inFlightRefresh: Promise<string | null> | null = null;
+const listeners = new Set<() => void>();
+
+type Fetch = typeof fetch;
+
+// The api requires this header on refresh/logout as a CSRF guard (spec 03).
+const CSRF_HEADERS = { "X-Requested-With": "fetch" };
+
+export function getSession(): Session | null {
+  return session;
+}
 
 export function getAccessToken(): string | null {
-  return accessToken;
+  return session?.accessToken ?? null;
 }
 
-export function setAccessToken(token: string | null): void {
-  accessToken = token;
+export function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }
 
-export async function refreshAccessToken(fetchImpl: typeof fetch = fetch): Promise<string | null> {
-  const response = await fetchImpl("/api/v1/auth/refresh", {
+export function setSession(next: Session | null): void {
+  session = next;
+  listeners.forEach((listener) => listener());
+}
+
+/** After a profile change, so everything showing the signed-in user stays in sync. */
+export function updateSessionUser(user: SessionUser): void {
+  if (session) {
+    setSession({ ...session, user });
+  }
+}
+
+export function clearSession(): void {
+  setSession(null);
+}
+
+export async function login(credentials: { email: string; password: string }, fetchImpl: Fetch = fetch): Promise<Session> {
+  const response = await fetchImpl("/api/v1/auth/login", {
     method: "POST",
     credentials: "same-origin",
-    // Required by the api on refresh/logout as a CSRF guard (spec 03).
-    headers: { "X-Requested-With": "fetch" },
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(credentials),
   });
 
   if (!response.ok) {
-    setAccessToken(null);
-    return null;
+    throw new ApiError(response.status, await problemOf(response));
   }
 
-  const { accessToken: token } = (await response.json()) as { accessToken: string };
-  setAccessToken(token);
-  return token;
+  const next = (await response.json()) as Session;
+  setSession(next);
+  return next;
+}
+
+/**
+ * Rotates the refresh cookie and stores the new session. Every caller shares one in-flight request:
+ * presenting the same refresh token twice is treated as theft and ends the session (spec 03).
+ */
+export function refreshAccessToken(fetchImpl: Fetch = fetch): Promise<string | null> {
+  inFlightRefresh ??= doRefresh(fetchImpl).finally(() => {
+    inFlightRefresh = null;
+  });
+  return inFlightRefresh;
+}
+
+export async function logout(fetchImpl: Fetch = fetch): Promise<void> {
+  try {
+    await fetchImpl("/api/v1/auth/logout", { method: "POST", credentials: "same-origin", headers: CSRF_HEADERS });
+  } catch {
+    // Signing out locally must work offline too; the refresh token then simply expires.
+  } finally {
+    clearSession();
+  }
 }
 
 export function loginRedirectUrl(currentPathAndQuery: string): string {
   return `/login?returnUrl=${encodeURIComponent(currentPathAndQuery)}`;
+}
+
+async function doRefresh(fetchImpl: Fetch): Promise<string | null> {
+  try {
+    const response = await fetchImpl("/api/v1/auth/refresh", { method: "POST", credentials: "same-origin", headers: CSRF_HEADERS });
+    if (!response.ok) {
+      clearSession();
+      return null;
+    }
+
+    const next = (await response.json()) as Session;
+    setSession(next);
+    return next.accessToken;
+  } catch {
+    return null;
+  }
+}
+
+async function problemOf(response: Response): Promise<ProblemDetails> {
+  try {
+    return (await response.json()) as ProblemDetails;
+  } catch {
+    return { status: response.status };
+  }
 }

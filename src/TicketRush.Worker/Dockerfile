@@ -7,7 +7,7 @@ COPY src/ src/
 RUN dotnet restore src/TicketRush.Worker/TicketRush.Worker.csproj
 RUN dotnet publish src/TicketRush.Worker/TicketRush.Worker.csproj -c Release -o /app --no-restore
 
-FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
 COPY --from=build /app .

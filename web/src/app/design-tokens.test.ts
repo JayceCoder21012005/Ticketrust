@@ -27,6 +27,9 @@ describe.each([":root", ".dark"] as const)("design tokens (%s)", (selector) => {
     ["muted-foreground", "background"],
     ["primary-foreground", "primary"],
     ["card-foreground", "card"],
+    // Links and accents use text-primary, on the page and inside cards (auth forms, spec 03).
+    ["primary", "background"],
+    ["primary", "card"],
   ])("%s on %s passes AA text contrast (4.5:1)", (fg, bg) => {
     expect(contrastRatio(t[fg], t[bg])).toBeGreaterThanOrEqual(4.5);
   });
