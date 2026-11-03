@@ -3,7 +3,7 @@
     "collect": {
       "startServerCommand": "npx next start -p 3200",
       "startServerReadyPattern": "Ready",
-      "url": ["http://localhost:3200/", "http://localhost:3200/design"],
+      "url": ["http://localhost:3200/", "http://localhost:3200/login", "http://localhost:3200/design"],
       "numberOfRuns": 5,
       "settings": {
         "preset": "perf",
@@ -16,12 +16,23 @@
     "assert": {
       "assertMatrix": [
         {
-          "matchingUrlPattern": "^(?!.*/design$).*",
+          "matchingUrlPattern": "^(?!.*/(design|login|register|forgot-password|reset-password|verify-email)$).*",
           "assertions": {
             "largest-contentful-paint": ["error", { "maxNumericValue": 2500, "aggregationMethod": "median-run" }],
             "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1, "aggregationMethod": "median-run" }],
             "total-blocking-time": ["error", { "maxNumericValue": 300, "aggregationMethod": "median-run" }],
             "resource-summary:script:size": ["error", { "maxNumericValue": 174080 }],
+            "categories:performance": ["error", { "minScore": 0.9, "aggregationMethod": "median-run" }],
+            "categories:accessibility": ["error", { "minScore": 0.9 }]
+          }
+        },
+        {
+          "matchingUrlPattern": ".*/(login|register|forgot-password|reset-password|verify-email)$",
+          "assertions": {
+            "largest-contentful-paint": ["error", { "maxNumericValue": 2500, "aggregationMethod": "median-run" }],
+            "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1, "aggregationMethod": "median-run" }],
+            "total-blocking-time": ["error", { "maxNumericValue": 300, "aggregationMethod": "median-run" }],
+            "resource-summary:script:size": ["warn", { "maxNumericValue": 174080 }],
             "categories:performance": ["error", { "minScore": 0.9, "aggregationMethod": "median-run" }],
             "categories:accessibility": ["error", { "minScore": 0.9 }]
           }

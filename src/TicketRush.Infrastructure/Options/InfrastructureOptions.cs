@@ -59,4 +59,7 @@ public sealed class StorageOptions
 
     [Required]
     public string PublicBaseUrl { get; set; } = string.Empty;
+
+    /// <summary>Local provider only; defaults to <c>App_Data/storage</c> under the content root.</summary>
+    public string? LocalRootPath { get; set; }
 }

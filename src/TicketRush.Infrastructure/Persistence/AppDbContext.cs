@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using TicketRush.Application.Abstractions.Persistence;
 using TicketRush.Domain.Events;
 using TicketRush.Domain.Primitives;
+using TicketRush.Domain.Users;
 using TicketRush.Domain.Venues;
 using TicketRush.Infrastructure.Identity;
 using TicketRush.Infrastructure.Outbox;
@@ -19,6 +20,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Event> Events => Set<Event>();
 
     public DbSet<Venue> Venues => Set<Venue>();
+
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
@@ -36,7 +39,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     private static void RenameIdentityTables(ModelBuilder builder)
     {
-        builder.Entity<AppUser>().ToTable("users");
+        builder.Entity<AppUser>().ToTable("users").Ignore(u => u.DomainEvents);
         builder.Entity<AppRole>().ToTable("roles");
         builder.Entity<IdentityUserRole<Guid>>().ToTable("user_roles");
         builder.Entity<IdentityUserClaim<Guid>>().ToTable("user_claims");

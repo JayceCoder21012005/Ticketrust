@@ -38,5 +38,80 @@
   },
   "event": {
     "buy": "Buy tickets"
+  },
+  "auth": {
+    "email": "Email",
+    "password": "Password",
+    "fullName": "Full name",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "strength": "Strength: {label}",
+    "passwordHint": "At least 10 characters with letters and digits.",
+    "artworkTitle": "Fast, fair ticketing.",
+    "artworkDescription": "A transparent waiting room, safe seat holds, and the price you see is the price you pay.",
+    "login": {
+      "title": "Sign in",
+      "description": "Welcome back to TicketRush.",
+      "submit": "Sign in",
+      "pending": "Signing in…",
+      "forgot": "Forgot password?",
+      "noAccount": "No account yet?",
+      "register": "Sign up"
+    },
+    "register": {
+      "title": "Create account",
+      "description": "Buy tickets faster with a TicketRush account.",
+      "submit": "Create account",
+      "pending": "Creating account…",
+      "hasAccount": "Already have an account?",
+      "checkInbox": "Check your inbox",
+      "sent": "We sent a confirmation link to {email}. It is valid for 3 days."
+    },
+    "forgot": {
+      "title": "Forgot password",
+      "description": "Enter your email to get a reset link.",
+      "submit": "Send link",
+      "pending": "Sending…",
+      "sent": "If {email} has an account, we sent a reset link. It is valid for 1 hour.",
+      "back": "Back to sign in"
+    },
+    "reset": {
+      "title": "Reset password",
+      "description": "Choose a new password for {email}.",
+      "submit": "Reset password",
+      "pending": "Saving…",
+      "done": "Password reset",
+      "doneDescription": "All previous sessions have ended. Sign in with your new password.",
+      "invalidLink": "Invalid link",
+      "invalidLinkDescription": "The link is missing information. Please request a new one.",
+      "requestNew": "Request a new link"
+    },
+    "verify": {
+      "title": "Confirm email",
+      "pending": "Confirming your email…",
+      "done": "Email confirmed",
+      "doneDescription": "You can now join waiting rooms and buy tickets.",
+      "failed": "Could not confirm your email",
+      "failedDescription": "The link is invalid or has expired. Sign in to get a new one.",
+      "continue": "Continue"
+    }
+  },
+  "account": {
+    "title": "Account",
+    "description": "Personal details used when you buy tickets.",
+    "phone": "Phone number",
+    "save": "Save changes",
+    "saving": "Saving…",
+    "saved": "Your details were saved.",
+    "avatar": "Avatar",
+    "changeAvatar": "Change photo",
+    "uploading": "Uploading…",
+    "avatarHint": "JPEG, PNG, WebP or AVIF, up to 2 MB.",
+    "avatarTooLarge": "The image must be 2 MB or smaller.",
+    "avatarType": "Only JPEG, PNG, WebP or AVIF images are supported.",
+    "logout": "Sign out",
+    "emailUnconfirmed": "Your email is not confirmed yet. Check your inbox before buying tickets."
   }
 }

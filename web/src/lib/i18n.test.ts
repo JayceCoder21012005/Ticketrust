@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi as vitest } from "vitest";
 import en from "../../messages/en.json";
 import vi from "../../messages/vi.json";
 import { t } from "./i18n";
@@ -15,8 +15,17 @@ describe("t", () => {
     expect(t("common.retry")).toBe("Thử lại");
   });
 
-  it("returns English copy when asked", () => {
-    expect(t("common.retry", "en")).toBe("Try again");
+  it("never loads the English catalog: every client component using t() would ship it to the browser", async () => {
+    vitest.resetModules();
+    vitest.doMock("../../messages/en.json", () => {
+      throw new Error("en.json was loaded");
+    });
+    try {
+      const { t: fresh } = await import("./i18n");
+      expect(fresh("common.retry")).toBe("Thử lại");
+    } finally {
+      vitest.doUnmock("../../messages/en.json");
+    }
   });
 
   it("interpolates {placeholders}", () => {

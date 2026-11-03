@@ -1,12 +1,15 @@
-import en from "../../messages/en.json";
 import vi from "../../messages/vi.json";
 
-export type Locale = "vi" | "en";
+/**
+ * Only Vietnamese is served: a catalog imported here ships with every client component that calls t(),
+ * so English (messages/en.json, kept key-for-key in sync by a test) is added when a language switch exists.
+ */
+export type Locale = "vi";
 
-const catalogs: Record<Locale, unknown> = { vi, en };
+const catalogs: Record<Locale, unknown> = { vi };
 
 /**
- * Looks up copy by dotted key (`common.retry`). Vietnamese is the UI language; English is secondary.
+ * Looks up copy by dotted key (`common.retry`). Vietnamese is the UI language.
  * A missing key renders as the key itself so gaps are obvious in review instead of silently blank.
  */
 export function t(key: string, locale: Locale = "vi", values?: Record<string, string | number>): string {

@@ -38,6 +38,18 @@ describe("SiteHeader", () => {
 
     expect(screen.getByRole("link", { name: "Đăng nhập" })).toHaveAttribute("href", "/login");
   });
+
+  it("links to the account instead when the session hint cookie says the user is signed in", () => {
+    document.cookie = "tr_session=1; path=/";
+    try {
+      render(<SiteHeader />);
+
+      expect(screen.getByRole("link", { name: "Tài khoản" })).toHaveAttribute("href", "/account");
+      expect(screen.queryByRole("link", { name: "Đăng nhập" })).toBeNull();
+    } finally {
+      document.cookie = "tr_session=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    }
+  });
 });
 
 describe("ThemeToggle", () => {

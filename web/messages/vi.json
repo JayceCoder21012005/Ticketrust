@@ -38,5 +38,80 @@
   },
   "event": {
     "buy": "Mua vé"
+  },
+  "auth": {
+    "email": "Email",
+    "password": "Mật khẩu",
+    "fullName": "Họ và tên",
+    "newPassword": "Mật khẩu mới",
+    "confirmPassword": "Nhập lại mật khẩu",
+    "showPassword": "Hiện mật khẩu",
+    "hidePassword": "Ẩn mật khẩu",
+    "strength": "Độ mạnh: {label}",
+    "passwordHint": "Ít nhất 10 ký tự, gồm chữ và số.",
+    "artworkTitle": "Săn vé nhanh, công bằng.",
+    "artworkDescription": "Phòng chờ minh bạch, giữ ghế an toàn, giá hiển thị là giá bạn trả.",
+    "login": {
+      "title": "Đăng nhập",
+      "description": "Chào mừng bạn quay lại TicketRush.",
+      "submit": "Đăng nhập",
+      "pending": "Đang đăng nhập…",
+      "forgot": "Quên mật khẩu?",
+      "noAccount": "Chưa có tài khoản?",
+      "register": "Đăng ký"
+    },
+    "register": {
+      "title": "Tạo tài khoản",
+      "description": "Mua vé nhanh hơn với một tài khoản TicketRush.",
+      "submit": "Tạo tài khoản",
+      "pending": "Đang tạo tài khoản…",
+      "hasAccount": "Đã có tài khoản?",
+      "checkInbox": "Kiểm tra hộp thư",
+      "sent": "Chúng tôi đã gửi liên kết xác nhận tới {email}. Liên kết có hiệu lực trong 3 ngày."
+    },
+    "forgot": {
+      "title": "Quên mật khẩu",
+      "description": "Nhập email để nhận liên kết đặt lại mật khẩu.",
+      "submit": "Gửi liên kết",
+      "pending": "Đang gửi…",
+      "sent": "Nếu {email} có tài khoản, chúng tôi đã gửi liên kết đặt lại mật khẩu. Liên kết có hiệu lực trong 1 giờ.",
+      "back": "Quay lại đăng nhập"
+    },
+    "reset": {
+      "title": "Đặt lại mật khẩu",
+      "description": "Chọn mật khẩu mới cho {email}.",
+      "submit": "Đặt lại mật khẩu",
+      "pending": "Đang lưu…",
+      "done": "Đã đặt lại mật khẩu",
+      "doneDescription": "Mọi phiên đăng nhập cũ đã kết thúc. Hãy đăng nhập bằng mật khẩu mới.",
+      "invalidLink": "Liên kết không hợp lệ",
+      "invalidLinkDescription": "Liên kết bị thiếu thông tin. Vui lòng yêu cầu liên kết mới.",
+      "requestNew": "Yêu cầu liên kết mới"
+    },
+    "verify": {
+      "title": "Xác nhận email",
+      "pending": "Đang xác nhận email…",
+      "done": "Email đã được xác nhận",
+      "doneDescription": "Bạn đã có thể vào phòng chờ và mua vé.",
+      "failed": "Không xác nhận được email",
+      "failedDescription": "Liên kết không hợp lệ hoặc đã hết hạn. Hãy đăng nhập để nhận liên kết mới.",
+      "continue": "Tiếp tục"
+    }
+  },
+  "account": {
+    "title": "Tài khoản",
+    "description": "Thông tin cá nhân dùng khi mua vé.",
+    "phone": "Số điện thoại",
+    "save": "Lưu thay đổi",
+    "saving": "Đang lưu…",
+    "saved": "Đã lưu thông tin.",
+    "avatar": "Ảnh đại diện",
+    "changeAvatar": "Đổi ảnh",
+    "uploading": "Đang tải ảnh…",
+    "avatarHint": "JPEG, PNG, WebP hoặc AVIF, tối đa 2 MB.",
+    "avatarTooLarge": "Ảnh tối đa 2 MB.",
+    "avatarType": "Chỉ hỗ trợ ảnh JPEG, PNG, WebP hoặc AVIF.",
+    "logout": "Đăng xuất",
+    "emailUnconfirmed": "Email chưa được xác nhận. Kiểm tra hộp thư để xác nhận trước khi mua vé."
   }
 }

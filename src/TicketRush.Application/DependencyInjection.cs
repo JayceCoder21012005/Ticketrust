@@ -12,6 +12,7 @@ public static class DependencyInjection
     {
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly, includeInternalTypes: true);
         services.TryAddSingleton(TimeProvider.System);
+        AddUseCaseHandlers(services);
         return services;
     }
 
@@ -27,5 +28,19 @@ public static class DependencyInjection
             (provider, message, context, ct) =>
                 provider.GetRequiredService<THandler>().HandleAsync((TEvent)message, context, ct)));
         return services;
+    }
+
+    /// <summary>Every <c>*Handler</c> class under <c>Features</c> is a scoped use case.</summary>
+    private static void AddUseCaseHandlers(IServiceCollection services)
+    {
+        var handlers = typeof(DependencyInjection).Assembly.GetTypes()
+            .Where(type => type is { IsClass: true, IsAbstract: false }
+                && type.Name.EndsWith("Handler", StringComparison.Ordinal)
+                && type.Namespace?.StartsWith("TicketRush.Application.Features", StringComparison.Ordinal) == true);
+
+        foreach (var handler in handlers)
+        {
+            services.TryAddScoped(handler);
+        }
     }
 }

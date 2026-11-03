@@ -1,12 +1,6 @@
-import { cacheLife } from "next/cache";
 import { SiteFooter } from "@/components/shared/site-footer";
 import { SiteHeader } from "@/components/shared/site-header";
-
-async function currentYear() {
-  "use cache";
-  cacheLife("days");
-  return new Date().getFullYear();
-}
+import { currentYear } from "@/lib/current-year";
 
 export default async function PublicLayout({ children }: LayoutProps<"/">) {
   return (

@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { apiRewrites } from "./api-rewrites";
 
 describe("apiRewrites", () => {
-  it("proxies /api and SignalR /hubs to the api origin so the browser stays same-origin", () => {
+  it("proxies /api, SignalR /hubs and uploaded /media to the api origin so the browser stays same-origin", () => {
     expect(apiRewrites("http://localhost:5080")).toEqual([
       { source: "/api/:path*", destination: "http://localhost:5080/api/:path*" },
       { source: "/hubs/:path*", destination: "http://localhost:5080/hubs/:path*" },
+      { source: "/media/:path*", destination: "http://localhost:5080/media/:path*" },
     ]);
   });
 

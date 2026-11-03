@@ -28,3 +28,6 @@ appsettings.*.local.json
 !.vscode/extensions.json
 .DS_Store
 Thumbs.db
+
+# Local storage provider uploads (spec 03)
+App_Data/
