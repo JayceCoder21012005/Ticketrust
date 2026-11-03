@@ -13,7 +13,8 @@ updates:
     groups:
       web-minor-patch: { update-types: ["minor", "patch"] }
     ignore:
-      # typescript-eslint (via eslint-config-next) refuses to run on TS 7; revisit when it supports TS 7.
+      # `typescript` is an alias for @typescript/typescript6 (the API typescript-eslint and Next import);
+      # TS 7 itself is `@typescript/native`. Drop the alias when typescript-eslint supports TS 7.
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
