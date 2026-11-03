@@ -16,7 +16,11 @@ import { toFriendlyMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
 import { FormAlert } from "./form-alert";
 
-export function LoginForm({ returnUrl }: { returnUrl: string | null }) {
+/**
+ * Reads `?returnUrl=` from the address bar when the user submits, not while rendering: that keeps /login a
+ * fully static page (no server-side searchParams, no streamed dynamic part) for a faster first paint.
+ */
+export function LoginForm() {
   const router = useRouter();
   const { signIn } = useAuth();
   const [error, setError] = useState<string | null>(null);
@@ -31,13 +35,11 @@ export function LoginForm({ returnUrl }: { returnUrl: string | null }) {
     try {
       await signIn(values);
       setSignedIn(true);
-      router.replace(safeReturnUrl(returnUrl));
+      router.replace(safeReturnUrl(new URLSearchParams(window.location.search).get("returnUrl")));
     } catch (e) {
       setError(toFriendlyMessage(e));
     }
   });
-
-  const registerHref = returnUrl ? `/register?returnUrl=${encodeURIComponent(returnUrl)}` : "/register";
 
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
@@ -69,7 +71,7 @@ export function LoginForm({ returnUrl }: { returnUrl: string | null }) {
       </Button>
       <p className="text-center text-sm text-muted-foreground">
         {t("auth.login.noAccount")}{" "}
-        <Link href={registerHref} className="font-medium text-primary underline-offset-4 hover:underline">
+        <Link href="/register" className="font-medium text-primary underline-offset-4 hover:underline">
           {t("auth.login.register")}
         </Link>
       </p>

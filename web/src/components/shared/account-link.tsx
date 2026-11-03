@@ -29,7 +29,11 @@ export function AccountLink() {
 
   return (
     <Button asChild size="sm">
-      <Link href="/login">{t("common.login")}</Link>
+      {/* No prefetch: the header is on every page, and most visitors never open login. Prefetching would
+          download the auth forms' JS (react-hook-form, session code) for every anonymous visit. */}
+      <Link href="/login" prefetch={false}>
+        {t("common.login")}
+      </Link>
     </Button>
   );
 }

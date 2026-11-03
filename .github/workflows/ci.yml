@@ -67,7 +67,11 @@ jobs:
       - name: Lighthouse budgets
         run: npm run lighthouse
       - name: Audit dependencies
-        run: npm audit --audit-level=high --omit=dev
+        run: |
+          # Shipped code: no known vulnerability of any severity.
+          npm audit --omit=dev --audit-level=low
+          # Build and test tooling: nothing high or critical.
+          npm audit --audit-level=high
 
   publish-images:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

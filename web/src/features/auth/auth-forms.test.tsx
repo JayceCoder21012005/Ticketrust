@@ -27,6 +27,7 @@ const requestBody = (call = 0) => JSON.parse(String(fetchMock.mock.calls[call][1
 beforeEach(() => vi.stubGlobal("fetch", fetchMock));
 
 afterEach(() => {
+  window.history.replaceState(null, "", "/");
   act(() => clearSession());
   fetchMock.mockReset();
   replace.mockReset();
@@ -35,7 +36,7 @@ afterEach(() => {
 
 describe("LoginForm", () => {
   it("validates inline before calling the api", async () => {
-    withAuth(<LoginForm returnUrl={null} />);
+    withAuth(<LoginForm />);
 
     await userEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
 
@@ -46,7 +47,8 @@ describe("LoginForm", () => {
 
   it("signs in and returns to the same-origin returnUrl", async () => {
     fetchMock.mockResolvedValue(json(loginResponse));
-    withAuth(<LoginForm returnUrl="/account?tab=1" />);
+    window.history.replaceState(null, "", "/login?returnUrl=%2Faccount%3Ftab%3D1");
+    withAuth(<LoginForm />);
 
     await userEvent.type(screen.getByLabelText("Email"), "an@example.com");
     await userEvent.type(screen.getByLabelText("Mật khẩu"), "matkhau123{Enter}");
@@ -57,7 +59,8 @@ describe("LoginForm", () => {
 
   it("ignores an off-site returnUrl", async () => {
     fetchMock.mockResolvedValue(json(loginResponse));
-    withAuth(<LoginForm returnUrl="https://evil.com" />);
+    window.history.replaceState(null, "", "/login?returnUrl=https%3A%2F%2Fevil.com");
+    withAuth(<LoginForm />);
 
     await userEvent.type(screen.getByLabelText("Email"), "an@example.com");
     await userEvent.type(screen.getByLabelText("Mật khẩu"), "matkhau123{Enter}");
@@ -67,7 +70,7 @@ describe("LoginForm", () => {
 
   it("shows the friendly message for wrong credentials and lets the user retry", async () => {
     fetchMock.mockResolvedValue(json({ code: "auth.invalid_credentials", status: 401 }, 401));
-    withAuth(<LoginForm returnUrl={null} />);
+    withAuth(<LoginForm />);
 
     await userEvent.type(screen.getByLabelText("Email"), "an@example.com");
     await userEvent.type(screen.getByLabelText("Mật khẩu"), "wrongpass1{Enter}");
@@ -79,7 +82,7 @@ describe("LoginForm", () => {
 
   it("disables the submit button while the request is pending", async () => {
     fetchMock.mockReturnValue(new Promise(() => {}));
-    withAuth(<LoginForm returnUrl={null} />);
+    withAuth(<LoginForm />);
 
     await userEvent.type(screen.getByLabelText("Email"), "an@example.com");
     await userEvent.type(screen.getByLabelText("Mật khẩu"), "matkhau123{Enter}");
@@ -88,7 +91,7 @@ describe("LoginForm", () => {
   });
 
   it("shows and hides the password", async () => {
-    withAuth(<LoginForm returnUrl={null} />);
+    withAuth(<LoginForm />);
     const password = screen.getByLabelText("Mật khẩu");
 
     await userEvent.click(screen.getByRole("button", { name: "Hiện mật khẩu" }));
