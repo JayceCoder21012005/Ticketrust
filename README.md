@@ -25,8 +25,9 @@ nhanh và **không bao giờ bán trùng một ghế**. Toàn bộ đặc tả n
 | [03](specs/03-auth-and-user-accounts.md) | Đăng ký, đăng nhập, refresh token, hồ sơ, phân quyền | ✅ Hoàn thành |
 | [04](specs/04-event-catalog-and-search.md) | Trang chủ, danh sách và tìm kiếm sự kiện, trang chi tiết, cache | ✅ Hoàn thành |
 | [05](specs/05-organizer-event-management.md) | Khu nhà tổ chức: địa điểm, wizard tạo sự kiện, sơ đồ ghế, đợt mở bán, xuất bản, huỷ | ✅ Hoàn thành |
-| [06](specs/06-virtual-waiting-room.md) | Phòng chờ: hàng đợi ngẫu nhiên trước giờ mở bán, nhận người theo tốc độ, admission token gắn với tài khoản. **Phần lõi** xong; còn nối với kho vé (07), CAPTCHA (12), waitlist (13) | 🟡 Phần lõi |
-| [07](specs/07-seat-selection-and-hold.md) – [17](specs/17-load-testing-and-observability.md) | Chọn ghế, thanh toán… | ⏳ Chưa làm |
+| [06](specs/06-virtual-waiting-room.md) | Phòng chờ: hàng đợi ngẫu nhiên trước giờ mở bán, nhận người theo tốc độ, admission token gắn với tài khoản, trạng thái phòng theo kho vé. Còn CAPTCHA (12), waitlist (13) | 🟡 Gần xong |
+| [07](specs/07-seat-selection-and-hold.md) | Chọn ghế trên sơ đồ trực tiếp, giữ ghế 8 phút bằng Lua nguyên tử trên Redis, cập nhật thời gian thực qua SignalR | ✅ Hoàn thành |
+| [08](specs/08-checkout-and-payment.md) – [17](specs/17-load-testing-and-observability.md) | Thanh toán, vé điện tử… | ⏳ Chưa làm |
 
 ## Yêu cầu
 
@@ -127,6 +128,7 @@ Tài khoản chưa xác nhận vẫn đăng nhập được, nhưng sẽ không 
 | `/forgot-password`, `/reset-password` | Quên và đặt lại mật khẩu. Email nằm trong Mailpit, link có hiệu lực 1 giờ |
 | `/verify-email` | Trang mở từ link xác nhận email |
 | `/account` | Hồ sơ, số điện thoại, ảnh đại diện (JPEG/PNG/WebP/AVIF, tối đa 2 MB), đăng xuất |
+| `/events/{slug}/seats` | Chọn ghế (cần lượt vào từ phòng chờ). Bấm "Mua vé" ở trang sự kiện → phòng chờ → tự chuyển sang trang này. Chọn ghế trên sơ đồ (chuột hoặc phím mũi tên + Enter), hoặc "Chọn chỗ tốt nhất", rồi "Tiếp tục" để giữ ghế 8 phút. Ghế người khác vừa giữ đổi trạng thái ngay, không cần tải lại |
 | `/events/{slug}/queue` | Phòng chờ (cần đăng nhập và email đã xác nhận). Sự kiện mẫu "Hà Anh Tuấn" mở bán sau 5 phút, "Vũ Cát Tường" sau 20 phút: vào phòng chờ trước giờ mở để được xếp ngẫu nhiên, khi mở bán sẽ được nhận dần 50 người/giây (cấu hình `Queue` trong `appsettings.json`) |
 | `/design` | Design system: token màu, component dùng chung, màu ghế trên sơ đồ |
 | `/organizer/events` | Đăng nhập bằng `organizer@ticketrush.dev`. Danh sách sự kiện (lọc theo trạng thái, tìm không dấu), nút "Tạo sự kiện" (5 trường, tạo ngay bản nháp) |

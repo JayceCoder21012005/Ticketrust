@@ -52,6 +52,12 @@ Source of truth for behaviour: `specs/07-seat-selection-and-hold.md`. This docum
 
 **Definition of done:** the spec's seven acceptance criteria ticked or explicitly marked deferred, suite green, OpenAPI regenerated, `specs/07` updated where the build differs. One branch `feat/07-seat-selection-and-hold`, one PR at the end (as 04, 05 and 06).
 
+## 4b. Spike results (2026-11-04)
+
+- **S1, passed:** 10,000 SVG circles (each with `role="button"` and an `aria-label`), keyed `useSyncExternalStore` store, memoized seats, pan/zoom through one `<g transform>` set from a ref. Headless Chromium gave p95 16.7 ms per frame for pan/zoom, and the same for 200-seat deltas every 250 ms (two runs; first render about 140 ms). One trap: `will-change: transform` on the SVG group pushed every transform frame to 230–500 ms, so the map never uses it.
+- **S2, verified from source:** in `dotnet/aspnetcore`, `RedisHubLifetimeManager` builds its channels from `typeof(THub).FullName`, and `SendGroupAsync` publishes with no check for local connections. So the Worker can broadcast only if it sends through the same hub type, which means the hub lives in Infrastructure. `SeatDeltaTests` proves it at runtime: a delta goes from a separate host through the backplane to the api's client.
+- **S3, partly run:** `caddy validate` passes on the new Caddyfile. The full WebSocket check through production compose was not run.
+
 ## 5. Known limits I will state instead of hiding
 
 - Until 08 creates tickets, `sold` and `bought` are empty in real use; their paths are tested with a fake source.
