@@ -27,10 +27,16 @@ public sealed class GetMyHoldHandler(IHoldCatalog catalog, IInventoryStore store
     }
 }
 
-/// <summary><c>DELETE /events/{id}/holds/me</c>: idempotent; succeeds when there is nothing (left) to release.</summary>
+/// <summary>
+/// <c>DELETE /events/{id}/holds/me</c>: idempotent; succeeds when there is nothing (left) to release. Cancelling an order
+/// (spec 08) reuses it with <c>onlyHoldId</c>, so a newer hold the buyer made since is never released by accident.
+/// </summary>
 public sealed class ReleaseMyHoldHandler(IHoldCatalog catalog, IInventoryStore store)
 {
-    public async Task<Result> HandleAsync(Guid userId, Guid eventId, CancellationToken ct)
+    public Task<Result> HandleAsync(Guid userId, Guid eventId, CancellationToken ct) => HandleAsync(userId, eventId, null, ct);
+
+    /// <param name="onlyHoldId">When set, the buyer's current hold is released only if it is this one.</param>
+    public async Task<Result> HandleAsync(Guid userId, Guid eventId, Guid? onlyHoldId, CancellationToken ct)
     {
         if (await catalog.GetAsync(eventId, ct) is not { } entry)
         {
@@ -39,7 +45,7 @@ public sealed class ReleaseMyHoldHandler(IHoldCatalog catalog, IInventoryStore s
 
         try
         {
-            if (await store.GetUserHoldAsync(eventId, userId, ct) is { } hold)
+            if (await store.GetUserHoldAsync(eventId, userId, ct) is { } hold && (onlyHoldId is null || hold.HoldId == onlyHoldId))
             {
                 await store.ReleaseHoldAsync(eventId, hold.HoldId, entry.GaTierIds, ct);
             }

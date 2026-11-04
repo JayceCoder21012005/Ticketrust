@@ -262,6 +262,8 @@ public sealed class HoldApiTests(ContainersFixture containers) : IAsyncLifetime
 
         public Task<ActiveHold?> GetUserHoldAsync(Guid eventId, Guid userId, CancellationToken ct) => Down<ActiveHold?>();
 
+        public Task<bool> HoldRecordedAsync(Guid eventId, Guid holdId, Guid userId, CancellationToken ct) => Down<bool>();
+
         public Task<CommitOutcome> CommitAsync(Guid eventId, Guid orderId, Guid holdId, Guid userId, IReadOnlyList<int> seats, IReadOnlyList<GaLine> ga, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct) => Down<CommitOutcome>();
 
         public Task<InventorySnapshot> GetSnapshotAsync(Guid eventId, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct) => Down<InventorySnapshot>();

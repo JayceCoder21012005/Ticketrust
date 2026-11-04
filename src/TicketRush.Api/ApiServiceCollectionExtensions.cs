@@ -9,6 +9,7 @@ using TicketRush.Api.Features.Auth;
 using TicketRush.Api.Features.Catalog;
 using TicketRush.Api.Features.Organizer;
 using TicketRush.Api.Features.Holds;
+using TicketRush.Api.Features.Orders;
 using TicketRush.Api.Features.Payments;
 using TicketRush.Api.Features.Queue;
 using TicketRush.Api.Features.ServerTime;
@@ -88,6 +89,7 @@ public static class ApiServiceCollectionExtensions
         v1.MapOrganizerEndpoints();
         v1.MapQueueEndpoints();
         v1.MapHoldEndpoints();
+        v1.MapOrderEndpoints();
         v1.MapMockGatewayEndpoints();
         v1.MapLocalStorageEndpoints();
 

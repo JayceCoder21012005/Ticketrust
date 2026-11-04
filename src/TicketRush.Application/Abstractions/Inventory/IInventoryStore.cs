@@ -14,6 +14,12 @@ public interface IInventoryStore
     Task<ActiveHold?> GetUserHoldAsync(Guid eventId, Guid userId, CancellationToken ct);
 
     /// <summary>
+    /// True while the hold's record still exists for this user: live, or expired and not yet swept. Lets checkout tell
+    /// "your hold just expired" from "that is not your hold".
+    /// </summary>
+    Task<bool> HoldRecordedAsync(Guid eventId, Guid holdId, Guid userId, CancellationToken ct);
+
+    /// <summary>
     /// Called by checkout (08) after the database commit; also covers a hold that already expired. Idempotent per
     /// <paramref name="orderId"/>: a redelivery answers <see cref="CommitStatus.Duplicate"/> and changes nothing.
     /// </summary>

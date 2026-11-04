@@ -59,6 +59,10 @@ public sealed partial class RedisInventoryStore(IConnectionMultiplexer redis, Re
                 : new ActiveHold(holdId, userId, ParseSeats(fields.GetValueOrDefault("seats")), ParseGa(fields.GetValueOrDefault("ga")), expiresAt);
         });
 
+    public Task<bool> HoldRecordedAsync(Guid eventId, Guid holdId, Guid userId, CancellationToken ct) =>
+        GuardAsync(async () =>
+            Guid.TryParse((string?)await redis.GetDatabase().HashGetAsync(keys.InvHold(eventId, holdId), "userId"), out var owner) && owner == userId);
+
     public Task<InventorySnapshot> GetSnapshotAsync(Guid eventId, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct) =>
         GuardAsync(async () =>
         {
