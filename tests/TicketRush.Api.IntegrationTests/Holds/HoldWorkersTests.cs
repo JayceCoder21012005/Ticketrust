@@ -51,6 +51,10 @@ public sealed class HoldWorkersTests(ContainersFixture containers) : IAsyncLifet
             .GetRequiredService<IServiceScopeFactory>();
     }
 
+    private HoldExpiryService Sweeper(TimeProvider? time = null) =>
+        new(new LiveInventoryEvents(new FixedEvents(new LiveInventoryEvent(_h.EventId, _h.GaTiers)), Options.Create(new QueueOptions()), time ?? _h.Time),
+            _h.Store, Lock(), time ?? _h.Time, NullLogger<HoldExpiryService>.Instance);
+
     private InventoryReconcilerService Reconciler() =>
         new(Live(), _h.Store, Scopes(), Lock(), _h.Time, NullLogger<InventoryReconcilerService>.Instance);
 
@@ -77,5 +81,70 @@ public sealed class HoldWorkersTests(ContainersFixture containers) : IAsyncLifet
 
         await reconciler.RunOnceAsync(full: true, Ct);
         ((int)await _h.Db.StringGetAsync(_h.Keys.InvGa(_h.EventId, _h.GaTier))).ShouldBe(10);
+    }
+
+    [Fact]
+    public async Task Due_holds_are_released_and_their_seats_published_as_freed()
+    {
+        var kept = await _h.Store.CreateHoldAsync(_h.Request(Guid.NewGuid(), [2], ttl: TimeSpan.FromMinutes(20)), Ct);
+        await _h.HoldAsync(Guid.NewGuid(), 1);
+        var messages = await _h.ListenAsync();
+        _h.Time.Advance(TimeSpan.FromMinutes(9));
+
+        await Sweeper().RunOnceAsync(Ct);
+
+        (await _h.Store.GetSnapshotAsync(_h.EventId, _h.GaTiers, Ct)).Held.ShouldBe([2]);
+        (await _h.OwnerOfAsync(2)).ShouldBe(kept.HoldId!.Value.ToString("N"));
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (messages.IsEmpty && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(20, Ct);
+        }
+
+        messages.ShouldContain(m => m.Contains("\"freed\":[1]", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Holds_expire_within_two_seconds_of_expiresAt()
+    {
+        using var sweeper = Sweeper(TimeProvider.System);
+        await sweeper.StartAsync(Ct);
+        try
+        {
+            var hold = await _h.Store.CreateHoldAsync(
+                new HoldRequest(_h.EventId, Guid.NewGuid(), [9], [], _h.GaTiers, 8, false, DateTimeOffset.UtcNow, TimeSpan.FromSeconds(2)), Ct);
+
+            while ((await _h.Store.GetSnapshotAsync(_h.EventId, _h.GaTiers, Ct)).Held.Contains(9) && DateTimeOffset.UtcNow < hold.ExpiresAt!.Value.AddSeconds(10))
+            {
+                await Task.Delay(50, Ct);
+            }
+
+            (DateTimeOffset.UtcNow - hold.ExpiresAt!.Value).ShouldBeLessThan(TimeSpan.FromSeconds(2));
+            (await _h.Store.GetSnapshotAsync(_h.EventId, _h.GaTiers, Ct)).Held.ShouldNotContain(9);
+        }
+        finally
+        {
+            await sweeper.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task Only_the_leader_sweeps()
+    {
+        using var first = Sweeper(TimeProvider.System);
+        using var second = Sweeper(TimeProvider.System);
+        await first.StartAsync(Ct);
+        await second.StartAsync(Ct);
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3), Ct);
+
+            new[] { first.TickCount, second.TickCount }.Count(t => t > 0).ShouldBe(1);
+        }
+        finally
+        {
+            await first.StopAsync(CancellationToken.None);
+            await second.StopAsync(CancellationToken.None);
+        }
     }
 }

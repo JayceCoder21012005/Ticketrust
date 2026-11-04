@@ -17,5 +17,6 @@ builder.Services.AddHostedService<QueueOpenerService>();
 builder.Services.AddHostedService<QueueAdmitterService>();
 builder.Services.AddSingleton<LiveInventoryEvents>();
 builder.Services.AddHostedService<InventoryReconcilerService>();
+builder.Services.AddHostedService<HoldExpiryService>();
 
 await builder.Build().RunAsync();
