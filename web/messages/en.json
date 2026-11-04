@@ -229,6 +229,8 @@
     "stage": "Stage",
     "mapLabel": "Seat map, {count} seats. Use the arrow keys to move and Enter to select.",
     "sectionLabel": "Section {name}, {count} seats free",
+    "sectionOpened": "Opened section {name}, {count} seats free",
+    "overviewOpened": "Overview, {count} sections",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "legend": {
@@ -247,6 +249,7 @@
       "holding": "Holding…",
       "release": "Release",
       "checkoutSoon": "Checkout (coming soon)",
+      "lowTime": "Less than a minute left to hold your seats",
       "heldFor": "Held for",
       "held": "You hold {count} tickets",
       "open": "View selection"

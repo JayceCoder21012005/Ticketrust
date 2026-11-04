@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { t } from "@/lib/i18n";
 import { HoldExpiredDialog, HoldSummary } from "./hold-panel";
 import { LazySeatMap } from "./lazy-seat-map";
-import { SeatLegend, SelectionPanel } from "./selection-panel";
+import { PANEL_TITLE_ID, SeatLegend, SelectionPanel } from "./selection-panel";
 import { useSeatPage, type SeatPageEvent } from "./use-seat-page";
 
 /**
@@ -20,6 +20,15 @@ export function SeatsView({ event }: { event: SeatPageEvent }) {
   const [filter, setFilter] = useState<Set<string>>(() => new Set());
   const { expire } = page;
   const onExpire = useCallback(() => expire(), [expire]);
+
+  // Starting or ending a hold swaps the panel and unmounts the button that had focus: put it on the new heading.
+  const held = page.hold !== null;
+  const wasHeld = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (page.status !== "ready") return;
+    if (wasHeld.current !== null && wasHeld.current !== held) document.getElementById(PANEL_TITLE_ID)?.focus();
+    wasHeld.current = held;
+  }, [held, page.status]);
 
   if (page.status === "error") {
     return (

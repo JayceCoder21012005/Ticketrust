@@ -116,4 +116,24 @@ describe("connectSeatFeed", () => {
     expect(onResync).toHaveBeenCalled();
     vi.useRealTimers();
   });
+
+  it("drops a connection that could not join the event, so the close handler starts it again", async () => {
+    connection.stop.mockClear();
+    connection.invoke.mockRejectedValueOnce(new Error("join failed"));
+    connectSeatFeed("e1", { accessToken: () => Promise.resolve("tok"), onDelta: vi.fn(), onResync: vi.fn() });
+
+    await vi.waitFor(() => expect(connection.stop).toHaveBeenCalledTimes(1));
+  });
+
+  it("does the same when the join after an automatic reconnect fails", async () => {
+    const onResync = vi.fn();
+    connectSeatFeed("e1", { accessToken: () => Promise.resolve("tok"), onDelta: vi.fn(), onResync });
+    await vi.waitFor(() => expect(onResync).toHaveBeenCalled());
+    connection.stop.mockClear();
+    connection.invoke.mockRejectedValueOnce(new Error("join failed"));
+
+    connection.reconnected!();
+
+    await vi.waitFor(() => expect(connection.stop).toHaveBeenCalledTimes(1));
+  });
 });

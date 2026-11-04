@@ -199,6 +199,41 @@ describe("SeatsView", () => {
     expect(await screen.findByRole("button", { name: "Tiếp tục" })).toBeInTheDocument();
   });
 
+  it("moves focus to the panel heading when a hold starts and when it is released", async () => {
+    arrange();
+    holds.createHold.mockResolvedValue(hold([0]));
+    holds.releaseMyHold.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<SeatsView event={event} />);
+    expect(await screen.findByRole("heading", { name: "Lựa chọn của bạn" })).not.toHaveFocus();
+
+    await user.click(await seatButton(1));
+    await user.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    expect(await screen.findByRole("heading", { name: "Bạn đang giữ 1 vé" })).toHaveFocus();
+
+    await user.click(screen.getByRole("button", { name: "Bỏ giữ chỗ" }));
+    expect(await screen.findByRole("heading", { name: "Lựa chọn của bạn" })).toHaveFocus();
+  });
+
+  it("does not take focus when the page opens with a hold already running", async () => {
+    arrange({ myHold: hold([1]) });
+    render(<SeatsView event={event} />);
+
+    expect(await screen.findByRole("heading", { name: "Bạn đang giữ 1 vé" })).not.toHaveFocus();
+  });
+
+  it("announces the running total politely as the selection changes", async () => {
+    arrange();
+    const user = userEvent.setup();
+    render(<SeatsView event={event} />);
+
+    await user.click(await seatButton(1));
+
+    const total = screen.getByText("Tạm tính").closest("p");
+    expect(total).toHaveAttribute("aria-live", "polite");
+    expect(total).toHaveTextContent(/1\.500\.000/);
+  });
+
   it("shows the expiry dialog when the hold runs out and goes back to selection", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "setTimeout", "Date"] });
     vi.setSystemTime(now);
@@ -219,6 +254,23 @@ describe("SeatsView", () => {
     });
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tiếp tục" })).toBeInTheDocument();
+  });
+
+  it("warns screen readers once the hold is under a minute from expiring", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "setTimeout", "Date"] });
+    vi.setSystemTime(now);
+    arrange({ myHold: hold([1], 90_000) });
+    render(<SeatsView event={event} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect(screen.queryByText("Còn dưới 1 phút để giữ chỗ")).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(35_000);
+    });
+
+    expect(screen.getByText("Còn dưới 1 phút để giữ chỗ")).toHaveAttribute("role", "status");
   });
 
   it("offers a retry when the seat map cannot load", async () => {

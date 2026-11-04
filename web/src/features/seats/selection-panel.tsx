@@ -5,9 +5,13 @@ import { Button } from "@/components/ui/button";
 import type { TicketTier } from "@/lib/catalog/types";
 import { formatVnd } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { seatPlace } from "@/lib/seats/format";
 import type { SeatStore } from "@/lib/seats/seat-store";
 import type { SeatMap } from "@/lib/seats/types";
 import { useStoreRevision } from "@/lib/seats/use-seat";
+
+/** Heading of the summary panel (selection or hold); focus lands here when the panel swaps. */
+export const PANEL_TITLE_ID = "seat-panel-title";
 
 type SelectionPanelProps = {
   map: SeatMap;
@@ -46,7 +50,9 @@ export function SelectionPanel({ map, store, tiers, limit, ga, gaRemaining, busy
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <h2 className="text-base font-semibold">{t("seats.summary.title")}</h2>
+        <h2 id={PANEL_TITLE_ID} tabIndex={-1} className="text-base font-semibold outline-none">
+          {t("seats.summary.title")}
+        </h2>
         <p className="text-xs text-muted-foreground">{t("seats.limit", "vi", { count: limit })}</p>
         {selected.length === 0 && gaCount === 0 ? (
           <p className="text-sm text-muted-foreground">{t("seats.summary.empty")}</p>
@@ -54,7 +60,7 @@ export function SelectionPanel({ map, store, tiers, limit, ga, gaRemaining, busy
           <ul className="flex flex-col gap-1 text-sm">
             {selected.map((s) => (
               <li key={s.index} className="flex justify-between gap-2">
-                <span>{`Khu ${s.section} · Hàng ${s.row} · Ghế ${s.number}`}</span>
+                <span>{seatPlace(s)}</span>
                 <span className="tabular-nums">{formatVnd(price.get(s.tierId) ?? 0)}</span>
               </li>
             ))}
@@ -102,7 +108,7 @@ export function SelectionPanel({ map, store, tiers, limit, ga, gaRemaining, busy
         </div>
       ) : null}
 
-      <p className="flex justify-between border-t pt-2 font-semibold">
+      <p className="flex justify-between border-t pt-2 font-semibold" aria-live="polite">
         <span>{t("seats.summary.total")}</span>
         <span className="tabular-nums">{formatVnd(total)}</span>
       </p>

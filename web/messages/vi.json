@@ -229,6 +229,8 @@
     "stage": "Sân khấu",
     "mapLabel": "Sơ đồ chỗ ngồi, {count} ghế. Dùng phím mũi tên để di chuyển, Enter để chọn.",
     "sectionLabel": "Khu {name}, còn {count} ghế trống",
+    "sectionOpened": "Đã mở Khu {name}, còn {count} ghế trống",
+    "overviewOpened": "Toàn cảnh, {count} khu",
     "zoomIn": "Phóng to",
     "zoomOut": "Thu nhỏ",
     "legend": {
@@ -248,6 +250,7 @@
       "release": "Bỏ giữ chỗ",
       "checkoutSoon": "Thanh toán (sắp ra mắt)",
       "heldFor": "Giữ chỗ còn",
+      "lowTime": "Còn dưới 1 phút để giữ chỗ",
       "held": "Bạn đang giữ {count} vé",
       "open": "Xem lựa chọn"
     },

@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { formatCountdown, remainingMs } from "@/lib/clock";
 import { formatVnd } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { seatPlace } from "@/lib/seats/format";
 import type { Hold } from "@/lib/seats/types";
+import { PANEL_TITLE_ID } from "./selection-panel";
 
 /** Counts down from `expiresAt` on server time (C10) and calls `onExpire` once at zero. */
 export function HoldCountdown({ expiresAt, offsetMs, onExpire }: { expiresAt: string; offsetMs: number; onExpire: () => void }) {
@@ -27,11 +29,18 @@ export function HoldCountdown({ expiresAt, offsetMs, onExpire }: { expiresAt: st
     if (left === 0) onExpire();
   }, [left, onExpire]);
 
+  // The timer itself stays silent (a tick per second); one polite warning covers the last minute.
+  const low = left !== null && left > 0 && left <= 60_000;
   return (
-    <p className="flex items-baseline justify-between rounded-lg bg-muted px-3 py-2 text-sm" role="timer" aria-live="off">
-      <span>{t("seats.summary.heldFor")}</span>
-      <span className="font-semibold tabular-nums">{left === null ? "--:--" : formatCountdown(left)}</span>
-    </p>
+    <>
+      <p className="flex items-baseline justify-between rounded-lg bg-muted px-3 py-2 text-sm" role="timer" aria-live="off">
+        <span>{t("seats.summary.heldFor")}</span>
+        <span className="font-semibold tabular-nums">{left === null ? "--:--" : formatCountdown(left)}</span>
+      </p>
+      <span role="status" className="sr-only">
+        {low ? t("seats.summary.lowTime") : ""}
+      </span>
+    </>
   );
 }
 
@@ -40,12 +49,14 @@ export function HoldSummary({ hold, offsetMs, onExpire, onRelease }: { hold: Hol
   const count = hold.seats.length + hold.ga.reduce((sum, g) => sum + g.quantity, 0);
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="text-base font-semibold">{t("seats.summary.held", "vi", { count })}</h2>
+      <h2 id={PANEL_TITLE_ID} tabIndex={-1} className="text-base font-semibold outline-none">
+        {t("seats.summary.held", "vi", { count })}
+      </h2>
       <HoldCountdown expiresAt={hold.expiresAt} offsetMs={offsetMs} onExpire={onExpire} />
       <ul className="flex flex-col gap-1 text-sm">
         {hold.seats.map((s) => (
           <li key={s.index} className="flex justify-between gap-2">
-            <span>{`Khu ${s.section} · Hàng ${s.row} · Ghế ${s.number}`}</span>
+            <span>{seatPlace(s)}</span>
             <span className="tabular-nums">{formatVnd(s.price)}</span>
           </li>
         ))}
