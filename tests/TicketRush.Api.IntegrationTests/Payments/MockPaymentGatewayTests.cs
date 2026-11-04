@@ -85,7 +85,7 @@ public sealed class MockPaymentGatewayTests(ContainersFixture containers) : IAsy
     public async Task A_succeeded_session_stays_refundable_for_the_retention_period()
     {
         var session = await _h.CreateSessionAsync();
-        await _h.Control.CompleteAsync(session.SessionId, MockOutcome.Succeeded);
+        await _h.Control.CompleteAsync(session.SessionId, MockOutcome.Succeeded, Ct);
 
         var ttl = await Db.KeyTimeToLiveAsync(_h.Keys.PayMockSession(session.SessionId));
 
@@ -108,7 +108,7 @@ public sealed class MockPaymentGatewayTests(ContainersFixture containers) : IAsy
     {
         var session = await _h.CreateSessionAsync();
 
-        (await _h.Control.CompleteAsync(session.SessionId, outcome)).IsSuccess.ShouldBeTrue();
+        (await _h.Control.CompleteAsync(session.SessionId, outcome, Ct)).IsSuccess.ShouldBeTrue();
 
         (await _h.Gateway.GetStatusAsync(session.SessionId, Ct)).ShouldBe(expected);
     }
@@ -118,10 +118,10 @@ public sealed class MockPaymentGatewayTests(ContainersFixture containers) : IAsy
     {
         var session = await _h.CreateSessionAsync();
 
-        await _h.Control.CompleteAsync(session.SessionId, MockOutcome.SucceededDelayed);
+        await _h.Control.CompleteAsync(session.SessionId, MockOutcome.SucceededDelayed, Ct);
 
         (await _h.Gateway.GetStatusAsync(session.SessionId, Ct)).ShouldBe(PaymentStatus.Succeeded);
-        (await _h.Queue.CountAsync()).ShouldBe(1);
+        (await _h.Queue.CountAsync(Ct)).ShouldBe(1);
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public sealed class MockPaymentGatewayTests(ContainersFixture containers) : IAsy
     public async Task A_succeeded_session_stays_succeeded_after_its_expiry()
     {
         var session = await _h.CreateSessionAsync(lifetime: TimeSpan.FromMinutes(7));
-        await _h.Control.CompleteAsync(session.SessionId, MockOutcome.Succeeded);
+        await _h.Control.CompleteAsync(session.SessionId, MockOutcome.Succeeded, Ct);
 
         _h.Time.Advance(TimeSpan.FromMinutes(30));
 
@@ -157,7 +157,7 @@ public sealed class MockPaymentGatewayTests(ContainersFixture containers) : IAsy
     public async Task Refund_is_idempotent_per_key()
     {
         var session = await _h.CreateSessionAsync(PaymentHarness.NewOrder(500_000, 2));
-        await _h.Control.CompleteAsync(session.SessionId, MockOutcome.Succeeded);
+        await _h.Control.CompleteAsync(session.SessionId, MockOutcome.Succeeded, Ct);
 
         var first = await _h.Gateway.RefundAsync(session.SessionId, new Money(1_000_000), "order-1", Ct);
         var again = await _h.Gateway.RefundAsync(session.SessionId, new Money(1_000_000), "order-1", Ct);
@@ -171,7 +171,7 @@ public sealed class MockPaymentGatewayTests(ContainersFixture containers) : IAsy
     public async Task Concurrent_refunds_with_one_key_book_the_amount_once()
     {
         var session = await _h.CreateSessionAsync(PaymentHarness.NewOrder(500_000, 2));
-        await _h.Control.CompleteAsync(session.SessionId, MockOutcome.Succeeded);
+        await _h.Control.CompleteAsync(session.SessionId, MockOutcome.Succeeded, Ct);
 
         var results = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ =>
             _h.Gateway.RefundAsync(session.SessionId, new Money(400_000), "same-key", Ct)));
@@ -184,7 +184,7 @@ public sealed class MockPaymentGatewayTests(ContainersFixture containers) : IAsy
     public async Task Refunds_cannot_exceed_what_was_paid()
     {
         var session = await _h.CreateSessionAsync(PaymentHarness.NewOrder(500_000, 2));
-        await _h.Control.CompleteAsync(session.SessionId, MockOutcome.Succeeded);
+        await _h.Control.CompleteAsync(session.SessionId, MockOutcome.Succeeded, Ct);
         (await _h.Gateway.RefundAsync(session.SessionId, new Money(700_000), "part-1", Ct)).IsSuccess.ShouldBeTrue();
 
         var tooMuch = await _h.Gateway.RefundAsync(session.SessionId, new Money(400_000), "part-2", Ct);
@@ -211,6 +211,48 @@ public sealed class MockPaymentGatewayTests(ContainersFixture containers) : IAsy
     }
 
     [Fact]
+    public async Task A_cancelled_token_stops_every_mock_call_before_it_touches_redis()
+    {
+        var session = await _h.CreateSessionAsync();
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+        var order = PaymentHarness.NewOrder();
+        var sessionKeysBefore = _h.Redis.GetServer(_h.Redis.GetEndPoints()[0]).Keys(pattern: $"{_h.Keys.Prefix}pay:mock:session:*").Count();
+
+        await Should.ThrowAsync<OperationCanceledException>(() => _h.Gateway.CreateSessionAsync(
+            order, new Uri("http://web.test:3000/r"), _h.Time.GetUtcNow().AddMinutes(5), "cancelled-key", cancelled.Token));
+        await Should.ThrowAsync<OperationCanceledException>(() => _h.Gateway.GetStatusAsync(session.SessionId, cancelled.Token));
+        await Should.ThrowAsync<OperationCanceledException>(() => _h.Gateway.RefundAsync(session.SessionId, new Money(1), "k", cancelled.Token));
+        await Should.ThrowAsync<OperationCanceledException>(() => _h.Control.CompleteAsync(session.SessionId, MockOutcome.Succeeded, cancelled.Token));
+        await Should.ThrowAsync<OperationCanceledException>(() => _h.Control.GetAsync(session.SessionId, cancelled.Token));
+        await Should.ThrowAsync<OperationCanceledException>(() => _h.Queue.CountAsync(cancelled.Token));
+        await Should.ThrowAsync<OperationCanceledException>(() => _h.Deliverer.RunOnceAsync(cancelled.Token));
+
+        _h.Redis.GetServer(_h.Redis.GetEndPoints()[0]).Keys(pattern: $"{_h.Keys.Prefix}pay:mock:session:*").Count().ShouldBe(sessionKeysBefore);
+        (await Db.KeyExistsAsync(_h.Keys.PayMockIdempotency("cancelled-key"))).ShouldBeFalse();
+        (await _h.Gateway.GetStatusAsync(session.SessionId, Ct)).ShouldBe(PaymentStatus.Pending);
+    }
+
+    [Fact]
+    public async Task Through_the_resilience_pipeline_a_cancelled_mock_call_is_not_retried_and_not_counted()
+    {
+        var options = new GatewayResilienceOptions { RetryBaseDelay = TimeSpan.Zero, BreakerMinimumThroughput = 2 };
+        var resilience = new GatewayResilience("mock", options, _h.Time, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        var gateway = new ResilientPaymentGateway(_h.Gateway, resilience);
+        _h.Gateway.SimulateOutage = true; // would surface as "unavailable" (and be counted) if the call ever got past the token check
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+
+        for (var i = 0; i < 5; i++)
+        {
+            await Should.ThrowAsync<OperationCanceledException>(() => gateway.GetStatusAsync("mock_x", cancelled.Token));
+        }
+
+        resilience.CircuitState.ShouldBe(Polly.CircuitBreaker.CircuitState.Closed);
+        await Should.ThrowAsync<PaymentGatewayUnavailableException>(() => gateway.GetStatusAsync("mock_x", Ct)); // a live token still sees the outage
+    }
+
+    [Fact]
     public async Task Simulated_outage_fails_create_status_and_refund_but_not_verification()
     {
         var session = await _h.CreateSessionAsync();
@@ -229,8 +271,8 @@ public sealed class MockPaymentGatewayTests(ContainersFixture containers) : IAsy
     public async Task VerifyAndParse_returns_the_event_of_a_signed_webhook()
     {
         var session = await _h.CreateSessionAsync(PaymentHarness.NewOrder(500_000, 2));
-        await _h.Control.CompleteAsync(session.SessionId, MockOutcome.Succeeded);
-        var body = (await _h.Queue.ClaimDueAsync(_h.Time.GetUtcNow(), 10, TimeSpan.FromSeconds(30))).Single().Delivery.Body;
+        await _h.Control.CompleteAsync(session.SessionId, MockOutcome.Succeeded, Ct);
+        var body = (await _h.Queue.ClaimDueAsync(_h.Time.GetUtcNow(), 10, TimeSpan.FromSeconds(30), Ct)).Single().Delivery.Body;
         var signature = WebhookSignature.Sign(PaymentHarness.Secret, body, _h.Time.GetUtcNow());
 
         var webhook = _h.Gateway.VerifyAndParse(PaymentHarness.Headers(signature), body);
@@ -240,6 +282,18 @@ public sealed class MockPaymentGatewayTests(ContainersFixture containers) : IAsy
         webhook.Amount.ShouldBe(new Money(1_000_000));
         webhook.ProviderEventId.ShouldStartWith("evt_mock_");
         webhook.OccurredAt.ShouldBe(_h.Time.GetUtcNow());
+    }
+
+    [Fact]
+    public async Task A_gateway_without_a_secret_never_accepts_a_webhook_even_one_signed_with_an_empty_key()
+    {
+        await _h.DisposeAsync();
+        _h = await PaymentHarness.CreateAsync(containers, o => o.WebhookSecret = string.Empty);
+        const string body = """{"id":"e","type":"payment.succeeded","sessionId":"s","occurredAt":"2026-11-04T10:00:00Z"}""";
+        var now = _h.Time.GetUtcNow().ToUnixTimeSeconds();
+        var forged = $"t={now},v1={Convert.ToHexStringLower(System.Security.Cryptography.HMACSHA256.HashData(Array.Empty<byte>(), System.Text.Encoding.UTF8.GetBytes($"{now}.{body}")))}";
+
+        Should.Throw<ArgumentException>(() => _h.Gateway.VerifyAndParse(PaymentHarness.Headers(forged), body));
     }
 
     [Fact]
@@ -288,13 +342,13 @@ public sealed class MockPaymentGatewayTests(ContainersFixture containers) : IAsy
     {
         var session = await _h.CreateSessionAsync(lifetime: TimeSpan.FromMinutes(1));
         var late = await _h.CreateSessionAsync(lifetime: TimeSpan.FromMinutes(1));
-        (await _h.Control.CompleteAsync(session.SessionId, MockOutcome.Succeeded)).IsSuccess.ShouldBeTrue();
+        (await _h.Control.CompleteAsync(session.SessionId, MockOutcome.Succeeded, Ct)).IsSuccess.ShouldBeTrue();
         _h.Time.Advance(TimeSpan.FromMinutes(2));
 
-        (await _h.Control.CompleteAsync(session.SessionId, MockOutcome.Failed)).Error.ShouldBe(MockGatewayErrors.AlreadyCompleted);
-        (await _h.Control.CompleteAsync(late.SessionId, MockOutcome.Succeeded)).Error.ShouldBe(MockGatewayErrors.SessionExpired);
-        (await _h.Control.CompleteAsync("mock_nope", MockOutcome.Succeeded)).Error.ShouldBe(MockGatewayErrors.SessionNotFound);
-        (await _h.Queue.CountAsync()).ShouldBe(1);
+        (await _h.Control.CompleteAsync(session.SessionId, MockOutcome.Failed, Ct)).Error.ShouldBe(MockGatewayErrors.AlreadyCompleted);
+        (await _h.Control.CompleteAsync(late.SessionId, MockOutcome.Succeeded, Ct)).Error.ShouldBe(MockGatewayErrors.SessionExpired);
+        (await _h.Control.CompleteAsync("mock_nope", MockOutcome.Succeeded, Ct)).Error.ShouldBe(MockGatewayErrors.SessionNotFound);
+        (await _h.Queue.CountAsync(Ct)).ShouldBe(1);
     }
 
     [Fact]
@@ -303,10 +357,10 @@ public sealed class MockPaymentGatewayTests(ContainersFixture containers) : IAsy
         var session = await _h.CreateSessionAsync();
 
         var results = await Task.WhenAll(Enumerable.Range(0, 10).Select(i =>
-            _h.Control.CompleteAsync(session.SessionId, i % 2 == 0 ? MockOutcome.Succeeded : MockOutcome.Failed)));
+            _h.Control.CompleteAsync(session.SessionId, i % 2 == 0 ? MockOutcome.Succeeded : MockOutcome.Failed, Ct)));
 
         results.Count(r => r.IsSuccess).ShouldBe(1);
-        (await _h.Queue.CountAsync()).ShouldBe(1);
+        (await _h.Queue.CountAsync(Ct)).ShouldBe(1);
     }
 
     [Fact]
@@ -315,7 +369,7 @@ public sealed class MockPaymentGatewayTests(ContainersFixture containers) : IAsy
         var order = PaymentHarness.NewOrder(500_000, 2);
         var session = await _h.CreateSessionAsync(order);
 
-        var view = (await _h.Control.GetAsync(session.SessionId))!;
+        var view = (await _h.Control.GetAsync(session.SessionId, Ct))!;
 
         view.Amount.ShouldBe(1_000_000);
         view.Currency.ShouldBe("VND");
@@ -325,6 +379,6 @@ public sealed class MockPaymentGatewayTests(ContainersFixture containers) : IAsy
         view.ExpiresAt.ShouldBe(session.ExpiresAt);
         view.ReturnUrl.ToString().ShouldBe("http://web.test:3000/checkout/result");
         view.ServerNow.ShouldBe(_h.Time.GetUtcNow());
-        (await _h.Control.GetAsync("mock_nope")).ShouldBeNull();
+        (await _h.Control.GetAsync("mock_nope", Ct)).ShouldBeNull();
     }
 }

@@ -138,7 +138,7 @@ public sealed class MockGatewayEndpointsTests(ContainersFixture containers) : IA
         (await completed.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("status").GetString().ShouldBe("Succeeded");
         again.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await again.Content.ReadAsStringAsync(Ct)).ShouldContain("mock_gateway.already_completed");
-        (await factory.Services.GetRequiredService<MockWebhookQueue>().CountAsync()).ShouldBe(2);
+        (await factory.Services.GetRequiredService<MockWebhookQueue>().CountAsync(Ct)).ShouldBe(2);
         (await factory.Services.GetRequiredService<IPaymentGatewayResolver>().Default.GetStatusAsync(id, Ct)).ShouldBe(PaymentStatus.Succeeded);
     }
 
@@ -153,12 +153,12 @@ public sealed class MockGatewayEndpointsTests(ContainersFixture containers) : IA
         using var client = factory.CreateClient();
         var id = await CreateSessionAsync(factory);
         var queue = factory.Services.GetRequiredService<MockWebhookQueue>();
-        var before = await queue.CountAsync();
+        var before = await queue.CountAsync(Ct);
 
         var response = await client.PostAsJsonAsync(new Uri($"/api/v1/mock-gateway/sessions/{id}/complete", UriKind.Relative), new { outcome }, Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await queue.CountAsync() - before).ShouldBe(expectedDeliveries);
+        (await queue.CountAsync(Ct) - before).ShouldBe(expectedDeliveries);
     }
 
     [Fact]

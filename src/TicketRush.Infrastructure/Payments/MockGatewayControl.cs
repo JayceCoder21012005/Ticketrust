@@ -18,16 +18,16 @@ public sealed class MockGatewayControl(
     IOptionsMonitor<MockGatewayOptions> options,
     TimeProvider time)
 {
-    public async Task<MockSessionView?> GetAsync(string sessionId)
+    public async Task<MockSessionView?> GetAsync(string sessionId, CancellationToken ct)
     {
-        var session = await sessions.GetAsync(sessionId);
+        var session = await sessions.GetAsync(sessionId, ct);
         return session is null ? null : ToView(session, time.GetUtcNow());
     }
 
-    public async Task<Result<MockSessionView>> CompleteAsync(string sessionId, MockOutcome outcome)
+    public async Task<Result<MockSessionView>> CompleteAsync(string sessionId, MockOutcome outcome, CancellationToken ct)
     {
         var now = time.GetUtcNow();
-        var session = await sessions.GetAsync(sessionId);
+        var session = await sessions.GetAsync(sessionId, ct);
         if (session is null)
         {
             return MockGatewayErrors.SessionNotFound;
@@ -41,7 +41,7 @@ public sealed class MockGatewayControl(
         var final = outcome == MockOutcome.Failed ? MockSessionStatus.Failed : MockSessionStatus.Succeeded;
         var due = outcome == MockOutcome.SucceededDelayed ? now + options.CurrentValue.DelayedWebhookDelay : now;
         var deliveries = BuildDeliveries(session, final, outcome, now);
-        if (!await sessions.CompleteAsync(session, final, deliveries, due, now))
+        if (!await sessions.CompleteAsync(session, final, deliveries, due, now, ct))
         {
             return MockGatewayErrors.AlreadyCompleted;
         }

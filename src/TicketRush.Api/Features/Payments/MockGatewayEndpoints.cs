@@ -35,13 +35,13 @@ public static class MockGatewayEndpoints
         return v1;
     }
 
-    private static async Task<IResult> GetAsync(string sessionId, MockGatewayControl control) =>
-        await control.GetAsync(sessionId) is { } view
+    private static async Task<IResult> GetAsync(string sessionId, MockGatewayControl control, CancellationToken ct) =>
+        await control.GetAsync(sessionId, ct) is { } view
             ? TypedResults.Ok(view)
             : MockGatewayErrors.SessionNotFound.ToProblem();
 
-    private static async Task<IResult> CompleteAsync(string sessionId, CompleteMockSessionRequest request, MockGatewayControl control) =>
-        (await control.CompleteAsync(sessionId, request.Outcome)).ToHttpResult();
+    private static async Task<IResult> CompleteAsync(string sessionId, CompleteMockSessionRequest request, MockGatewayControl control, CancellationToken ct) =>
+        (await control.CompleteAsync(sessionId, request.Outcome, ct)).ToHttpResult();
 
     private static IServiceProvider ServiceProvider(this IEndpointRouteBuilder builder) => builder.ServiceProvider;
 }

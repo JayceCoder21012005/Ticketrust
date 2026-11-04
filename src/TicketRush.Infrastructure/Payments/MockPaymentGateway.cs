@@ -33,6 +33,7 @@ public sealed class MockPaymentGateway(
     {
         ArgumentNullException.ThrowIfNull(order);
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
+        ct.ThrowIfCancellationRequested();
         ThrowIfOutage();
         var now = time.GetUtcNow();
         if (expiresAt <= now)
@@ -40,15 +41,16 @@ public sealed class MockPaymentGateway(
             throw new PaymentRejectedException("The payment session would already be expired.");
         }
 
-        var session = await sessions.CreateAsync(order, returnUrl, expiresAt, idempotencyKey, now);
+        var session = await sessions.CreateAsync(order, returnUrl, expiresAt, idempotencyKey, now, ct);
         var redirect = new Uri($"{options.CurrentValue.WebBaseUrl.TrimEnd('/')}/mock-gateway/{session.SessionId}");
         return new PaymentSession(session.SessionId, redirect, session.ExpiresAt);
     }
 
     public async Task<PaymentStatus> GetStatusAsync(string sessionId, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         ThrowIfOutage();
-        var session = await sessions.GetAsync(sessionId);
+        var session = await sessions.GetAsync(sessionId, ct);
         return session?.EffectiveStatus(time.GetUtcNow()) ?? PaymentStatus.Expired;
     }
 
@@ -56,16 +58,17 @@ public sealed class MockPaymentGateway(
     {
         ArgumentNullException.ThrowIfNull(amount);
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
+        ct.ThrowIfCancellationRequested();
         ThrowIfOutage();
-        if (await sessions.GetRefundAsync(idempotencyKey) is { } done)
+        if (await sessions.GetRefundAsync(idempotencyKey, ct) is { } done)
         {
             return done;
         }
 
-        var session = await sessions.GetAsync(sessionId);
+        var session = await sessions.GetAsync(sessionId, ct);
         return RefusalReason(session, amount) is { } reason
             ? new RefundResult(string.Empty, RefundStatus.Failed, reason)
-            : await sessions.RecordRefundAsync(sessionId, idempotencyKey, amount.Amount);
+            : await sessions.RecordRefundAsync(sessionId, idempotencyKey, amount.Amount, ct);
     }
 
     public WebhookEvent VerifyAndParse(WebhookHeaders headers, string body)

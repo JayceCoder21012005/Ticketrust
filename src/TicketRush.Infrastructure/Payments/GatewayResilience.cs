@@ -4,6 +4,7 @@ using Polly.CircuitBreaker;
 using Polly.Retry;
 using Polly.Timeout;
 using TicketRush.Application.Abstractions.Payments;
+using TicketRush.Domain.Primitives;
 
 namespace TicketRush.Infrastructure.Payments;
 
@@ -49,25 +50,23 @@ public sealed partial class GatewayResilience
         {
             return await _pipeline.ExecuteAsync(async token => await call(token), ct);
         }
-        catch (PaymentRejectedException)
-        {
-            throw;
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
         catch (BrokenCircuitException ex)
         {
             throw new PaymentGatewayUnavailableException($"The {_provider} circuit breaker is open.", ex);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (IsTransient(ex))
         {
             throw new PaymentGatewayUnavailableException($"The {_provider} gateway did not respond.", ex);
         }
     }
 
-    private static bool IsTransient(Exception ex) => ex is not (PaymentRejectedException or OperationCanceledException);
+    /// <summary>
+    /// Outages, timeouts and I/O errors. Not transient, and therefore never retried, never counted by the breaker and
+    /// rethrown unchanged: a gateway refusal, caller cancellation, and our own bugs or rule violations
+    /// (<see cref="ArgumentException"/>, <see cref="DomainException"/>), which would otherwise be reported as an outage.
+    /// </summary>
+    private static bool IsTransient(Exception ex) =>
+        ex is not (PaymentRejectedException or OperationCanceledException or ArgumentException or DomainException);
 
     private RetryStrategyOptions RetryStrategy(GatewayResilienceOptions options) => new()
     {

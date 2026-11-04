@@ -16,32 +16,40 @@ public sealed class MockWebhookQueue(IConnectionMultiplexer redis, RedisKeys key
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    public Task EnqueueAsync(MockDelivery delivery, DateTimeOffset due) =>
-        redis.GetDatabase().SortedSetAddAsync(keys.PayMockDeliveries, Serialize(delivery), Score(due));
+    public Task EnqueueAsync(MockDelivery delivery, DateTimeOffset due, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return redis.GetDatabase().SortedSetAddAsync(keys.PayMockDeliveries, Serialize(delivery), Score(due)).WaitAsync(ct);
+    }
 
     /// <summary>Queues the delivery inside an open transaction (completing a session and its webhooks are one atomic step).</summary>
     internal void StageEnqueue(ITransaction transaction, MockDelivery delivery, DateTimeOffset due) =>
         _ = transaction.SortedSetAddAsync(keys.PayMockDeliveries, Serialize(delivery), Score(due));
 
-    public async Task<long> CountAsync() => await redis.GetDatabase().SortedSetLengthAsync(keys.PayMockDeliveries);
+    public async Task<long> CountAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return await redis.GetDatabase().SortedSetLengthAsync(keys.PayMockDeliveries).WaitAsync(ct);
+    }
 
     /// <summary>Takes up to <paramref name="batch"/> deliveries due at <paramref name="now"/> and hides them for <paramref name="lease"/>.</summary>
-    public async Task<IReadOnlyList<ClaimedDelivery>> ClaimDueAsync(DateTimeOffset now, int batch, TimeSpan lease)
+    public async Task<IReadOnlyList<ClaimedDelivery>> ClaimDueAsync(DateTimeOffset now, int batch, TimeSpan lease, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         var db = redis.GetDatabase();
-        var members = await db.SortedSetRangeByScoreAsync(keys.PayMockDeliveries, double.NegativeInfinity, Score(now), take: batch);
+        var members = await db.SortedSetRangeByScoreAsync(keys.PayMockDeliveries, double.NegativeInfinity, Score(now), take: batch).WaitAsync(ct);
         var claimed = new List<ClaimedDelivery>(members.Length);
         foreach (var member in members)
         {
             // XX: only moves an entry that still exists (it adds nothing, so the reply is always false).
-            await db.SortedSetAddAsync(keys.PayMockDeliveries, member, Score(now + lease), SortedSetWhen.Exists);
+            await db.SortedSetAddAsync(keys.PayMockDeliveries, member, Score(now + lease), SortedSetWhen.Exists).WaitAsync(ct);
             if (Parse(member) is { } delivery)
             {
                 claimed.Add(new ClaimedDelivery(delivery, member));
             }
             else
             {
-                await db.SortedSetRemoveAsync(keys.PayMockDeliveries, member);
+                await db.SortedSetRemoveAsync(keys.PayMockDeliveries, member).WaitAsync(ct);
             }
         }
 
@@ -49,16 +57,20 @@ public sealed class MockWebhookQueue(IConnectionMultiplexer redis, RedisKeys key
     }
 
     /// <summary>The receiver accepted the delivery (or it is dropped for good).</summary>
-    public Task AcknowledgeAsync(ClaimedDelivery claimed) =>
-        redis.GetDatabase().SortedSetRemoveAsync(keys.PayMockDeliveries, claimed.Member);
+    public Task AcknowledgeAsync(ClaimedDelivery claimed, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return redis.GetDatabase().SortedSetRemoveAsync(keys.PayMockDeliveries, claimed.Member).WaitAsync(ct);
+    }
 
     /// <summary>Swaps the entry for the next attempt, due at <paramref name="due"/>.</summary>
-    public async Task RescheduleAsync(ClaimedDelivery claimed, DateTimeOffset due)
+    public async Task RescheduleAsync(ClaimedDelivery claimed, DateTimeOffset due, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         var transaction = redis.GetDatabase().CreateTransaction();
         _ = transaction.SortedSetRemoveAsync(keys.PayMockDeliveries, claimed.Member);
         _ = transaction.SortedSetAddAsync(keys.PayMockDeliveries, Serialize(claimed.Delivery with { Attempt = claimed.Delivery.Attempt + 1 }), Score(due));
-        await transaction.ExecuteAsync();
+        await transaction.ExecuteAsync().WaitAsync(ct);
     }
 
     private static double Score(DateTimeOffset at) => at.ToUnixTimeMilliseconds();

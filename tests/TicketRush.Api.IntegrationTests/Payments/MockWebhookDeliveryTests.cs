@@ -23,7 +23,7 @@ public sealed class MockWebhookDeliveryTests(ContainersFixture containers) : IAs
     private async Task<string> CompleteAsync(MockOutcome outcome)
     {
         var session = await _h.CreateSessionAsync();
-        (await _h.Control.CompleteAsync(session.SessionId, outcome)).IsSuccess.ShouldBeTrue();
+        (await _h.Control.CompleteAsync(session.SessionId, outcome, Ct)).IsSuccess.ShouldBeTrue();
         return session.SessionId;
     }
 
@@ -43,7 +43,7 @@ public sealed class MockWebhookDeliveryTests(ContainersFixture containers) : IAs
         var webhook = Verify(received);
         webhook.SessionId.ShouldBe(sessionId);
         webhook.Type.ShouldBe(WebhookEventType.Succeeded);
-        (await _h.Queue.CountAsync()).ShouldBe(0);
+        (await _h.Queue.CountAsync(Ct)).ShouldBe(0);
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class MockWebhookDeliveryTests(ContainersFixture containers) : IAs
         await _h.Deliverer.RunOnceAsync(Ct);
 
         _h.Handler.Requests.ShouldBeEmpty();
-        (await _h.Queue.CountAsync()).ShouldBe(1);
+        (await _h.Queue.CountAsync(Ct)).ShouldBe(1);
     }
 
     [Fact]
@@ -139,7 +139,7 @@ public sealed class MockWebhookDeliveryTests(ContainersFixture containers) : IAs
 
         _h.Handler.Requests.Count.ShouldBe(3);
         _h.Handler.Requests.Select(r => r.Body).Distinct().Count().ShouldBe(1);
-        (await _h.Queue.CountAsync()).ShouldBe(0);
+        (await _h.Queue.CountAsync(Ct)).ShouldBe(0);
     }
 
     [Fact]
@@ -169,7 +169,7 @@ public sealed class MockWebhookDeliveryTests(ContainersFixture containers) : IAs
 
         (await _h.Deliverer.RunOnceAsync(Ct)).ShouldBe(0);
 
-        (await _h.Queue.CountAsync()).ShouldBe(1);
+        (await _h.Queue.CountAsync(Ct)).ShouldBe(1);
         _h.Handler.Requests.Count.ShouldBe(2);
     }
 
@@ -186,7 +186,7 @@ public sealed class MockWebhookDeliveryTests(ContainersFixture containers) : IAs
         await _h.Deliverer.RunOnceAsync(Ct);
 
         _h.Handler.Requests.Count.ShouldBe(2);
-        (await _h.Queue.CountAsync()).ShouldBe(0);
+        (await _h.Queue.CountAsync(Ct)).ShouldBe(0);
     }
 
     [Fact]
@@ -195,9 +195,9 @@ public sealed class MockWebhookDeliveryTests(ContainersFixture containers) : IAs
         await CompleteAsync(MockOutcome.Succeeded);
         var now = _h.Time.GetUtcNow();
 
-        (await _h.Queue.ClaimDueAsync(now, 10, TimeSpan.FromSeconds(30))).Count.ShouldBe(1);
-        (await _h.Queue.ClaimDueAsync(now.AddSeconds(29), 10, TimeSpan.FromSeconds(30))).ShouldBeEmpty();
-        (await _h.Queue.ClaimDueAsync(now.AddSeconds(30), 10, TimeSpan.FromSeconds(30))).Count.ShouldBe(1);
+        (await _h.Queue.ClaimDueAsync(now, 10, TimeSpan.FromSeconds(30), Ct)).Count.ShouldBe(1);
+        (await _h.Queue.ClaimDueAsync(now.AddSeconds(29), 10, TimeSpan.FromSeconds(30), Ct)).ShouldBeEmpty();
+        (await _h.Queue.ClaimDueAsync(now.AddSeconds(30), 10, TimeSpan.FromSeconds(30), Ct)).Count.ShouldBe(1);
     }
 
     [Fact]
@@ -207,7 +207,7 @@ public sealed class MockWebhookDeliveryTests(ContainersFixture containers) : IAs
 
         (await _h.Deliverer.RunOnceAsync(Ct)).ShouldBe(0);
 
-        (await _h.Queue.CountAsync()).ShouldBe(0);
+        (await _h.Queue.CountAsync(Ct)).ShouldBe(0);
     }
 
     [Fact]
@@ -227,7 +227,7 @@ public sealed class MockWebhookDeliveryTests(ContainersFixture containers) : IAs
             await service.StopAsync(CancellationToken.None);
         }
 
-        (await _h.Queue.CountAsync()).ShouldBe(0);
+        (await _h.Queue.CountAsync(Ct)).ShouldBe(0);
     }
 
     private static async Task WaitUntilAsync(Func<bool> condition)

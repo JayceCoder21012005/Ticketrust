@@ -14,15 +14,19 @@ public static class WebhookSignature
 {
     private const int Sha256HexLength = 64;
 
+    /// <exception cref="ArgumentException">The secret is null, empty or whitespace (misconfiguration: HMAC would accept an empty key).</exception>
     public static string Sign(string secret, string body, DateTimeOffset at)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(secret);
         var timestamp = at.ToUnixTimeSeconds();
         return string.Create(CultureInfo.InvariantCulture, $"t={timestamp},v1={Convert.ToHexStringLower(Compute(secret, timestamp, body))}");
     }
 
+    /// <exception cref="ArgumentException">The secret is null, empty or whitespace. Checked first and thrown, never turned into an accept or a 401: a missing secret is a server fault.</exception>
     /// <exception cref="InvalidWebhookSignatureException">Malformed header, wrong signature or a timestamp outside <paramref name="tolerance"/>.</exception>
     public static void Verify(string? header, string body, string secret, DateTimeOffset now, TimeSpan tolerance)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(secret);
         var (timestamp, candidates) = Parse(header);
         var expected = Compute(secret, timestamp, body);
 

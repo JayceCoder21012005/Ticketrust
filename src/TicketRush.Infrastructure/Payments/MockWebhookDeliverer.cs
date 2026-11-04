@@ -29,17 +29,17 @@ public sealed partial class MockWebhookDeliverer(
     public async Task<int> RunOnceAsync(CancellationToken ct)
     {
         var accepted = 0;
-        foreach (var claimed in await queue.ClaimDueAsync(time.GetUtcNow(), BatchSize, Lease))
+        foreach (var claimed in await queue.ClaimDueAsync(time.GetUtcNow(), BatchSize, Lease, ct))
         {
             ct.ThrowIfCancellationRequested();
             if (await TrySendAsync(claimed.Delivery, ct))
             {
-                await queue.AcknowledgeAsync(claimed);
+                await queue.AcknowledgeAsync(claimed, ct);
                 accepted++;
             }
             else
             {
-                await FailAsync(claimed);
+                await FailAsync(claimed, ct);
             }
         }
 
@@ -71,19 +71,19 @@ public sealed partial class MockWebhookDeliverer(
         }
     }
 
-    private async Task FailAsync(ClaimedDelivery claimed)
+    private async Task FailAsync(ClaimedDelivery claimed, CancellationToken ct)
     {
         if (claimed.Delivery.Attempt + 1 >= options.CurrentValue.MaxDeliveryAttempts)
         {
             LogDropped(logger, claimed.Delivery.DeliveryId);
-            await queue.AcknowledgeAsync(claimed);
+            await queue.AcknowledgeAsync(claimed, ct);
             return;
         }
 
         var backoff = TimeSpan.FromTicks(Math.Min(
             MaxBackoff.Ticks,
             options.CurrentValue.DeliveryRetryBaseDelay.Ticks << Math.Min(claimed.Delivery.Attempt, 10)));
-        await queue.RescheduleAsync(claimed, time.GetUtcNow() + backoff);
+        await queue.RescheduleAsync(claimed, time.GetUtcNow() + backoff, ct);
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Mock webhook {DeliveryId} was answered {StatusCode} (attempt {Attempt})")]

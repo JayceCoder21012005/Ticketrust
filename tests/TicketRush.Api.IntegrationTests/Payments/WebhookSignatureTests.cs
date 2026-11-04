@@ -139,6 +139,35 @@ public sealed class WebhookSignatureTests
         Should.NotThrow(() => Verify($"{stale},v0=ignored,{good}"));
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("\t\n")]
+    public void Signing_with_a_blank_secret_is_refused(string secret)
+    {
+        Should.Throw<ArgumentException>(() => WebhookSignature.Sign(secret, Body, Now));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("\t\n")]
+    public void Verifying_with_a_blank_secret_fails_closed_even_for_a_signature_made_with_that_key(string secret)
+    {
+        // An empty key is a valid HMAC key, so a forged "valid" header is easy to build by hand.
+        var forged = $"t={Now.ToUnixTimeSeconds()},v1={Hmac(secret, $"{Now.ToUnixTimeSeconds()}.{Body}")}";
+
+        Should.Throw<ArgumentException>(() => WebhookSignature.Verify(forged, Body, secret, Now, Tolerance));
+        Should.Throw<ArgumentException>(() => WebhookSignature.Verify(null, Body, secret, Now, Tolerance));
+    }
+
+    [Fact]
+    public void A_null_secret_is_refused_too()
+    {
+        Should.Throw<ArgumentNullException>(() => WebhookSignature.Sign(null!, Body, Now));
+        Should.Throw<ArgumentNullException>(() => WebhookSignature.Verify("t=1,v1=00", Body, null!, Now, Tolerance));
+    }
+
     [Fact]
     public void Verification_is_constant_time_by_construction()
     {

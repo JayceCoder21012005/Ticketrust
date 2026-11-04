@@ -182,6 +182,48 @@ public sealed class ResilientPaymentGatewayTests
     }
 
     [Fact]
+    public async Task A_programming_error_is_rethrown_unchanged_not_retried_and_not_counted()
+    {
+        var rig = Build(o => o.BreakerMinimumThroughput = 2);
+        rig.Inner.Behavior = _ => throw new ArgumentNullException("order");
+
+        for (var i = 0; i < 5; i++)
+        {
+            await Should.ThrowAsync<ArgumentNullException>(() => Status(rig));
+        }
+
+        rig.Inner.Calls.ShouldBe(5);
+        rig.Resilience.CircuitState.ShouldBe(CircuitState.Closed);
+    }
+
+    [Fact]
+    public async Task An_argument_out_of_range_is_not_an_outage()
+    {
+        var rig = Build(o => o.BreakerMinimumThroughput = 2);
+        rig.Inner.Behavior = _ => throw new ArgumentOutOfRangeException("amount");
+
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => Status(rig));
+
+        rig.Inner.Calls.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task A_domain_rule_violation_is_rethrown_unchanged_not_retried_and_not_counted()
+    {
+        var rig = Build(o => o.BreakerMinimumThroughput = 2);
+        rig.Inner.Behavior = _ => throw new DomainException("money.negative", "Money cannot be negative.");
+
+        for (var i = 0; i < 5; i++)
+        {
+            var ex = await Should.ThrowAsync<DomainException>(() => Status(rig));
+            ex.Code.ShouldBe("money.negative");
+        }
+
+        rig.Inner.Calls.ShouldBe(5);
+        rig.Resilience.CircuitState.ShouldBe(CircuitState.Closed);
+    }
+
+    [Fact]
     public async Task The_breaker_opens_at_the_failure_ratio_and_then_fails_fast_without_calling_the_gateway()
     {
         var rig = Build(o => o.BreakerMinimumThroughput = 4);
