@@ -27,6 +27,13 @@ namespace TicketRush.Domain.Orders;
 /// </summary>
 public sealed class Order : AggregateRoot, IAuditable
 {
+    /// <summary>
+    /// Upper bound on one line's quantity. A hold is capped at 8 seats by default (<c>Holds:MaxSeatsPerHold</c>) and
+    /// organizers set the per-user phase limit; 100 is a generous hard ceiling that keeps line and order totals far
+    /// from <see cref="long"/> overflow while never rejecting a real purchase.
+    /// </summary>
+    public const int MaxQuantityPerItem = 100;
+
     private static readonly FrozenDictionary<Trigger, Transition> Transitions = new Dictionary<Trigger, Transition>
     {
         [Trigger.StartPayment] = new(OrderStatus.AwaitingPayment, OrderStatus.Pending, OrderStatus.PaymentFailed),
@@ -157,7 +164,7 @@ public sealed class Order : AggregateRoot, IAuditable
     {
         MoveTo(Trigger.MarkPaid);
         PaidAt = now;
-        Raise(new OrderPaid(Id, UserId, EventId, HoldId, Total.Amount, Total.Currency, TicketCount(), now));
+        Raise(new OrderPaid(Id, UserId, EventId, HoldId, Total.Amount, Total.Currency, TicketCount(), now, PaidLines()));
     }
 
     /// <summary>AwaitingPayment → PaymentFailed (the buyer may retry via <see cref="StartPayment"/> while the hold lives).</summary>
@@ -203,6 +210,9 @@ public sealed class Order : AggregateRoot, IAuditable
             .SelectMany(item => Enumerable.Range(0, item.Quantity).Select(_ => Ticket.Issue(Id, EventId, item.TierId, item.SeatIndex, UserId)))
             .ToList();
     }
+
+    private List<OrderPaidLine> PaidLines() =>
+        _items.Select(item => new OrderPaidLine(item.TierId, item.SeatIndex, item.Quantity)).ToList();
 
     private int TicketCount() => _items.Sum(item => item.Quantity);
 

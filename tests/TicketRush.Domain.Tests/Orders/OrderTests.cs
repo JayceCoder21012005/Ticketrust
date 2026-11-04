@@ -161,7 +161,15 @@ public sealed class OrderTests
 
         order.PaidAt.ShouldBe(paidAt);
         var paid = order.DequeueDomainEvents().ShouldHaveSingleItem().ShouldBeOfType<OrderPaid>();
-        paid.ShouldBe(new OrderPaid(order.Id, UserId, EventId, HoldId, 1_600_000, "VND", 2, paidAt));
+        paid.OrderId.ShouldBe(order.Id);
+        paid.UserId.ShouldBe(UserId);
+        paid.EventId.ShouldBe(EventId);
+        paid.HoldId.ShouldBe(HoldId);
+        paid.TotalAmount.ShouldBe(1_600_000);
+        paid.Currency.ShouldBe("VND");
+        paid.TicketCount.ShouldBe(2);
+        paid.PaidAt.ShouldBe(paidAt);
+        paid.Lines.ShouldBe([new OrderPaidLine(TierId, 12, 1), new OrderPaidLine(TierId, 13, 1)]);
     }
 
     [Fact]
@@ -300,7 +308,7 @@ public sealed class OrderTests
     {
         IDomainEvent[] events =
         [
-            new OrderPaid(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 10, "VND", 2, Now),
+            new OrderPaid(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 10, "VND", 3, Now, [new OrderPaidLine(Guid.NewGuid(), 7, 1), new OrderPaidLine(Guid.NewGuid(), null, 2)]),
             new OrderCancelled(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()),
             new OrderExpired(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()),
             new RefundRequested(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 10, "VND", RefundReasons.EventCancelled),
@@ -310,7 +318,59 @@ public sealed class OrderTests
         foreach (var domainEvent in events)
         {
             var json = JsonSerializer.Serialize(domainEvent, domainEvent.GetType(), Json);
-            JsonSerializer.Deserialize(json, domainEvent.GetType(), Json).ShouldBe(domainEvent);
+            var back = JsonSerializer.Deserialize(json, domainEvent.GetType(), Json).ShouldNotBeNull();
+            back.ShouldBeOfType(domainEvent.GetType());
+            JsonSerializer.Serialize(back, domainEvent.GetType(), Json).ShouldBe(json);
         }
+    }
+
+    [Fact]
+    public void OrderPaid_lines_carry_general_admission_quantities_for_the_late_payment_path()
+    {
+        var gaTier = Guid.CreateVersion7();
+        var order = Create([new OrderItem(gaTier, null, new Money(500_000), 3)], new Money(1_500_000));
+        order.StartPayment(Now);
+        order.Expire();
+        order.DequeueDomainEvents();
+
+        order.MarkPaid(ExpiresAt.AddMinutes(1));
+
+        order.DequeueDomainEvents().ShouldHaveSingleItem().ShouldBeOfType<OrderPaid>()
+            .Lines.ShouldBe([new OrderPaidLine(gaTier, null, 3)]);
+    }
+
+    [Fact]
+    public void Create_rejects_a_quantity_above_the_per_item_maximum()
+    {
+        var items = new[] { new OrderItem(TierId, null, new Money(1), Order.MaxQuantityPerItem + 1) };
+
+        Should.Throw<DomainException>(() => Create(items, new Money(Order.MaxQuantityPerItem + 1)))
+            .Code.ShouldBe("order.invalid_item");
+        Should.Throw<DomainException>(() => Create([new OrderItem(TierId, null, new Money(1), int.MaxValue)], new Money(1)))
+            .Code.ShouldBe("order.invalid_item");
+    }
+
+    [Fact]
+    public void Create_accepts_exactly_the_per_item_maximum()
+    {
+        var quantity = Order.MaxQuantityPerItem;
+
+        var order = Create([new OrderItem(TierId, null, new Money(1_000), quantity)], new Money(1_000L * quantity));
+
+        order.Items[0].Quantity.ShouldBe(quantity);
+    }
+
+    [Fact]
+    public void Create_turns_an_overflowing_total_into_a_domain_error_instead_of_an_OverflowException()
+    {
+        var items = new[]
+        {
+            new OrderItem(TierId, null, new Money(long.MaxValue), 2),
+            new OrderItem(TierId, 1, new Money(long.MaxValue), 1),
+        };
+
+        Should.Throw<DomainException>(() => Create(items, new Money(1))).Code.ShouldBe("order.total_mismatch");
+        Should.Throw<DomainException>(() => Create([new OrderItem(TierId, 1, new Money(long.MaxValue), 1), new OrderItem(TierId, 2, new Money(1), 1)], new Money(1)))
+            .Code.ShouldBe("order.total_mismatch");
     }
 }
