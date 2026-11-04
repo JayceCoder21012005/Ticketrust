@@ -4,6 +4,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TicketRush.Api.IntegrationTests.Infrastructure;
 using TicketRush.Domain.Events;
+using TicketRush.Domain.Events.Layout;
+using TicketRush.Domain.Primitives;
 using TicketRush.Infrastructure;
 using TicketRush.Infrastructure.Identity;
 using TicketRush.Infrastructure.Persistence;
@@ -169,12 +171,117 @@ public sealed class PersistenceTests(ContainersFixture containers) : IAsyncLifet
         evt.UpdatedAt.ShouldBeGreaterThan(created);
     }
 
+    [Fact]
+    public async Task Layout_round_trips_as_jsonb()
+    {
+        Guid id;
+        await using (var write = Scope())
+        {
+            var db = write.ServiceProvider.GetRequiredService<AppDbContext>();
+            var evt = await NewDraftAsync(db, "layout-round-trip");
+            evt.ReplaceTiers(
+            [
+                new TierDraft(null, "Ngồi", new Money(500_000), TicketKind.Seated, null, "#7c3aed"),
+                new TierDraft(null, "Đứng", new Money(300_000), TicketKind.GeneralAdmission, 200, "#0f766e"),
+            ]);
+            evt.ReplaceLayout(new SeatLayoutDefinition(
+            [
+                new SectionDefinition("A", evt.Tiers[0].Id, SectionKind.Seated, 2, 3, new LayoutPoint(100.5, 80), 0.15),
+                new SectionDefinition("GA", evt.Tiers[1].Id, SectionKind.Standing),
+            ]));
+            await db.SaveChangesAsync(Ct);
+            id = evt.Id;
+        }
+
+        await using var read = Scope();
+        var loaded = await read.ServiceProvider.GetRequiredService<AppDbContext>().Events.AsNoTracking().SingleAsync(e => e.Id == id, Ct);
+        loaded.Layout.ShouldNotBeNull();
+        loaded.Layout.Sections.Count.ShouldBe(2);
+        loaded.Layout.Sections[0].ShouldBe(new SectionDefinition("A", loaded.Layout.Sections[0].TierId, SectionKind.Seated, 2, 3, new LayoutPoint(100.5, 80), 0.15));
+        loaded.Layout.Sections[1].Kind.ShouldBe(SectionKind.Standing);
+    }
+
+    [Fact]
+    public async Task Concurrent_update_of_event_throws_DbUpdateConcurrencyException()
+    {
+        Guid id;
+        await using (var seed = Scope())
+        {
+            var db = seed.ServiceProvider.GetRequiredService<AppDbContext>();
+            id = (await NewDraftAsync(db, "concurrency")).Id;
+            await db.SaveChangesAsync(Ct);
+        }
+
+        await using var first = Scope();
+        await using var second = Scope();
+        var db1 = first.ServiceProvider.GetRequiredService<AppDbContext>();
+        var db2 = second.ServiceProvider.GetRequiredService<AppDbContext>();
+        var a = await db1.Events.SingleAsync(e => e.Id == id, Ct);
+        var b = await db2.Events.SingleAsync(e => e.Id == id, Ct);
+
+        a.UpdateInfo("Tab một", "", [], null);
+        await db1.SaveChangesAsync(Ct);
+        b.UpdateInfo("Tab hai", "", [], null);
+
+        await Should.ThrowAsync<DbUpdateConcurrencyException>(() => db2.SaveChangesAsync(Ct));
+    }
+
+    [Fact]
+    public async Task Phases_saved_from_a_draft_loaded_before_a_publish_are_rejected_by_xmin()
+    {
+        Guid id;
+        await using (var seed = Scope())
+        {
+            id = (await NewDraftAsync(seed.ServiceProvider.GetRequiredService<AppDbContext>(), "publish-race")).Id;
+        }
+
+        await using var editor = Scope();
+        await using var publisher = Scope();
+        var editorDb = editor.ServiceProvider.GetRequiredService<AppDbContext>();
+        var publisherDb = publisher.ServiceProvider.GetRequiredService<AppDbContext>();
+        var draft = await editorDb.Events.Include(e => e.Phases).SingleAsync(e => e.Id == id, Ct);
+        (await publisherDb.Events.SingleAsync(e => e.Id == id, Ct)).Publish();
+        await publisherDb.SaveChangesAsync(Ct);
+
+        var now = DateTimeOffset.UtcNow;
+        draft.ReplacePhases([new PhaseDraft(null, "Mở bán", now.AddMinutes(1), now.AddDays(1), false, 4, null, KeepExistingCode: false)]);
+
+        // Only sale_phases rows change, yet the event row (and its xmin check) must be part of the save.
+        await Should.ThrowAsync<DbUpdateConcurrencyException>(() => editorDb.SaveChangesAsync(Ct));
+    }
+
+    [Fact]
+    public async Task Seed_presale_code_is_hashed_with_the_pepper()
+    {
+        await using (var seed = Scope())
+        {
+            await seed.ServiceProvider.GetRequiredService<DevDataSeeder>().SeedAsync(Ct);
+        }
+
+        await using var check = Scope();
+        var hasher = check.ServiceProvider.GetRequiredService<TicketRush.Application.Abstractions.Security.IAccessCodeHasher>();
+        var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
+        var hashes = await db.Set<SalePhase>().Where(p => p.AccessCodeHash != null).Select(p => p.AccessCodeHash).ToListAsync(Ct);
+        hashes.ShouldHaveSingleItem().ShouldBe(hasher.Hash("seed-presale"));
+    }
+
+    private static async Task<Event> NewDraftAsync(AppDbContext db, string slug)
+    {
+        var venue = Domain.Venues.Venue.Create("Venue", "Address", "Hà Nội", null, 100);
+        var now = DateTimeOffset.UtcNow;
+        var evt = Event.CreateDraft(Guid.CreateVersion7(), slug, "Title", "concert", venue, now.AddDays(10), now.AddDays(10).AddHours(2));
+        db.Venues.Add(venue);
+        db.Events.Add(evt);
+        await db.SaveChangesAsync(Ct);
+        return evt;
+    }
+
     private static async Task<Event> NewPublishedEventAsync(AppDbContext db, string slug, string title = "Title", string[]? lineup = null)
     {
         var venue = Domain.Venues.Venue.Create("Venue", "Address", "Hà Nội", null, 100);
         var now = DateTimeOffset.UtcNow;
         var evt = Event.CreateDraft(Guid.CreateVersion7(), slug, title, "concert", venue, now.AddDays(10), now.AddDays(10).AddHours(2));
-        evt.UpdateDetails(string.Empty, lineup ?? [], null);
+        evt.UpdateInfo(evt.Title, string.Empty, lineup ?? [], null);
         evt.Publish();
         db.Venues.Add(venue);
         db.Events.Add(evt);

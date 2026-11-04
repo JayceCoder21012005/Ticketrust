@@ -1,3 +1,4 @@
+using TicketRush.Domain.Events.Layout;
 using TicketRush.Domain.Primitives;
 using TicketRush.Domain.Venues;
 
@@ -31,8 +32,8 @@ public sealed class Event : AggregateRoot, IAuditable
         Category = category;
         VenueId = venueId;
         City = city;
-        StartsAt = startsAt;
-        EndsAt = endsAt;
+        StartsAt = startsAt.ToUniversalTime();
+        EndsAt = endsAt.ToUniversalTime();
         Status = EventStatus.Draft;
     }
 
@@ -71,6 +72,9 @@ public sealed class Event : AggregateRoot, IAuditable
 
     public DateTimeOffset UpdatedAt { get; private set; }
 
+    /// <summary>The section definitions the seats were generated from, kept so the organizer can edit them again.</summary>
+    public SeatLayoutDefinition? Layout { get; private set; }
+
     public IReadOnlyList<SalePhase> Phases => _phases.AsReadOnly();
 
     public IReadOnlyList<TicketTier> Tiers => _tiers.AsReadOnly();
@@ -85,20 +89,144 @@ public sealed class Event : AggregateRoot, IAuditable
         DateTimeOffset endsAt)
     {
         EnsureValidSchedule(startsAt, endsAt);
-        if (!EventCategories.IsKnown(category))
-        {
-            throw new DomainException("event.invalid_category", $"Unknown event category '{category}'.");
-        }
+        EnsureKnownCategory(category);
 
         return new Event(Guid.CreateVersion7(), organizerId, slug, title.Trim(), category, venue.Id, venue.City, startsAt, endsAt);
     }
 
-    public void UpdateDetails(string description, IEnumerable<string> lineup, string? coverImageUrl)
+    public const int MinTitleLength = 3;
+    public const int MaxTitleLength = 200;
+
+    /// <summary>
+    /// Text and cover stay editable after publishing (spec 05). Changing them on a published event raises
+    /// <see cref="EventDetailsChanged"/> so public caches refresh.
+    /// </summary>
+    public void UpdateInfo(string title, string description, IEnumerable<string> lineup, string? coverImageUrl)
     {
         EnsureStatus("event.not_editable", EventStatus.Draft, EventStatus.Published);
+
+        var trimmed = title.Trim();
+        if (trimmed.Length is < MinTitleLength or > MaxTitleLength)
+        {
+            throw new DomainException("event.invalid_title", $"Title must be {MinTitleLength}–{MaxTitleLength} characters.");
+        }
+
+        var artists = lineup.Select(artist => artist.Trim()).Where(artist => artist.Length > 0).ToList();
+        var changed = trimmed != Title || description != Description || !artists.SequenceEqual(Lineup) || coverImageUrl != CoverImageUrl;
+
+        Title = trimmed;
         Description = description;
-        Lineup = lineup.Select(artist => artist.Trim()).Where(artist => artist.Length > 0).ToList();
+        Lineup = artists;
         CoverImageUrl = coverImageUrl;
+
+        if (changed && Status == EventStatus.Published)
+        {
+            Raise(new EventDetailsChanged(Id));
+        }
+    }
+
+    public void UpdateSchedule(string category, Venue venue, DateTimeOffset startsAt, DateTimeOffset endsAt)
+    {
+        EnsureStatus("event.not_editable", EventStatus.Draft);
+        EnsureValidSchedule(startsAt, endsAt);
+        EnsureKnownCategory(category);
+        if (_phases.Exists(phase => phase.ClosesAt > startsAt))
+        {
+            throw new DomainException("phase.after_event_start", "Sale phases must close before the event starts; move them first.");
+        }
+
+        Category = category;
+        VenueId = venue.Id;
+        City = venue.City;
+        StartsAt = startsAt.ToUniversalTime();
+        EndsAt = endsAt.ToUniversalTime();
+    }
+
+    /// <summary>Replaces the tier list: entries with an id update that tier in place, the others are new; missing tiers go.</summary>
+    public void ReplaceTiers(IReadOnlyList<TierDraft> tiers)
+    {
+        EnsureStatus("event.not_editable", EventStatus.Draft);
+
+        foreach (var draft in tiers.Where(t => t.Id is not null))
+        {
+            if (!_tiers.Exists(t => t.Id == draft.Id))
+            {
+                throw new DomainException("tier.not_found", $"Tier {draft.Id} does not belong to this event.");
+            }
+        }
+
+        var kept = tiers.Where(t => t.Id is not null).Select(t => t.Id!.Value).ToHashSet();
+        var orphaned = Layout?.Sections.Where(s => !kept.Contains(s.TierId)).Select(s => s.Code).ToList() ?? [];
+        if (orphaned.Count > 0)
+        {
+            throw new DomainException("tier.in_use", $"Tiers still used by sections {string.Join(", ", orphaned)} can't be removed.");
+        }
+
+        // A section's seats (or standing area) follow its tier's kind, so that kind can't change under it.
+        var kinds = tiers.Where(t => t.Id is not null).ToDictionary(t => t.Id!.Value, t => t.Kind);
+        var rekinded = Layout?.Sections
+            .Where(s => _tiers.Single(t => t.Id == s.TierId).Kind != kinds[s.TierId])
+            .Select(s => s.Code)
+            .ToList() ?? [];
+        if (rekinded.Count > 0)
+        {
+            throw new DomainException("tier.in_use", $"Tiers used by sections {string.Join(", ", rekinded)} can't change kind.");
+        }
+
+        _tiers.RemoveAll(t => !kept.Contains(t.Id));
+
+        foreach (var draft in tiers)
+        {
+            if (draft.Id is { } id)
+            {
+                _tiers.Single(t => t.Id == id).Update(draft.Name, draft.Price, draft.Kind, draft.Capacity, draft.Color);
+            }
+            else
+            {
+                _tiers.Add(new TicketTier(Id, draft.Name, draft.Price, draft.Kind, draft.Capacity, draft.Color));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Validates <paramref name="definition"/> against this event's tiers, keeps it, and returns the seats to store.
+    /// Handlers validate first (<see cref="SeatLayoutGenerator.Validate"/>) to report errors; this guards the invariant.
+    /// </summary>
+    public IReadOnlyList<GeneratedSeat> ReplaceLayout(SeatLayoutDefinition definition)
+    {
+        EnsureStatus("event.not_editable", EventStatus.Draft);
+
+        var errors = SeatLayoutGenerator.Validate(definition, _tiers.ToDictionary(t => t.Id, t => t.Kind));
+        if (errors.Count > 0)
+        {
+            throw new DomainException("layout.invalid", string.Join("; ", errors.Select(e => $"{e.Section}.{e.Field}: {e.Message}")));
+        }
+
+        Layout = definition;
+        return SeatLayoutGenerator.Generate(definition);
+    }
+
+    /// <summary>
+    /// Replaces the sale phases. Ids are kept when given; <see cref="PhaseDraft.KeepExistingCode"/> carries the old
+    /// presale hash over, because the plain code is never stored and can't be re-sent.
+    /// </summary>
+    public void ReplacePhases(IReadOnlyList<PhaseDraft> phases)
+    {
+        EnsureStatus("event.not_editable", EventStatus.Draft);
+
+        var replacement = new List<SalePhase>(phases.Count);
+        foreach (var draft in phases)
+        {
+            EnsurePhaseFits(draft.OpensAt, draft.ClosesAt, replacement);
+            var hash = draft.KeepExistingCode && draft.Id is { } id
+                ? _phases.Find(p => p.Id == id)?.AccessCodeHash
+                : draft.AccessCodeHash;
+            replacement.Add(new SalePhase(
+                Id, draft.Name, draft.OpensAt, draft.ClosesAt, draft.QueueEnabled, draft.MaxTicketsPerUser, hash, draft.Id));
+        }
+
+        _phases.Clear();
+        _phases.AddRange(replacement);
     }
 
     public TicketTier AddTier(string name, Money price, TicketKind kind, int? capacity, string color)
@@ -119,16 +247,7 @@ public sealed class Event : AggregateRoot, IAuditable
     {
         EnsureStatus("event.not_editable", EventStatus.Draft);
 
-        if (closesAt > StartsAt)
-        {
-            throw new DomainException("phase.after_event_start", "A sale phase must close before the event starts.");
-        }
-
-        if (_phases.Exists(phase => phase.Overlaps(opensAt, closesAt)))
-        {
-            throw new DomainException("event.phase_overlap", "Sale phases of one event must not overlap.");
-        }
-
+        EnsurePhaseFits(opensAt, closesAt, _phases);
         var phase = new SalePhase(Id, name, opensAt, closesAt, queueEnabled, maxTicketsPerUser, accessCodeHash);
         _phases.Add(phase);
         return phase;
@@ -168,6 +287,27 @@ public sealed class Event : AggregateRoot, IAuditable
         if (endsAt <= startsAt)
         {
             throw new DomainException("event.invalid_schedule", "An event must end after it starts.");
+        }
+    }
+
+    private static void EnsureKnownCategory(string category)
+    {
+        if (!EventCategories.IsKnown(category))
+        {
+            throw new DomainException("event.invalid_category", $"Unknown event category '{category}'.");
+        }
+    }
+
+    private void EnsurePhaseFits(DateTimeOffset opensAt, DateTimeOffset closesAt, List<SalePhase> others)
+    {
+        if (closesAt > StartsAt)
+        {
+            throw new DomainException("phase.after_event_start", "A sale phase must close before the event starts.");
+        }
+
+        if (others.Exists(phase => phase.Overlaps(opensAt, closesAt)))
+        {
+            throw new DomainException("event.phase_overlap", "Sale phases of one event must not overlap.");
         }
     }
 

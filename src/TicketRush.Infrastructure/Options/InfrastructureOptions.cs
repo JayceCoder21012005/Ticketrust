@@ -63,3 +63,13 @@ public sealed class StorageOptions
     /// <summary>Local provider only; defaults to <c>App_Data/storage</c> under the content root.</summary>
     public string? LocalRootPath { get; set; }
 }
+
+/// <summary>Organizer catalog settings (spec 05). The pepper is a secret: AppHost parameter / user-secrets / env only.</summary>
+public sealed class CatalogOptions
+{
+    public const string SectionName = "Catalog";
+
+    [Required]
+    [MinLength(32)]
+    public string AccessCodePepper { get; set; } = string.Empty;
+}

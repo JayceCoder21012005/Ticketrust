@@ -18,6 +18,8 @@ using TicketRush.Application.Options;
 using TicketRush.Infrastructure.Identity;
 using TicketRush.Infrastructure.Locking;
 using TicketRush.Infrastructure.Options;
+using TicketRush.Infrastructure.Security;
+using TicketRush.Application.Abstractions.Security;
 using TicketRush.Infrastructure.Outbox;
 using TicketRush.Infrastructure.Persistence;
 using TicketRush.Infrastructure.Persistence.Interceptors;
@@ -28,6 +30,8 @@ using TicketRush.Domain.Users;
 using TicketRush.Infrastructure.Email;
 using TicketRush.Infrastructure.Catalog;
 using TicketRush.Application.Features.Catalog;
+using TicketRush.Application.Abstractions.Catalog;
+using TicketRush.Domain.Events;
 
 namespace TicketRush.Infrastructure;
 
@@ -100,6 +104,9 @@ public static class DependencyInjection
             .AddPasswordValidator<LetterAndNotEmailPasswordValidator>();
         // Reset links expire after 1 hour (spec 09); confirmation links use their own 3-day provider.
         services.Configure<DataProtectionTokenProviderOptions>(options => options.TokenLifespan = TimeSpan.FromHours(1));
+        // The seeder hashes the demo presale code, so every host with persistence needs the pepper.
+        services.AddValidatedOptions<CatalogOptions>(CatalogOptions.SectionName);
+        services.AddSingleton<IAccessCodeHasher, AccessCodeHasher>();
         services.AddScoped<DevDataSeeder>();
         return builder;
     }
@@ -153,6 +160,12 @@ public static class DependencyInjection
         // Seat maps of large venues are a few MB of JSON; the 1 MB default would silently skip caching them.
         services.AddHybridCache(options => options.MaximumPayloadBytes = 16 * 1024 * 1024);
         services.AddScoped<EventCatalogReader>();
+
+        // Spec 05: after publish / cancel / edit, the worker refreshes the web's ISR pages through the outbox.
+        services.AddHttpClient<IWebCacheRevalidator, WebCacheRevalidator>(client => client.Timeout = TimeSpan.FromSeconds(10));
+        services.AddIntegrationEventHandler<EventPublished, CatalogRevalidationHandler>();
+        services.AddIntegrationEventHandler<EventCancelled, CatalogRevalidationHandler>();
+        services.AddIntegrationEventHandler<EventDetailsChanged, CatalogRevalidationHandler>();
         services.AddScoped<CachedEventCatalogReader>();
         services.AddScoped<IEventCatalogReader>(sp => sp.GetRequiredService<CachedEventCatalogReader>());
         services.AddScoped<ICatalogCacheInvalidator>(sp => sp.GetRequiredService<CachedEventCatalogReader>());

@@ -1,7 +1,11 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using NpgsqlTypes;
+using TicketRush.Application.Abstractions.Persistence;
 using TicketRush.Domain.Events;
+using TicketRush.Domain.Events.Layout;
 using TicketRush.Domain.Venues;
 
 namespace TicketRush.Infrastructure.Persistence.Configurations;
@@ -43,7 +47,24 @@ internal sealed class EventConfiguration : IEntityTypeConfiguration<Event>
         builder.Navigation(e => e.Phases).UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.Navigation(e => e.Tiers).UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.Ignore(e => e.DomainEvents);
+
+        // The section definitions the seats came from (spec 05), so the wizard can reopen them.
+        builder.Property(e => e.Layout)
+            .HasColumnType("jsonb")
+            .HasConversion(
+                layout => layout == null ? null : JsonSerializer.Serialize(layout, LayoutJson),
+                json => json == null ? null : JsonSerializer.Deserialize<SeatLayoutDefinition>(json, LayoutJson),
+                new ValueComparer<SeatLayoutDefinition?>(
+                    (a, b) => JsonSerializer.Serialize(a, LayoutJson) == JsonSerializer.Serialize(b, LayoutJson),
+                    layout => JsonSerializer.Serialize(layout, LayoutJson).GetHashCode(StringComparison.Ordinal),
+                    layout => layout));
+
+        // Postgres' xmin system column as an optimistic concurrency token: two tabs autosaving the same draft, or two
+        // publishes racing, can't both win (spec 05).
+        builder.Property<uint>(EventShadowProperties.Version).IsRowVersion();
     }
+
+    private static readonly JsonSerializerOptions LayoutJson = new(JsonSerializerDefaults.Web);
 }
 
 internal sealed class SalePhaseConfiguration : IEntityTypeConfiguration<SalePhase>
@@ -107,6 +128,7 @@ internal sealed class VenueConfiguration : IEntityTypeConfiguration<Venue>
         builder.Property(v => v.Address).HasMaxLength(300);
         builder.Property(v => v.City).HasMaxLength(100);
         builder.Property(v => v.MapUrl).HasMaxLength(500);
+        builder.HasIndex(v => v.OrganizerId);
         builder.Ignore(v => v.DomainEvents);
     }
 }

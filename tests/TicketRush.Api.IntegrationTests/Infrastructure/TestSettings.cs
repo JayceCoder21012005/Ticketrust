@@ -17,5 +17,6 @@ public static class TestSettings
         ["Storage:Provider"] = "Local",
         ["Storage:PublicBaseUrl"] = "http://localhost:3000/media",
         ["Frontend:BaseUrl"] = "http://localhost:3000",
+        ["Catalog:AccessCodePepper"] = "test-access-code-pepper-0123456789abcdef",
     };
 }

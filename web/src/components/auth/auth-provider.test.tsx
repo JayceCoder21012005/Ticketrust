@@ -60,6 +60,22 @@ afterEach(() => {
 });
 
 describe("AuthProvider", () => {
+  it("reports loading, not anonymous, until the session hint can be read (server render and hydration)", async () => {
+    // Hydration renders with the server snapshot; a guard that saw "anonymous" there would redirect a signed-in
+    // user to login before the refresh even started.
+    const { renderToString } = await import("react-dom/server");
+    document.cookie = "tr_session=1; path=/";
+
+    const html = renderToString(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    );
+
+    document.cookie = "tr_session=; path=/; max-age=0";
+    expect(html).toContain(">loading<");
+  });
+
   it("stays anonymous without calling the api when there is no session hint cookie", async () => {
     renderProvider();
 

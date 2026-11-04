@@ -6,6 +6,7 @@ using TicketRush.Api.Common.Errors;
 using TicketRush.Api.Common.Middleware;
 using TicketRush.Api.Features.Auth;
 using TicketRush.Api.Features.Catalog;
+using TicketRush.Api.Features.Organizer;
 using TicketRush.Api.Features.ServerTime;
 using TicketRush.Api.Features.Storage;
 using TicketRush.Api.Features.Users;
@@ -78,6 +79,7 @@ public static class ApiServiceCollectionExtensions
         v1.MapAuthEndpoints();
         v1.MapMeEndpoints();
         v1.MapCatalogEndpoints();
+        v1.MapOrganizerEndpoints();
         v1.MapLocalStorageEndpoints();
         return app;
     }

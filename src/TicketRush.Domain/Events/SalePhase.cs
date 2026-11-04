@@ -15,8 +15,9 @@ public sealed class SalePhase : Entity
         DateTimeOffset closesAt,
         bool queueEnabled,
         int maxTicketsPerUser,
-        string? accessCodeHash)
-        : base(Guid.CreateVersion7())
+        string? accessCodeHash,
+        Guid? id = null)
+        : base(id ?? Guid.CreateVersion7())
     {
         if (closesAt <= opensAt)
         {
@@ -30,8 +31,9 @@ public sealed class SalePhase : Entity
 
         EventId = eventId;
         Name = name.Trim();
-        OpensAt = opensAt;
-        ClosesAt = closesAt;
+        // Clients send Vietnam time (+07:00); the instant is what matters and Postgres stores UTC only.
+        OpensAt = opensAt.ToUniversalTime();
+        ClosesAt = closesAt.ToUniversalTime();
         QueueEnabled = queueEnabled;
         MaxTicketsPerUser = maxTicketsPerUser;
         AccessCodeHash = accessCodeHash;

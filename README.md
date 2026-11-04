@@ -24,7 +24,8 @@ nhanh và **không bao giờ bán trùng một ghế**. Toàn bộ đặc tả n
 | [02](specs/02-frontend-design-system.md) | Design system, component dùng chung, budget hiệu năng | ✅ Hoàn thành |
 | [03](specs/03-auth-and-user-accounts.md) | Đăng ký, đăng nhập, refresh token, hồ sơ, phân quyền | ✅ Hoàn thành |
 | [04](specs/04-event-catalog-and-search.md) | Trang chủ, danh sách và tìm kiếm sự kiện, trang chi tiết, cache | ✅ Hoàn thành |
-| [05](specs/05-organizer-event-management.md) – [17](specs/17-load-testing-and-observability.md) | Quản lý sự kiện, phòng chờ, chọn ghế, thanh toán… | ⏳ Chưa làm |
+| [05](specs/05-organizer-event-management.md) | Khu nhà tổ chức: địa điểm, wizard tạo sự kiện, sơ đồ ghế, đợt mở bán, xuất bản, huỷ | ✅ Hoàn thành |
+| [06](specs/06-virtual-waiting-room.md) – [17](specs/17-load-testing-and-observability.md) | Phòng chờ, chọn ghế, thanh toán… | ⏳ Chưa làm |
 
 ## Yêu cầu
 
@@ -67,6 +68,14 @@ Các resource Aspire khởi động:
 
 Dữ liệu Postgres và Redis được giữ trong named volume giữa các lần chạy. Dừng hệ thống bằng `Ctrl+C`.
 
+Lần chạy đầu, AppHost tự sinh các secret dev và lưu vào user-secrets của AppHost, không bao giờ vào git:
+
+| Tham số | Dùng cho |
+|---|---|
+| `jwt-signing-key` | Ký access token (spec 03) |
+| `access-code-pepper` | Hash mã presale: `SHA-256(pepper ‖ mã)` (spec 05) |
+| `revalidate-secret` | Worker gọi `POST /api/revalidate` của web để làm mới trang công khai sau khi xuất bản, sửa hoặc huỷ sự kiện (spec 05) |
+
 ## Tài khoản dùng để test
 
 > ⚠️ Chỉ có trong môi trường dev: dữ liệu mẫu chỉ được nạp khi `Migrations__SeedDevData=true` (AppHost bật sẵn).
@@ -81,15 +90,17 @@ Tất cả dùng chung mật khẩu **`Dev@12345`** và đều đã xác nhận 
 | `admin@ticketrush.dev` | Lê Quản Trị | `Admin` | Quản trị: hoàn tiền, audit log |
 | `gate@ticketrush.dev` | Phạm Soát Vé | `GateStaff` | Nhân viên soát vé tại cổng |
 
-Các khu vực của Organizer, Admin và GateStaff sẽ có giao diện từ spec 05, 11 và 16. Các policy phân quyền
-đã có sẵn ở API từ spec 03.
+Khu nhà tổ chức (`/organizer`) có từ spec 05; khu Admin và GateStaff sẽ có từ spec 16 và 11. Các policy phân
+quyền đã có sẵn ở API từ spec 03.
 
 **Tạo tài khoản mới:** đăng ký tại `/register`. Mật khẩu cần ít nhất 10 ký tự, gồm cả chữ và số, và không
 trùng với email. Email xác nhận nằm trong **Mailpit** (mở từ dashboard); bấm link trong email để xác nhận.
 Tài khoản chưa xác nhận vẫn đăng nhập được, nhưng sẽ không vào được phòng chờ và không mua được vé.
 
 **Dữ liệu mẫu khác:**
-- 3 địa điểm: Nhà thi đấu Phú Thọ (TP.HCM), Sân vận động Mỹ Đình (Hà Nội), Cung thể thao Tiên Sơn (Đà Nẵng).
+- 3 địa điểm **dùng chung**: Nhà thi đấu Phú Thọ (TP.HCM), Sân vận động Mỹ Đình (Hà Nội), Cung thể thao Tiên Sơn
+  (Đà Nẵng). Mọi nhà tổ chức đều chọn được nhưng không sửa được; địa điểm tạo thêm chỉ người tạo thấy.
+- Đợt "Presale" của "Đen Vâu - Show Của Đen" dùng mã **`seed-presale`** (không phân biệt hoa thường).
 - 15 sự kiện thuộc đủ 6 danh mục và mọi trạng thái: 12 đang hiển thị, 1 bản nháp, 1 đã kết thúc, 1 đã huỷ.
 - "Sơn Tùng M-TP Live" và "Hà Anh Tuấn - Chân Trời Rực Rỡ" có sơ đồ 600 ghế (3 khu × 10 hàng × 20 ghế).
 - Các mốc mở bán tính từ **lần seed đầu tiên**:
@@ -115,6 +126,9 @@ Tài khoản chưa xác nhận vẫn đăng nhập được, nhưng sẽ không 
 | `/verify-email` | Trang mở từ link xác nhận email |
 | `/account` | Hồ sơ, số điện thoại, ảnh đại diện (JPEG/PNG/WebP/AVIF, tối đa 2 MB), đăng xuất |
 | `/design` | Design system: token màu, component dùng chung, màu ghế trên sơ đồ |
+| `/organizer/events` | Đăng nhập bằng `organizer@ticketrush.dev`. Danh sách sự kiện (lọc theo trạng thái, tìm không dấu), nút "Tạo sự kiện" (5 trường, tạo ngay bản nháp) |
+| `/organizer/events/{id}/info` → `review` | Wizard 5 bước, tự lưu: thông tin và ảnh cover cắt 16:9 → hạng vé → sơ đồ (mẫu dựng sẵn, xem trước SVG) → đợt mở bán (dòng thời gian, mã presale) → checklist, xem trước trang người mua, xuất bản, huỷ |
+| `/organizer/venues` | Địa điểm dùng chung và địa điểm riêng, "Thêm địa điểm" |
 
 ## Chạy frontend riêng
 
@@ -164,6 +178,7 @@ lỗ hổng high/critical.
 | `web` thoát ngay với lỗi `Cannot find module …` | `node_modules` bị cài dở. Dừng AppHost, chạy `cd web && rm -rf node_modules && npm ci`, rồi chạy lại. |
 | Trình duyệt báo lỗi chứng chỉ HTTPS | Chạy `dotnet dev-certs https --trust`. |
 | Muốn làm lại dữ liệu từ đầu | Dừng AppHost, chạy `docker volume rm ticketrush-postgres-data ticketrush-redis-data`. |
+| Mã `seed-presale` không dùng được trên database tạo trước spec 05 | Database cũ lưu mã chưa hash. Xoá volume Postgres như dòng trên để seed lại. |
 
 ## Cấu trúc thư mục
 

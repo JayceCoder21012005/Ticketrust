@@ -8,23 +8,8 @@ public sealed class TicketTier : Entity
     internal TicketTier(Guid eventId, string name, Money price, TicketKind kind, int? capacity, string color)
         : base(Guid.CreateVersion7())
     {
-        if (price.Amount <= 0)
-        {
-            throw new DomainException("tier.invalid_price", "Tier price must be greater than zero.");
-        }
-
-        if (kind == TicketKind.GeneralAdmission && capacity is not > 0)
-        {
-            throw new DomainException("tier.invalid_capacity", "General admission tiers need a positive capacity.");
-        }
-
         EventId = eventId;
-        Name = name.Trim();
-        Price = price;
-        Kind = kind;
-        // Seated capacity is derived from the seats assigned to the tier (spec 05), never stored.
-        Capacity = kind == TicketKind.GeneralAdmission ? capacity : null;
-        Color = color;
+        Update(name, price, kind, capacity, color);
     }
 
     private TicketTier()
@@ -42,4 +27,29 @@ public sealed class TicketTier : Entity
     public int? Capacity { get; private set; }
 
     public string Color { get; private set; } = null!;
+
+    internal void Update(string name, Money price, TicketKind kind, int? capacity, string color)
+    {
+        if (price.Amount <= 0)
+        {
+            throw new DomainException("tier.invalid_price", "Tier price must be greater than zero.");
+        }
+
+        if (kind == TicketKind.GeneralAdmission && capacity is not > 0)
+        {
+            throw new DomainException("tier.invalid_capacity", "General admission tiers need a positive capacity.");
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new DomainException("tier.invalid_name", "Tier name is required.");
+        }
+
+        Name = name.Trim();
+        Price = price;
+        Kind = kind;
+        // Seated capacity is derived from the seats assigned to the tier (spec 05), never stored.
+        Capacity = kind == TicketKind.GeneralAdmission ? capacity : null;
+        Color = color;
+    }
 }

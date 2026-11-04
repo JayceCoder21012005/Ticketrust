@@ -197,6 +197,10 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_sold_out");
 
+                    b.Property<string>("Layout")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("layout");
+
                     b.PrimitiveCollection<string[]>("Lineup")
                         .IsRequired()
                         .HasColumnType("text[]")
@@ -565,6 +569,10 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
 
+                    b.Property<Guid?>("OrganizerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organizer_id");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -577,6 +585,9 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_venues");
+
+                    b.HasIndex("OrganizerId")
+                        .HasDatabaseName("ix_venues_organizer_id");
 
                     b.ToTable("venues", (string)null);
                 });

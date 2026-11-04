@@ -28,6 +28,8 @@ const REFRESH_LEAD_MS = 60_000;
 
 const noSubscription = () => () => {};
 const readHint = () => hasSessionHint(document.cookie);
+const onClient = () => true;
+const onServer = () => false;
 
 /**
  * Holds the in-memory session (spec 03). On load it restores the session with one refresh call, but only
@@ -37,6 +39,8 @@ const readHint = () => hasSessionHint(document.cookie);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const session = useSyncExternalStore(subscribe, getSession, () => null);
   const hint = useSyncExternalStore(noSubscription, readHint, () => false);
+  // The server render and hydration can't read the cookie: until the client can, the session is unknown, not absent.
+  const hydrated = useSyncExternalStore(noSubscription, onClient, onServer);
   const [restored, setRestored] = useState(false);
   const restoring = hint && !session && !restored;
 
@@ -59,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [session]);
 
   const value: AuthContextValue = {
-    status: session ? "authenticated" : restoring ? "loading" : "anonymous",
+    status: session ? "authenticated" : !hydrated || restoring ? "loading" : "anonymous",
     user: session?.user ?? null,
     signIn: (credentials) => login(credentials),
     signOut: () => logout(),
