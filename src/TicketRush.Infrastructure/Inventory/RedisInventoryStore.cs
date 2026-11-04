@@ -84,6 +84,9 @@ public sealed partial class RedisInventoryStore(IConnectionMultiplexer redis, Re
                 warm.Result == "1");
         });
 
+    public Task<bool> IsWarmAsync(Guid eventId, CancellationToken ct) =>
+        GuardAsync(async () => await redis.GetDatabase().HashGetAsync(keys.InvMeta(eventId), "warm") == "1");
+
     public Task<IReadOnlyList<Guid>> DueHoldsAsync(Guid eventId, DateTimeOffset now, int limit, CancellationToken ct) =>
         GuardAsync<IReadOnlyList<Guid>>(async () =>
         {

@@ -79,6 +79,10 @@ public static class DependencyInjection
 
         services.AddScoped<IHoldCatalog, HoldCatalog>();
         services.AddSingleton<IInventoryStore, RedisInventoryStore>();
+        services.AddSingleton<ISoldInventorySource, NoTicketsSoldInventorySource>();
+        services.AddSingleton<IInventoryEventSource, InventoryEventSource>();
+        services.AddScoped<InventorySeeder>();
+        services.AddIntegrationEventHandler<EventPublished, InventoryWarmHandler>();
 
         PersistDataProtectionKeysToRedis(services);
         AddAccounts(services);

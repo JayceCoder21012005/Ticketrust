@@ -18,6 +18,9 @@ public interface IInventoryStore
 
     Task<InventorySnapshot> GetSnapshotAsync(Guid eventId, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct);
 
+    /// <summary>True once the event's inventory has been seeded (cheap: one field).</summary>
+    Task<bool> IsWarmAsync(Guid eventId, CancellationToken ct);
+
     /// <summary>Holds of the event whose expiry is at or before <paramref name="now"/>, oldest first.</summary>
     Task<IReadOnlyList<Guid>> DueHoldsAsync(Guid eventId, DateTimeOffset now, int limit, CancellationToken ct);
 
