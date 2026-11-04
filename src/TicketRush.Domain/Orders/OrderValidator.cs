@@ -25,6 +25,13 @@ internal static class OrderValidator
             EnsureItem(item);
         }
 
+        // A seat index is unique within the event, whatever tier a line names; the tickets index would only catch this at fulfilment.
+        var seats = items.Where(item => item.SeatIndex is not null).Select(item => item.SeatIndex!.Value).ToList();
+        if (seats.Count != seats.Distinct().Count())
+        {
+            throw new DomainException("order.duplicate_seat", "A seat can appear only once in an order.");
+        }
+
         if (SumOf(items, total.Currency) != total)
         {
             throw new DomainException("order.total_mismatch", "The total must equal the sum of unit price times quantity.");

@@ -159,6 +159,29 @@ public sealed class CheckoutPersistenceTests(ContainersFixture containers) : IAs
     }
 
     [Fact]
+    public async Task Identical_lines_of_one_order_are_all_stored_and_loaded()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var ga = new OrderItem(_gaTiers[0], null, new Money(300_000), 2);
+        var seat = new OrderItem(_seatedTier, 12, new Money(800_000), 1);
+        var order = Order.Create(
+            Guid.CreateVersion7(), _eventId, Guid.CreateVersion7(), [ga, seat, new OrderItem(ga.TierId, null, ga.UnitPrice, ga.Quantity), new OrderItem(_seatedTier, 13, seat.UnitPrice, 1)],
+            new Money(2_800_000), new BuyerInfo("B", "b@example.com", null), now.AddMinutes(10), now);
+        await SaveOrderAsync(order);
+
+        await using var scope = Scope();
+        var loaded = await Db(scope).Orders.AsNoTracking().SingleAsync(o => o.Id == order.Id, Ct);
+        var rows = await Db(scope).Database.SqlQuery<int>($"SELECT count(*)::int AS \"Value\" FROM order_items WHERE order_id = {order.Id}").SingleAsync(Ct);
+
+        rows.ShouldBe(4);
+        loaded.Items.Count.ShouldBe(4);
+        loaded.Items.ShouldBe(order.Items, ignoreOrder: true);
+
+        await using var tracking = Scope();
+        (await Db(tracking).Orders.SingleAsync(o => o.Id == order.Id, Ct)).Items.Count.ShouldBe(4);
+    }
+
+    [Fact]
     public async Task Order_state_changes_are_saved_and_their_events_reach_the_outbox_in_the_same_save()
     {
         var order = await SaveOrderAsync(NewOrder());
@@ -444,6 +467,57 @@ public sealed class CheckoutPersistenceTests(ContainersFixture containers) : IAs
         }
 
         (await SoldCountAsync(tier)).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_release_restores_capacity_for_a_later_claim()
+    {
+        var tier = _gaTiers[0];
+        await using var scope = Scope();
+        var inventory = new TierInventory(Db(scope));
+        (await inventory.TryClaimAsync(tier, 3, Ct)).ShouldBeTrue();
+        (await inventory.TryClaimAsync(tier, 1, Ct)).ShouldBeFalse();
+
+        (await inventory.ReleaseAsync(tier, 2, Ct)).ShouldBeTrue();
+
+        (await SoldCountAsync(tier)).ShouldBe(1);
+        (await inventory.TryClaimAsync(tier, 2, Ct)).ShouldBeTrue();
+        (await SoldCountAsync(tier)).ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task A_release_cannot_take_the_sold_count_below_zero()
+    {
+        var tier = _gaTiers[0];
+        await using var scope = Scope();
+        var inventory = new TierInventory(Db(scope));
+        (await inventory.TryClaimAsync(tier, 1, Ct)).ShouldBeTrue();
+
+        (await inventory.ReleaseAsync(tier, 2, Ct)).ShouldBeFalse();
+        (await inventory.ReleaseAsync(Guid.CreateVersion7(), 1, Ct)).ShouldBeFalse();
+
+        (await SoldCountAsync(tier)).ShouldBe(1);
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => inventory.ReleaseAsync(tier, 0, Ct));
+    }
+
+    [Fact]
+    public async Task A_release_rolls_back_with_the_callers_transaction()
+    {
+        var tier = _gaTiers[0];
+        await using (var setup = Scope())
+        {
+            (await new TierInventory(Db(setup)).TryClaimAsync(tier, 3, Ct)).ShouldBeTrue();
+        }
+
+        await using (var scope = Scope())
+        {
+            var db = Db(scope);
+            await using var transaction = await db.Database.BeginTransactionAsync(Ct);
+            (await new TierInventory(db).ReleaseAsync(tier, 3, Ct)).ShouldBeTrue();
+            await transaction.RollbackAsync(Ct);
+        }
+
+        (await SoldCountAsync(tier)).ShouldBe(3);
     }
 
     [Fact]

@@ -20,4 +20,14 @@ public sealed class TierInventory(AppDbContext db) : ITierInventory
             ct);
         return updated == 1;
     }
+
+    public async Task<bool> ReleaseAsync(Guid tierId, int quantity, CancellationToken ct)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(quantity);
+
+        var updated = await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE ticket_tiers SET sold_count = sold_count - {quantity} WHERE id = {tierId} AND sold_count - {quantity} >= 0",
+            ct);
+        return updated == 1;
+    }
 }

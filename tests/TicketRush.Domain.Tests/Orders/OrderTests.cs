@@ -85,6 +85,31 @@ public sealed class OrderTests
     }
 
     [Fact]
+    public void Create_rejects_the_same_seat_on_two_lines()
+    {
+        var items = new[]
+        {
+            new OrderItem(TierId, 5, new Money(500_000), 1),
+            new OrderItem(TierId, 6, new Money(500_000), 1),
+            new OrderItem(Guid.CreateVersion7(), 5, new Money(300_000), 1),
+        };
+
+        Should.Throw<DomainException>(() => Create(items, new Money(1_300_000))).Code.ShouldBe("order.duplicate_seat");
+    }
+
+    [Fact]
+    public void Create_allows_several_general_admission_lines_without_a_seat()
+    {
+        var items = new[]
+        {
+            new OrderItem(TierId, null, new Money(300_000), 2),
+            new OrderItem(TierId, null, new Money(300_000), 2),
+        };
+
+        Create(items, new Money(1_200_000)).Items.Count.ShouldBe(2);
+    }
+
+    [Fact]
     public void Create_rejects_mixed_currencies()
     {
         var items = new[]
