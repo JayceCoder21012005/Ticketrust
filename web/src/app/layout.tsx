@@ -1,15 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Be_Vietnam_Pro } from "next/font/google";
 import { Providers } from "@/components/providers";
+import "./fonts.css";
 import "./globals.css";
-
-// Full Vietnamese diacritics in every weight we use.
-const beVietnamPro = Be_Vietnam_Pro({
-  subsets: ["latin", "vietnamese"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-  variable: "--font-be-vietnam-pro",
-});
 
 export const metadata: Metadata = {
   title: { default: "TicketRush", template: "%s · TicketRush" },
@@ -26,7 +18,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     // next-themes sets the theme class before hydration, hence suppressHydrationWarning.
-    <html lang="vi" className={`${beVietnamPro.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="vi" className="h-full antialiased" suppressHydrationWarning>
       <body className="flex min-h-full flex-col">
         <Providers>{children}</Providers>
       </body>

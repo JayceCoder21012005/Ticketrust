@@ -7,6 +7,9 @@ const mockApiPort = 3199;
 /**
  * Runs against a production build (`npm run build` with ENABLE_DESIGN_PAGE=1 and API_URL=http://localhost:3199
  * first: the `/api` rewrite for browser calls is fixed at build time).
+ *
+ * Wall-clock `@perf` tests (e2e/organizer.spec.ts) use relaxed budgets by default; set PERF_BUDGET=strict on a
+ * stable, otherwise idle runner to enforce the spec's strict ones: `PERF_BUDGET=strict npx playwright test --grep @perf`.
  */
 export default defineConfig({
   testDir: "./e2e",
