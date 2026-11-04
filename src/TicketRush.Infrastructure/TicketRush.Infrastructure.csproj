@@ -17,6 +17,7 @@
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
     <PackageReference Include="MailKit" />
     <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
   </ItemGroup>
   <ItemGroup>
     <!-- Identity token providers and Data Protection. The Identity package already pulls this framework in

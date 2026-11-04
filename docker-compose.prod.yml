@@ -9,6 +9,8 @@ x-dotnet-env: &dotnet-env
   Jwt__SigningKey: ${JWT_SIGNING_KEY}
   AdmissionToken__SigningKey: ${ADMISSION_TOKEN_SIGNING_KEY:?set ADMISSION_TOKEN_SIGNING_KEY}
   Catalog__AccessCodePepper: ${ACCESS_CODE_PEPPER:?set ACCESS_CODE_PEPPER}
+  # Signs and verifies payment webhooks (spec 08); the api and the worker must share it.
+  Payments__Mock__WebhookSecret: ${PAYMENT_WEBHOOK_SECRET:?set PAYMENT_WEBHOOK_SECRET}
   Email__FromAddress: ${EMAIL_FROM_ADDRESS}
   Storage__PublicBaseUrl: https://${PUBLIC_HOST}/media
   Frontend__BaseUrl: https://${PUBLIC_HOST}

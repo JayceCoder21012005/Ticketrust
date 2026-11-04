@@ -1429,6 +1429,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mock-gateway/sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetMockGatewaySession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mock-gateway/sessions/{sessionId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CompleteMockGatewaySession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/user": {
         parameters: {
             query?: never;
@@ -1686,6 +1718,9 @@ export interface components {
         Body: {
             value: string;
         };
+        CompleteMockSessionRequest: {
+            outcome: components["schemas"]["MockOutcome"];
+        };
         ConfirmEmailCommand: {
             /** Format: uuid */
             userId: string;
@@ -1839,6 +1874,26 @@ export interface components {
             expiresAt: string;
             user: components["schemas"]["UserAccount"];
         };
+        /** @enum {unknown} */
+        MockOutcome: "succeeded" | "failed" | "succeeded_delayed" | "succeeded_twice";
+        MockSessionView: {
+            sessionId: string;
+            /** Format: uuid */
+            orderId: string;
+            /** Format: uuid */
+            eventId: string;
+            label: string;
+            /** Format: int64 */
+            amount: number | string;
+            currency: string;
+            status: components["schemas"]["PaymentStatus"];
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: uri */
+            returnUrl: string;
+            /** Format: date-time */
+            serverNow: string;
+        };
         OrganizerEvent: {
             /** Format: uuid */
             id: string;
@@ -1876,6 +1931,8 @@ export interface components {
             seatCount: number | string;
             coverImageUrl: null | string;
         };
+        /** @enum {unknown} */
+        PaymentStatus: "Pending" | "Succeeded" | "Failed" | "Expired";
         PhaseInfo: {
             /** Format: uuid */
             id: string;
@@ -2628,6 +2685,81 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetMockGatewaySession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MockSessionView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CompleteMockGatewaySession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompleteMockSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MockSessionView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -20,6 +20,7 @@ public sealed class RedisOptions
 /// <item><c>tr:{env}:lock:{name}</c> — string, random owner token, PX = lock TTL (spec 01, <see cref="Locking.RedisDistributedLock"/>).</item>
 /// <item><c>tr:{env}:q:{sale:&lt;phaseId&gt;}:state|pre|line|seq|admitted|active|tokens|done</c> — waiting room of one sale phase (spec 06). One hash tag, so Lua scripts stay Cluster-safe.</item>
 /// <item><c>tr:{env}:inv:{evt:&lt;eventId&gt;}:sold|held|ga:&lt;tier&gt;|gaheld|hold:&lt;id&gt;|expiry|userhold:&lt;user&gt;|bought:&lt;user&gt;|ver|commits|committed:&lt;orderId&gt;|meta</c> and channel <c>…:changes</c> — inventory of one event (spec 07).</item>
+/// <item><c>tr:{env}:pay:mock:session:{id}|idem:{sha256}|refund:{sha256}|deliveries</c> — sessions, idempotency markers and the webhook delivery queue of the mock payment gateway (spec 08).</item>
 /// </list>
 /// </summary>
 public sealed class RedisKeys(IOptions<RedisOptions> options)
@@ -103,6 +104,24 @@ public sealed class RedisKeys(IOptions<RedisOptions> options)
 
     /// <summary>STRING: pending marker or stored response of one Idempotency-Key of one user (TTL = the endpoint's window).</summary>
     public RedisKey Idempotency(Guid userId, Guid key) => $"{Prefix}idem:{userId:N}:{key:N}";
+
+    // Mock payment gateway (spec 08). Redis, not memory, so the api (which creates and completes sessions) and the worker
+    // (which delivers the webhooks) see the same state.
+
+    /// <summary>HASH: orderId, eventId, label, amount, currency, returnUrl, expiresAt (unix ms), createdAt (unix ms), status, refunded. PX = expiry + margin; a succeeded session keeps a long retention for refunds.</summary>
+    public RedisKey PayMockSession(string sessionId) => $"{Prefix}pay:mock:session:{sessionId}";
+
+    /// <summary>STRING: sessionId created for one idempotency key (SET NX). The key is hashed: callers choose it.</summary>
+    public RedisKey PayMockIdempotency(string idempotencyKey) => $"{Prefix}pay:mock:idem:{Hash(idempotencyKey)}";
+
+    /// <summary>STRING: JSON of the refund made for one idempotency key (SET NX).</summary>
+    public RedisKey PayMockRefund(string idempotencyKey) => $"{Prefix}pay:mock:refund:{Hash(idempotencyKey)}";
+
+    /// <summary>ZSET: JSON delivery (id, body, attempt) → due time (unix ms). A claimed delivery is pushed out by a lease until it is acknowledged.</summary>
+    public RedisKey PayMockDeliveries => $"{Prefix}pay:mock:deliveries";
+
+    private static string Hash(string value) =>
+        Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value)));
 
     private RedisKey Inv(Guid eventId, string name) => $"{Prefix}inv:{{evt:{eventId:N}}}:{name}";
 }

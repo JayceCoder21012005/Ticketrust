@@ -80,7 +80,10 @@ var web = builder.AddJavaScriptApp("web", "../../web", "dev")
     .WithExternalHttpEndpoints();
 
 api.WithEnvironment("Frontend__BaseUrl", web.GetEndpoint("http"));
+// Mock payment gateway (spec 08, dev only): the redirect goes to the web page, the worker delivers webhooks to the api.
+api.WithEnvironment("Payments__Mock__WebBaseUrl", web.GetEndpoint("http"));
 worker
+    .WithEnvironment("Payments__Mock__WebhookUrl", ReferenceExpression.Create($"{api.GetEndpoint("http")}/api/v1/webhooks/payments/mock"))
     .WithEnvironment("Frontend__RevalidateUrl", ReferenceExpression.Create($"{web.GetEndpoint("http")}/api/revalidate"))
     .WithEnvironment("Frontend__RevalidateSecret", revalidateSecret);
 

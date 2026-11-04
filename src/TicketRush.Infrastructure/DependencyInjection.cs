@@ -26,6 +26,7 @@ using TicketRush.Infrastructure.Options;
 using TicketRush.Infrastructure.Security;
 using TicketRush.Application.Abstractions.Security;
 using TicketRush.Infrastructure.Outbox;
+using TicketRush.Infrastructure.Payments;
 using TicketRush.Infrastructure.Persistence;
 using TicketRush.Infrastructure.Persistence.Interceptors;
 using TicketRush.Infrastructure.Persistence.Seed;
@@ -59,6 +60,7 @@ public static class DependencyInjection
         services.AddValidatedOptions<JwtOptions>(JwtOptions.SectionName);
         services.AddValidatedOptions<AdmissionTokenOptions>(AdmissionTokenOptions.SectionName);
         services.AddValidatedOptions<PaymentOptions>(PaymentOptions.SectionName);
+        services.AddPaymentGateways(builder.Environment);
         services.AddValidatedOptions<EmailOptions>(EmailOptions.SectionName);
         services.AddValidatedOptions<StorageOptions>(StorageOptions.SectionName);
         services.AddValidatedOptions<QueueOptions>(QueueOptions.SectionName);
