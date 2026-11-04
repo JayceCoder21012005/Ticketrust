@@ -159,9 +159,15 @@ export function SeatMap({ seatMap, tiers, store, tierFilter, onToggle }: SeatMap
   );
 }
 
+/** Free seats of a section; `revision` makes the React Compiler recount after every store change. */
+function freeIn(seats: SeatInfo[], store: SeatStore, revision: number): number {
+  void revision;
+  return seats.filter((s) => store.get(s.index) === "free").length;
+}
+
 function Overview({ seats, sections, store }: { seats: SeatInfo[]; sections: string[]; store: SeatStore }) {
   // Free counts change with every delta; only the overview pays for recounting.
-  useStoreRevision(store);
+  const revision = useStoreRevision(store);
   return (
     <>
       <rect x={350} y={20} width={300} height={44} rx={8} className="fill-foreground/80" />
@@ -171,7 +177,7 @@ function Overview({ seats, sections, store }: { seats: SeatInfo[]; sections: str
       {sections.map((name) => {
         const own = seats.filter((s) => s.section === name);
         const box = boundsOf(own);
-        const free = own.filter((s) => store.get(s.index) === "free").length;
+        const free = freeIn(own, store, revision);
         return (
           <g key={name} data-section={name} role="button" tabIndex={0} aria-label={t("seats.sectionLabel", "vi", { name, count: free })} className="cursor-pointer outline-none focus-visible:[&>rect]:stroke-ring">
             <rect x={box.x - 6} y={box.y - 6} width={box.width + 12} height={box.height + 12} rx={10} className="fill-primary/15 stroke-primary/40" strokeWidth={2} />

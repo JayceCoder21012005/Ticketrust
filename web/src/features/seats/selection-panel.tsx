@@ -22,11 +22,20 @@ type SelectionPanelProps = {
   onContinue: () => void;
 };
 
+/**
+ * Seats the buyer picked. `revision` is an explicit input on purpose: the React Compiler memoizes calls by their
+ * arguments, and `store` alone never changes identity, so without it the panel would keep showing a stale selection.
+ */
+function selectedSeats(map: SeatMap, store: SeatStore, revision: number) {
+  void revision;
+  return store.selected().map((i) => map.seats[i]).filter(Boolean);
+}
+
 /** What the buyer picked, GA steppers, best available per seated tier, and "Tiếp tục" (spec 07). */
 export function SelectionPanel({ map, store, tiers, limit, ga, gaRemaining, busy, onGaChange, onBestAvailable, onContinue }: SelectionPanelProps) {
-  useStoreRevision(store);
+  const revision = useStoreRevision(store);
   const price = new Map(tiers.map((tier) => [tier.id, tier.price]));
-  const selected = store.selected().map((i) => map.seats[i]).filter(Boolean);
+  const selected = selectedSeats(map, store, revision);
   const gaCount = Object.values(ga).reduce((sum, q) => sum + q, 0);
   const count = selected.length + gaCount;
   const total = selected.reduce((sum, s) => sum + (price.get(s.tierId) ?? 0), 0) + tiers.reduce((sum, tier) => sum + (ga[tier.id] ?? 0) * tier.price, 0);

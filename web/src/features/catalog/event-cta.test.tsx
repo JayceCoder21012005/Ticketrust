@@ -101,14 +101,14 @@ describe("EventCta", () => {
     expect(screen.getByRole("link", { name: "Mua vé" })).toHaveAttribute("href", "/events/son-tung-mtp-live/queue");
   });
 
-  it("goes straight to seat selection when the open phase has no queue", async () => {
+  it("goes through the waiting room even when the open phase has no queue (it admits at once and hands out the admission)", async () => {
     startDeviceClock(0);
     vi.setSystemTime(Date.parse(opensAt) + MIN);
     const noQueue = { ...event, phases: [{ ...event.phases[0], queueEnabled: false }] };
     render(<EventCta event={noQueue} priceFrom={800_000} />);
     await flush();
 
-    expect(screen.getByRole("link", { name: "Mua vé" })).toHaveAttribute("href", "/events/son-tung-mtp-live/seats");
+    expect(screen.getByRole("link", { name: "Mua vé" })).toHaveAttribute("href", "/events/son-tung-mtp-live/queue");
   });
 
   it("is a disabled waitlist button when every tier is sold out", async () => {
