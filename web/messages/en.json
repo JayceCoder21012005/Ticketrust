@@ -222,5 +222,51 @@
       "goTo": "Choose seats",
       "expired": "Shopping time is over. Rejoin the waiting room to continue."
     }
+  },
+  "seats": {
+    "title": "Choose seats",
+    "overview": "Overview",
+    "stage": "Stage",
+    "mapLabel": "Seat map, {count} seats. Use the arrow keys to move and Enter to select.",
+    "sectionLabel": "Section {name}, {count} seats free",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "legend": {
+      "free": "Available",
+      "selected": "Selected",
+      "mine": "Held by you",
+      "taken": "Taken",
+      "allTiers": "All tiers",
+      "filter": "Filter by tier"
+    },
+    "summary": {
+      "title": "Your selection",
+      "empty": "No seats selected",
+      "total": "Subtotal",
+      "continue": "Continue",
+      "holding": "Holding…",
+      "release": "Release",
+      "checkoutSoon": "Checkout (coming soon)",
+      "heldFor": "Held for",
+      "held": "You hold {count} tickets",
+      "open": "View selection"
+    },
+    "ga": {
+      "title": "Standing",
+      "decrease": "One fewer {name} ticket",
+      "increase": "One more {name} ticket",
+      "remaining": "{count} left"
+    },
+    "bestAvailable": "Best available",
+    "bestAvailableOf": "Pick the best {count} seats in {name}",
+    "seatsTaken": "{count} seats were just taken",
+    "expired": {
+      "title": "Your hold has expired",
+      "body": "Your seats were released. Please choose again.",
+      "action": "Choose again"
+    },
+    "loadFailed": "The seat map could not be loaded.",
+    "retry": "Try again",
+    "limit": "Up to {count} tickets per buyer"
   }
 }

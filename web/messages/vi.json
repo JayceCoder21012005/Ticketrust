@@ -222,5 +222,51 @@
       "goTo": "Chọn ghế",
       "expired": "Đã hết thời gian mua vé. Vào lại phòng chờ để tiếp tục."
     }
+  },
+  "seats": {
+    "title": "Chọn chỗ",
+    "overview": "Toàn cảnh",
+    "stage": "Sân khấu",
+    "mapLabel": "Sơ đồ chỗ ngồi, {count} ghế. Dùng phím mũi tên để di chuyển, Enter để chọn.",
+    "sectionLabel": "Khu {name}, còn {count} ghế trống",
+    "zoomIn": "Phóng to",
+    "zoomOut": "Thu nhỏ",
+    "legend": {
+      "free": "Còn trống",
+      "selected": "Đang chọn",
+      "mine": "Bạn đang giữ",
+      "taken": "Đã có người chọn",
+      "allTiers": "Tất cả hạng vé",
+      "filter": "Lọc theo hạng vé"
+    },
+    "summary": {
+      "title": "Lựa chọn của bạn",
+      "empty": "Chưa chọn ghế nào",
+      "total": "Tạm tính",
+      "continue": "Tiếp tục",
+      "holding": "Đang giữ chỗ…",
+      "release": "Bỏ giữ chỗ",
+      "checkoutSoon": "Thanh toán (sắp ra mắt)",
+      "heldFor": "Giữ chỗ còn",
+      "held": "Bạn đang giữ {count} vé",
+      "open": "Xem lựa chọn"
+    },
+    "ga": {
+      "title": "Vé đứng",
+      "decrease": "Bớt 1 vé {name}",
+      "increase": "Thêm 1 vé {name}",
+      "remaining": "Còn {count} vé"
+    },
+    "bestAvailable": "Chọn chỗ tốt nhất",
+    "bestAvailableOf": "Chọn {count} chỗ tốt nhất hạng {name}",
+    "seatsTaken": "{count} ghế vừa có người chọn",
+    "expired": {
+      "title": "Hết thời gian giữ chỗ",
+      "body": "Ghế của bạn đã được trả lại. Vui lòng chọn lại.",
+      "action": "Chọn lại"
+    },
+    "loadFailed": "Không tải được sơ đồ ghế.",
+    "retry": "Thử lại",
+    "limit": "Tối đa {count} vé mỗi người"
   }
 }
