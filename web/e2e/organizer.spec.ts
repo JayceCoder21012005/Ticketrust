@@ -114,8 +114,9 @@ test.describe("organizer area", () => {
   // `next start` per run), first redraw of the 20x30 section:
   //   main               43.9 / 187.6 / 253.2 / 327.2 / 1332.6 ms   (median 253.2)
   //   fix/07-followups   232.3 / 232.8 / 257.5 / 300.5 / 952.0 ms   (median 257.5)
-  // so the branch is no slower than main, and the 100 ms of the original assertion was never met on this machine:
-  // that first redraw is dominated by one-off work (JIT, first render of 600 circles) with a heavy tail.
+  // so the branch is no slower than main. The original 100 ms assertion was met in 1 of 5 main runs (43.9 ms) and in
+  // 0 of 5 branch runs on this machine: the first redraw is dominated by one-off work (JIT, first render of 600
+  // circles) with a heavy tail.
   // The test therefore measures two things:
   //   warm redraw  (2 -> 20 rows after the section has rendered once): the real cost of the preview, 21-30 ms
   //                measured; ALWAYS asserted against the spec's 100 ms.
