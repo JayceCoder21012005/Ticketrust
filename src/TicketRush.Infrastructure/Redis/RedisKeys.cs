@@ -19,6 +19,7 @@ public sealed class RedisOptions
 /// <list type="bullet">
 /// <item><c>tr:{env}:lock:{name}</c> — string, random owner token, PX = lock TTL (spec 01, <see cref="Locking.RedisDistributedLock"/>).</item>
 /// <item><c>tr:{env}:q:{sale:&lt;phaseId&gt;}:state|pre|line|seq|admitted|active|tokens|done</c> — waiting room of one sale phase (spec 06). One hash tag, so Lua scripts stay Cluster-safe.</item>
+/// <item><c>tr:{env}:inv:{evt:&lt;eventId&gt;}:sold|held|ga:&lt;tier&gt;|gaheld|hold:&lt;id&gt;|expiry|userhold:&lt;user&gt;|bought:&lt;user&gt;|ver|meta</c> and channel <c>…:changes</c> — inventory of one event (spec 07).</item>
 /// </list>
 /// </summary>
 public sealed class RedisKeys(IOptions<RedisOptions> options)
@@ -55,4 +56,44 @@ public sealed class RedisKeys(IOptions<RedisOptions> options)
     public RedisKey QueueDone(Guid phaseId) => Queue(phaseId, "done");
 
     private RedisKey Queue(Guid phaseId, string name) => $"{Prefix}q:{{sale:{phaseId:N}}}:{name}";
+
+    // Inventory of one event (spec 07). One hash tag per event so every hold script stays Cluster-safe.
+
+    /// <summary>SET: sold seat indexes.</summary>
+    public RedisKey InvSold(Guid eventId) => Inv(eventId, "sold");
+
+    /// <summary>HASH: seat index → holdId.</summary>
+    public RedisKey InvHeld(Guid eventId) => Inv(eventId, "held");
+
+    /// <summary>STRING: GA tickets of a tier still free (capacity − sold − held).</summary>
+    public RedisKey InvGa(Guid eventId, Guid tierId) => Inv(eventId, $"ga:{tierId:N}");
+
+    /// <summary>HASH: GA tierId → quantity currently held (lets the reconciler recompute <see cref="InvGa"/>).</summary>
+    public RedisKey InvGaHeld(Guid eventId) => Inv(eventId, "gaheld");
+
+    /// <summary>HASH: userId, seats (csv), ga (json), expiresAt (unix ms).</summary>
+    public RedisKey InvHold(Guid eventId, Guid holdId) => Inv(eventId, $"hold:{holdId:N}");
+
+    /// <summary>ZSET: holdId → expiresAt (unix ms).</summary>
+    public RedisKey InvExpiry(Guid eventId) => Inv(eventId, "expiry");
+
+    /// <summary>STRING: the user's active holdId (PX = hold TTL).</summary>
+    public RedisKey InvUserHold(Guid eventId, Guid userId) => Inv(eventId, $"userhold:{userId:N}");
+
+    /// <summary>STRING: tickets the user already bought for this event (per-user limit).</summary>
+    public RedisKey InvBought(Guid eventId, Guid userId) => Inv(eventId, $"bought:{userId:N}");
+
+    /// <summary>STRING: version of the event's inventory, bumped by every mutating script and sent with each delta.</summary>
+    public RedisKey InvVersion(Guid eventId) => Inv(eventId, "ver");
+
+    /// <summary>HASH: warm (1 once seeded), seatCount, gaCap:&lt;tierId&gt;.</summary>
+    public RedisKey InvMeta(Guid eventId) => Inv(eventId, "meta");
+
+    /// <summary>PUB/SUB: seat deltas, published inside the scripts.</summary>
+    public RedisChannel InvChanges(Guid eventId) => RedisChannel.Literal($"{Prefix}inv:{{evt:{eventId:N}}}:changes");
+
+    /// <summary>Pattern matching <see cref="InvChanges"/> of every event.</summary>
+    public RedisChannel InvChangesPattern => RedisChannel.Pattern($"{Prefix}inv:*:changes");
+
+    private RedisKey Inv(Guid eventId, string name) => $"{Prefix}inv:{{evt:{eventId:N}}}:{name}";
 }
