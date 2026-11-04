@@ -7,6 +7,7 @@ x-dotnet-env: &dotnet-env
   ConnectionStrings__redis: redis:6379,password=${REDIS_PASSWORD}
   Redis__Environment: prod
   Jwt__SigningKey: ${JWT_SIGNING_KEY}
+  AdmissionToken__SigningKey: ${ADMISSION_TOKEN_SIGNING_KEY:?set ADMISSION_TOKEN_SIGNING_KEY}
   Catalog__AccessCodePepper: ${ACCESS_CODE_PEPPER:?set ACCESS_CODE_PEPPER}
   Email__FromAddress: ${EMAIL_FROM_ADDRESS}
   Storage__PublicBaseUrl: https://${PUBLIC_HOST}/media

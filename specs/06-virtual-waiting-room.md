@@ -70,10 +70,22 @@ Error codes: `queue.not_open`, `queue.closed`, `queue.invalid_access_code`, `que
 
 ## Acceptance criteria
 
-- [ ] 10,000 users join during `Pre`. After opening, all get unique numbers 1..10,000, and two runs produce different orders.
-- [ ] A user who joins after T0 gets a number greater than every pre-queue user.
-- [ ] Joining twice or from two tabs returns the same number and the same token.
-- [ ] Active shoppers never exceed `MaxActiveShoppers` (load test).
-- [ ] A token used by another account → 403 `admission.invalid`.
-- [ ] Killing the admitter leader → another instance takes over within 10 s. No numbers are skipped or duplicated.
-- [ ] A background tab is still admitted within one poll interval.
+Phase A (core) is done; the items that need specs 07, 12 and 13 are listed under "Deferred" below.
+
+- [x] 10,000 users join during `Pre`. After opening, all get unique numbers 1..10,000, and two runs produce different orders. (`WaitingRoomOpenerTests`)
+- [x] A user who joins after T0 gets a number greater than every pre-queue user. (`WaitingRoomOpenerTests`, `QueueApiTests`)
+- [x] Joining twice or from two tabs returns the same number and the same token. (`WaitingRoomScriptTests`, `QueueApiTests`)
+- [x] Active shoppers never exceed `MaxActiveShoppers` (load test). (`WaitingRoomAdmitterTests.Active_never_exceeds_max_under_load`; the 10,000-user load run belongs to spec 17)
+- [x] A token used by another account → 403 `admission.invalid`. (`QueueApiTests`)
+- [x] Killing the admitter leader → another instance takes over within 10 s. No numbers are skipped or duplicated. (`QueueWorkersTests`)
+- [x] A background tab is still admitted within one poll interval. (polling runs in a Web Worker; `e2e/queue.spec.ts`)
+
+### Deferred to later specs
+
+- [ ] Inventory listener: `AllHeld` / `SoldOut` and back to `Open` when 07 reports stock (the statuses, API and UI already exist; nothing sets them yet).
+- [ ] SoldOut offers the waitlist (13).
+- [ ] `captchaToken` is required on join (12). The field is accepted and ignored today.
+- [ ] `RequireAdmissionToken` is applied to the seat, hold and checkout endpoints (07, 08). The filter and the `X-Admission-Token` header are built and tested.
+- [ ] Event cancellation (07/08): the waiting room is not closed and admission tokens are not revoked when an event is cancelled. Buy handlers must check the event status; the API serves joins for up to 30 s from its sale cache.
+- [ ] Adjacent phases (presale then general sale with no gap): the room always shows the open phase, so the next phase has no pre-queue and opens FIFO. Needs a rule for which phase a buyer is queued for (client-chosen `phaseId`, or prefer the upcoming queued phase inside `PreQueueMinutes`).
+- [ ] Phases without a queue (`QueueEnabled = false`): the catalog CTA still links straight to `/events/{slug}/seats`. When 07 lands, link to `/queue` (it admits instantly) so every buyer holds a token, and create the `/seats` page the queue redirects to.

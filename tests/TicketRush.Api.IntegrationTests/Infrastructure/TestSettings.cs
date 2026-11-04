@@ -11,6 +11,7 @@ public static class TestSettings
         ["Jwt:Issuer"] = "ticketrush-api",
         ["Jwt:Audience"] = "ticketrush-web",
         ["Jwt:SigningKey"] = "test-signing-key-that-is-long-enough-0123456789",
+        ["AdmissionToken:SigningKey"] = "test-admission-key-long-enough-0123456789",
         ["Payment:Provider"] = "Mock",
         ["Email:FromAddress"] = "no-reply@ticketrush.dev",
         ["Email:FromName"] = "TicketRush",

@@ -55,6 +55,7 @@ const messages: Record<string, string> = {
   "layout.invalid": "Sơ đồ chỗ ngồi không hợp lệ.",
   "queue.not_open": "Phòng chờ chưa mở.",
   "queue.closed": "Phòng chờ đã đóng.",
+  "queue.not_joined": "Bạn chưa vào phòng chờ, hoặc sự kiện không còn mở bán.",
   "queue.invalid_access_code": "Mã truy cập không đúng.",
   "queue.email_not_confirmed": "Bạn cần xác nhận email để vào phòng chờ.",
   "admission.required": "Bạn cần vào phòng chờ trước khi chọn ghế.",

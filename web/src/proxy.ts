@@ -3,8 +3,11 @@ import { SESSION_HINT_COOKIE } from "@/lib/auth/session-hint";
 
 const GUARDED_PREFIXES = ["/account", "/my-tickets", "/orders", "/checkout", "/queue", "/organizer", "/admin", "/gate"];
 
+/** The waiting room of one event (spec 06): `/events/<slug>/queue`. */
+const EVENT_QUEUE_PATH = /^\/events\/[^/]+\/queue\/?$/;
+
 export function requiresLogin(pathname: string): boolean {
-  return GUARDED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  return GUARDED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)) || EVENT_QUEUE_PATH.test(pathname);
 }
 
 /**
@@ -30,6 +33,7 @@ export const config = {
     "/orders/:path*",
     "/checkout/:path*",
     "/queue/:path*",
+    "/events/:slug/queue",
     "/organizer/:path*",
     "/admin/:path*",
     "/gate/:path*",

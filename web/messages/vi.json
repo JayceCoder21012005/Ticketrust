@@ -153,5 +153,74 @@
       "notScheduledHint": "Ban tổ chức chưa công bố lịch mở bán.",
       "prices": "Giá vé"
     }
+  },
+  "queue": {
+    "title": "Phòng chờ",
+    "joining": "Đang vào phòng chờ…",
+    "leave": "Rời phòng chờ",
+    "stateLabel": "Trạng thái phòng chờ",
+    "pre": {
+      "title": "Phòng chờ đã mở",
+      "opensIn": "Mở bán sau",
+      "fairness": "Mọi người vào phòng chờ trước giờ mở bán sẽ được xếp thứ tự ngẫu nhiên.",
+      "stay": "Bạn có thể để trang này mở. Đến giờ mở bán, bạn sẽ thấy vị trí của mình.",
+      "justOpened": "Đang xếp thứ tự…"
+    },
+    "waiting": {
+      "title": "Bạn đang trong hàng chờ",
+      "position": "Vị trí của bạn: {position}",
+      "ahead": "Còn {count} người phía trước",
+      "aheadNone": "Bạn là người tiếp theo",
+      "eta": "Dự kiến chờ {eta}",
+      "etaUnderMinute": "dưới 1 phút",
+      "etaMinutes": "khoảng {minutes} phút",
+      "etaHours": "khoảng {hours} giờ",
+      "noReload": "Đừng tải lại trang — bạn sẽ không mất lượt.",
+      "reconnecting": "Mất kết nối, đang thử lại… Vị trí của bạn vẫn được giữ.",
+      "progress": "Tiến độ trong hàng chờ",
+      "notify": "Báo cho tôi khi đến lượt",
+      "notifyOn": "Sẽ báo khi đến lượt bạn"
+    },
+    "admitted": {
+      "title": "Đến lượt bạn!",
+      "description": "Bạn có {minutes} phút để chọn ghế và thanh toán.",
+      "redirect": "Tự động chuyển sang chọn ghế sau {seconds} giây…",
+      "go": "Chọn ghế ngay",
+      "notificationBody": "Mở TicketRush để chọn vé cho {event}."
+    },
+    "allHeld": {
+      "title": "Tất cả vé đang được giữ",
+      "description": "Vé có thể quay lại khi người khác không hoàn tất thanh toán. Bạn vẫn giữ nguyên vị trí."
+    },
+    "soldOut": {
+      "title": "Vé đã bán hết",
+      "description": "Rất tiếc, tất cả vé của đợt này đã được bán."
+    },
+    "closed": {
+      "title": "Đợt bán đã kết thúc",
+      "description": "Phòng chờ của đợt bán này đã đóng.",
+      "back": "Về trang sự kiện"
+    },
+    "expired": {
+      "title": "Đã hết thời gian mua vé",
+      "description": "Phiên mua vé của bạn đã kết thúc. Vào lại phòng chờ để tiếp tục — bạn sẽ được xếp ở cuối hàng.",
+      "rejoin": "Vào lại phòng chờ"
+    },
+    "accessCode": {
+      "title": "Nhập mã truy cập",
+      "description": "Đợt bán này dành riêng cho người có mã.",
+      "label": "Mã truy cập",
+      "submit": "Vào phòng chờ"
+    },
+    "failed": {
+      "title": "Không vào được phòng chờ",
+      "retry": "Thử lại",
+      "back": "Về trang sự kiện"
+    },
+    "timer": {
+      "label": "Còn {time} để chọn vé",
+      "goTo": "Chọn ghế",
+      "expired": "Đã hết thời gian mua vé. Vào lại phòng chờ để tiếp tục."
+    }
   }
 }

@@ -7,11 +7,21 @@ public sealed class QueueOptions
 {
     public const string SectionName = "Queue";
 
+    /// <summary>Most buyers the admitter lets in per second.</summary>
     [Range(1, 10_000)]
-    public int AdmissionsPerSecond { get; set; } = 50;
+    public int AdmissionRatePerSecond { get; set; } = 50;
 
+    /// <summary>Cap on shoppers holding an admission at the same time (the backend's real capacity).</summary>
+    [Range(1, 100_000)]
+    public int MaxActiveShoppers { get; set; } = 500;
+
+    /// <summary>How long an admitted buyer may shop; also the admission token lifetime.</summary>
     [Range(1, 60)]
-    public int AdmissionTokenTtlMinutes { get; set; } = 10;
+    public int ShoppingWindowMinutes { get; set; } = 10;
+
+    /// <summary>Queued sales accept joins this long before they open.</summary>
+    [Range(1, 240)]
+    public int PreQueueMinutes { get; set; } = 30;
 }
 
 /// <summary>Seat hold settings (spec 07). Payment window must stay shorter than the hold TTL (C3).</summary>
