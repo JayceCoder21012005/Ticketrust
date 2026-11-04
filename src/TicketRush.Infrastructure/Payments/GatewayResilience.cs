@@ -54,7 +54,7 @@ public sealed partial class GatewayResilience
         {
             throw new PaymentGatewayUnavailableException($"The {_provider} circuit breaker is open.", ex);
         }
-        catch (Exception ex) when (IsTransient(ex))
+        catch (Exception ex) when (IsTransient(ex, ct))
         {
             throw new PaymentGatewayUnavailableException($"The {_provider} gateway did not respond.", ex);
         }
@@ -62,11 +62,13 @@ public sealed partial class GatewayResilience
 
     /// <summary>
     /// Outages, timeouts and I/O errors. Not transient, and therefore never retried, never counted by the breaker and
-    /// rethrown unchanged: a gateway refusal, caller cancellation, and our own bugs or rule violations
+    /// rethrown unchanged: a gateway refusal, a cancellation the caller requested (one it did not, such as an HttpClient timeout, is
+    /// transient), and our own bugs or rule violations
     /// (<see cref="ArgumentException"/>, <see cref="DomainException"/>), which would otherwise be reported as an outage.
     /// </summary>
-    private static bool IsTransient(Exception ex) =>
-        ex is not (PaymentRejectedException or OperationCanceledException or ArgumentException or DomainException);
+    private static bool IsTransient(Exception ex, CancellationToken callerToken) =>
+        ex is not (PaymentRejectedException or ArgumentException or DomainException)
+        && !(ex is OperationCanceledException && callerToken.IsCancellationRequested);
 
     private RetryStrategyOptions RetryStrategy(GatewayResilienceOptions options) => new()
     {
@@ -74,7 +76,8 @@ public sealed partial class GatewayResilience
         BackoffType = DelayBackoffType.Exponential,
         UseJitter = true,
         Delay = options.RetryBaseDelay,
-        ShouldHandle = new PredicateBuilder().Handle<Exception>(ex => IsTransient(ex) && ex is not BrokenCircuitException),
+        ShouldHandle = args => ValueTask.FromResult(
+            args.Outcome.Exception is { } ex && IsTransient(ex, args.Context.CancellationToken) && ex is not BrokenCircuitException),
         OnRetry = args =>
         {
             LogRetry(_logger, _provider, args.AttemptNumber + 1, args.Outcome.Exception);
@@ -88,7 +91,7 @@ public sealed partial class GatewayResilience
         MinimumThroughput = options.BreakerMinimumThroughput,
         SamplingDuration = options.BreakerSamplingDuration,
         BreakDuration = options.BreakerBreakDuration,
-        ShouldHandle = new PredicateBuilder().Handle<Exception>(IsTransient),
+        ShouldHandle = args => ValueTask.FromResult(args.Outcome.Exception is { } ex && IsTransient(ex, args.Context.CancellationToken)),
         StateProvider = _state,
         OnOpened = _ =>
         {

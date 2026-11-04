@@ -181,6 +181,37 @@ public sealed class MockPaymentGatewayTests(ContainersFixture containers) : IAsy
     }
 
     [Fact]
+    public async Task A_refund_is_all_or_nothing_whenever_the_caller_gives_up_and_a_retry_books_it_exactly_once()
+    {
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            var session = await _h.CreateSessionAsync(PaymentHarness.NewOrder(500_000, 2));
+            await _h.Control.CompleteAsync(session.SessionId, MockOutcome.Succeeded, Ct);
+            var key = $"order-{attempt}";
+            using var cts = new CancellationTokenSource();
+            var refund = _h.Store.RecordRefundAsync(session.SessionId, key, 300_000, cts.Token);
+            cts.CancelAfter(TimeSpan.FromTicks(attempt * 400)); // 0 .. ~1.6 ms: lands before, during and after the commit
+            try
+            {
+                await refund;
+            }
+            catch (OperationCanceledException)
+            {
+                // the caller gave up; the outcome in Redis is what matters
+            }
+
+            var marker = await Db.KeyExistsAsync(_h.Keys.PayMockRefund(key));
+            var booked = (long)await Db.HashGetAsync(_h.Keys.PayMockSession(session.SessionId), "refunded");
+            marker.ShouldBe(booked == 300_000, $"marker and booked amount must agree (attempt {attempt}, booked {booked})");
+
+            var retried = await _h.Gateway.RefundAsync(session.SessionId, new Money(300_000), key, Ct);
+
+            retried.IsSuccess.ShouldBeTrue();
+            (await Db.HashGetAsync(_h.Keys.PayMockSession(session.SessionId), "refunded")).ToString().ShouldBe("300000");
+        }
+    }
+
+    [Fact]
     public async Task Refunds_cannot_exceed_what_was_paid()
     {
         var session = await _h.CreateSessionAsync(PaymentHarness.NewOrder(500_000, 2));

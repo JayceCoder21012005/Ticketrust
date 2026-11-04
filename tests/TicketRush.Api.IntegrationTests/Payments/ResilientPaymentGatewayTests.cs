@@ -182,6 +182,42 @@ public sealed class ResilientPaymentGatewayTests
     }
 
     [Fact]
+    public async Task A_cancellation_the_caller_did_not_ask_for_is_a_transient_fault()
+    {
+        // HttpClient reports its own timeout as TaskCanceledException while the caller's token is still live.
+        var rig = Build(o => o.BreakerMinimumThroughput = 4);
+        rig.Inner.Behavior = _ => throw new TaskCanceledException("HttpClient.Timeout elapsed");
+
+        var ex = await Should.ThrowAsync<PaymentGatewayUnavailableException>(() => Status(rig));
+        rig.Inner.Calls.ShouldBe(3); // retried twice
+        await Should.ThrowAsync<PaymentGatewayUnavailableException>(() => Status(rig));
+
+        ex.InnerException.ShouldBeOfType<TaskCanceledException>();
+        rig.Resilience.CircuitState.ShouldBe(CircuitState.Open); // counted by the breaker
+    }
+
+    [Fact]
+    public async Task A_cancellation_the_caller_asked_for_is_not_retried_and_not_counted()
+    {
+        var rig = Build(o => o.BreakerMinimumThroughput = 2);
+
+        for (var i = 0; i < 3; i++)
+        {
+            using var again = new CancellationTokenSource();
+            var token = again.Token;
+            rig.Inner.Behavior = async _ =>
+            {
+                await again.CancelAsync();
+                throw new TaskCanceledException("cancelled by the caller", null, token);
+            };
+            await Should.ThrowAsync<OperationCanceledException>(() => rig.Gateway.GetStatusAsync("s1", token));
+        }
+
+        rig.Inner.Calls.ShouldBe(3);
+        rig.Resilience.CircuitState.ShouldBe(CircuitState.Closed);
+    }
+
+    [Fact]
     public async Task A_programming_error_is_rethrown_unchanged_not_retried_and_not_counted()
     {
         var rig = Build(o => o.BreakerMinimumThroughput = 2);

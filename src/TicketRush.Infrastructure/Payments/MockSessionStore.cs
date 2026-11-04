@@ -97,17 +97,18 @@ public sealed class MockSessionStore(
     public async Task<RefundResult> RecordRefundAsync(string sessionId, string idempotencyKey, long amount, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        var db = redis.GetDatabase();
         var refund = new StoredRefund($"re_mock_{Guid.NewGuid():N}", amount);
-        var won = await db.StringSetAsync(
-            keys.PayMockRefund(idempotencyKey), JsonSerializer.Serialize(refund, Json), options.CurrentValue.SucceededRetention, When.NotExists).WaitAsync(ct);
-        if (!won)
-        {
-            return await GetRefundAsync(idempotencyKey, ct) ?? ToResult(refund);
-        }
+        var marker = keys.PayMockRefund(idempotencyKey);
 
-        await db.HashIncrementAsync(keys.PayMockSession(sessionId), "refunded", amount).WaitAsync(ct);
-        return ToResult(refund);
+        // One MULTI: the marker and the booked amount commit together or not at all, so a cancellation (or a crash)
+        // can never leave a marker without its amount, which a retry would then treat as already refunded.
+        var transaction = redis.GetDatabase().CreateTransaction();
+        transaction.AddCondition(Condition.KeyNotExists(marker));
+        _ = transaction.StringSetAsync(marker, JsonSerializer.Serialize(refund, Json), options.CurrentValue.SucceededRetention);
+        _ = transaction.HashIncrementAsync(keys.PayMockSession(sessionId), "refunded", amount);
+        return await transaction.ExecuteAsync().WaitAsync(ct)
+            ? ToResult(refund)
+            : await GetRefundAsync(idempotencyKey, ct) ?? ToResult(refund);
     }
 
     private static RefundResult ToResult(StoredRefund refund) => new(refund.RefundId, RefundStatus.Succeeded);

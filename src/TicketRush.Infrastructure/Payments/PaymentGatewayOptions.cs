@@ -68,6 +68,11 @@ internal sealed class MockGatewayOptionsValidator(IHostEnvironment environment) 
             failures.Add($"{MockGatewayOptions.SectionName}:WebhookSecret must be at least {MinimumSecretLength} characters outside Development.");
         }
 
+        if (options.Enabled && string.IsNullOrWhiteSpace(options.WebhookSecret))
+        {
+            failures.Add($"{MockGatewayOptions.SectionName}:WebhookSecret is required when {MockGatewayOptions.SectionName}:Enabled is true.");
+        }
+
         RequireAbsoluteHttpUrl(options.WebBaseUrl, nameof(options.WebBaseUrl), failures);
         RequireAbsoluteHttpUrl(options.WebhookUrl, nameof(options.WebhookUrl), failures);
         RequirePositive(options.DelayedWebhookDelay, nameof(options.DelayedWebhookDelay), failures);

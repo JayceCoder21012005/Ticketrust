@@ -80,6 +80,30 @@ public sealed class PaymentConfigurationTests
         Validate(environment, o => o.WebhookSecret = Secret).Succeeded.ShouldBeTrue();
     }
 
+    [Theory]
+    [InlineData("Development", "")]
+    [InlineData("Development", "   ")]
+    [InlineData("Staging", "")]
+    [InlineData("Production", "")]
+    public void An_enabled_mock_needs_a_secret_in_every_environment(string environment, string secret)
+    {
+        var result = Validate(environment, o =>
+        {
+            o.Enabled = true;
+            o.AllowInProduction = true;
+            o.WebhookSecret = secret;
+        });
+
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("WebhookSecret is required when Payments:Mock:Enabled is true");
+    }
+
+    [Fact]
+    public void An_enabled_mock_with_a_short_development_secret_is_fine()
+    {
+        Validate("Development", o => { o.Enabled = true; o.WebhookSecret = "dev"; }).Succeeded.ShouldBeTrue();
+    }
+
     [Fact]
     public void Development_may_run_without_a_secret()
     {
