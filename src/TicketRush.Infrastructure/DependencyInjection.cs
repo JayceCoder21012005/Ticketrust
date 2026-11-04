@@ -16,6 +16,8 @@ using TicketRush.Application.Abstractions.Persistence;
 using TicketRush.Application.Abstractions.Storage;
 using TicketRush.Application.Options;
 using TicketRush.Application.Abstractions.Inventory;
+using TicketRush.Application.Abstractions.Idempotency;
+using TicketRush.Infrastructure.Idempotency;
 using TicketRush.Infrastructure.Identity;
 using TicketRush.Infrastructure.Inventory;
 using TicketRush.Infrastructure.Locking;
@@ -82,6 +84,7 @@ public static class DependencyInjection
         services.AddSingleton<ISoldInventorySource, NoTicketsSoldInventorySource>();
         services.AddSingleton<IInventoryEventSource, InventoryEventSource>();
         services.AddScoped<InventorySeeder>();
+        services.AddSingleton<IIdempotencyStore, RedisIdempotencyStore>();
         services.AddIntegrationEventHandler<EventPublished, InventoryWarmHandler>();
 
         PersistDataProtectionKeysToRedis(services);

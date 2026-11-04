@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
 using TicketRush.Api.Common.Auth;
+using TicketRush.Api.Common.Idempotency;
 using TicketRush.Api.Common.Errors;
 using TicketRush.Api.Common.Middleware;
 using TicketRush.Api.Features.Auth;
@@ -65,6 +66,7 @@ public static class ApiServiceCollectionExtensions
         app.UseLocalMedia();
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseIdempotencyBuffering();
         return app;
     }
 

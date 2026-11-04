@@ -9,6 +9,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TicketRush.Api.Common.Auth;
 using TicketRush.Api.Common.Http;
+using TicketRush.Api.Common.Idempotency;
+using TicketRush.Api.IntegrationTests.Holds;
 using TicketRush.Api.Features.Queue;
 using TicketRush.Application.Abstractions.Notifications;
 using TicketRush.Domain.Primitives;
@@ -91,6 +93,8 @@ public sealed class ApiFactory(string databaseConnectionString, string redisConn
                 endpoints.MapGet("/gate", WhoAmI).RequireAuthorization(AuthPolicies.RequireGateStaff);
                 endpoints.MapGet("/admission/{eventId:guid}", WhoAmI).RequireAuthorization().RequireAdmissionToken();
             }));
+            app.Map("/_test/idempotency", branch => WithEndpoints(branch, endpoints =>
+                endpoints.MapPost("/", IdempotencyProbe.HandleAsync).RequireAuthorization().RequireIdempotencyKey(TimeSpan.FromMinutes(1))));
             app.Map("/hubs/_test", branch => WithEndpoints(branch, endpoints => endpoints.MapGet("/", WhoAmI).RequireAuthorization()));
         };
 

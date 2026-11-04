@@ -95,5 +95,8 @@ public sealed class RedisKeys(IOptions<RedisOptions> options)
     /// <summary>Pattern matching <see cref="InvChanges"/> of every event.</summary>
     public RedisChannel InvChangesPattern => RedisChannel.Pattern($"{Prefix}inv:*:changes");
 
+    /// <summary>STRING: pending marker or stored response of one Idempotency-Key of one user (TTL = the endpoint's window).</summary>
+    public RedisKey Idempotency(Guid userId, Guid key) => $"{Prefix}idem:{userId:N}:{key:N}";
+
     private RedisKey Inv(Guid eventId, string name) => $"{Prefix}inv:{{evt:{eventId:N}}}:{name}";
 }
