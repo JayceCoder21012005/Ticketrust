@@ -1,6 +1,7 @@
 using TicketRush.Api;
 using TicketRush.Application;
 using TicketRush.Infrastructure;
+using TicketRush.Infrastructure.Realtime;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,6 +9,7 @@ builder.AddServiceDefaults();
 builder.AddInfrastructure();
 builder.Services.AddApplication();
 builder.Services.AddApi();
+builder.Services.AddTicketRushSignalR(builder.Configuration);
 
 var app = builder.Build();
 
