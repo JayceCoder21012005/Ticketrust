@@ -6,7 +6,7 @@ namespace TicketRush.Infrastructure.Inventory;
 public sealed partial class RedisInventoryStore
 {
     public Task CommitAsync(Guid eventId, Guid holdId, Guid userId, IReadOnlyList<int> seats, IReadOnlyList<GaLine> ga, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct) =>
-        throw new NotSupportedException("inventory_commit lands in plan task 4.");
+        GuardAsync(() => InventoryScripts.CommitAsync(redis.GetDatabase(), keys, eventId, holdId, userId, seats, ga, eventGaTiers));
 
     public Task<ReconcileReport> ReconcileAsync(InventorySeed seed, CancellationToken ct) =>
         throw new NotSupportedException("inventory_reconcile lands in plan task 5.");

@@ -39,6 +39,21 @@ public static class InventoryScripts
             ]))!;
     }
 
+    public static async Task<RedisResult[]> CommitAsync(
+        IDatabase db, RedisKeys keys, Guid eventId, Guid holdId, Guid userId, IEnumerable<int> seats, IEnumerable<GaLine> ga, IReadOnlyList<Guid> tiers)
+    {
+        RedisKey[] fixedKeys =
+        [
+            keys.InvSold(eventId), keys.InvHeld(eventId), keys.InvExpiry(eventId), keys.InvUserHold(eventId, userId),
+            keys.InvBought(eventId, userId), keys.InvVersion(eventId), keys.InvGaHeld(eventId), keys.InvHold(eventId, holdId),
+        ];
+        return (RedisResult[])(await LuaScripts.RunAsync(
+            db,
+            "inventory_commit",
+            [.. fixedKeys, .. GaKeys(keys, eventId, tiers)],
+            [holdId.ToString("N"), userId.ToString("N"), SeatsCsv(seats), GaCsv(ga), keys.InvChanges(eventId).ToString(), TiersCsv(tiers)]))!;
+    }
+
     public static async Task<RedisResult[]> ReleaseAsync(
         IDatabase db, RedisKeys keys, Guid eventId, Guid holdId, Guid? userId, IReadOnlyList<Guid> tiers)
     {
