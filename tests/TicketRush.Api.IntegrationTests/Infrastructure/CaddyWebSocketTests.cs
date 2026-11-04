@@ -117,16 +117,41 @@ public sealed class CaddyWebSocketTests(ContainersFixture containers) : IAsyncLi
         received.V.ShouldBe(2);
     }
 
+    /// <summary>Removes the whole <c>handle /hubs/*</c> block, nested braces included.</summary>
+    private static string WithoutHubsHandle(string caddyfile)
+    {
+        const string Marker = "handle /hubs/*";
+        var start = caddyfile.IndexOf(Marker, StringComparison.Ordinal);
+        var open = start < 0 ? -1 : caddyfile.IndexOf('{', start);
+        if (open < 0)
+        {
+            throw new InvalidOperationException($"'{Marker} {{ ... }}' not found in deploy/Caddyfile; update this test.");
+        }
+
+        var depth = 0;
+        for (var i = open; i < caddyfile.Length; i++)
+        {
+            depth += caddyfile[i] switch { '{' => 1, '}' => -1, _ => 0 };
+            if (depth == 0)
+            {
+                var result = caddyfile.Remove(start, i + 1 - start);
+                result.ShouldNotBe(caddyfile);
+                return result;
+            }
+        }
+
+        throw new InvalidOperationException($"Unbalanced braces after '{Marker}' in deploy/Caddyfile.");
+    }
+
     [Fact]
     public async Task Without_the_hubs_handle_the_upgrade_goes_to_web_and_fails()
     {
         // Same Caddyfile minus the /hubs/* handle: proves the test above depends on that handle.
-        var text = TestCaddyfile(_api.Port);
-        var start = text.IndexOf("handle /hubs/*", StringComparison.Ordinal);
-        var end = text.IndexOf('}', start) + 1;
-        var caddyPort = await StartCaddyAsync(text.Remove(start, end - start));
+        var caddyPort = await StartCaddyAsync(WithoutHubsHandle(TestCaddyfile(_api.Port)));
         await using var connection = Connect(caddyPort, _ => { });
 
-        await Should.ThrowAsync<HttpRequestException>(() => connection.StartAsync(Ct));
+        // web:3000 does not resolve, so Caddy answers the negotiate request itself with 502; a refused connection would not.
+        var failure = await Should.ThrowAsync<HttpRequestException>(() => connection.StartAsync(Ct));
+        failure.StatusCode.ShouldBe(System.Net.HttpStatusCode.BadGateway);
     }
 }
