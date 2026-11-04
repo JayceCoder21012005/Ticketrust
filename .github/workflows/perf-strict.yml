@@ -1,0 +1,36 @@
+name: Perf (strict budgets)
+
+# Opt-in and weekly: wall-clock `@perf` e2e tests with their strict budgets (PERF_BUDGET=strict), which need a stable,
+# otherwise idle runner. Not part of the PR pipeline (ci.yml), where they only assert the warm budget.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  perf-strict:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Build (same as the e2e job in ci.yml)
+        run: npm run build:e2e
+        env:
+          ENABLE_DESIGN_PAGE: "1"
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: "@perf tests with strict budgets"
+        run: npx playwright test --grep @perf --project=chromium
+        env:
+          PERF_BUDGET: strict
