@@ -8,6 +8,10 @@ describe("toFriendlyMessage", () => {
     expect(toFriendlyMessage(error)).toBe("Ghế này vừa có người giữ. Vui lòng chọn ghế khác.");
   });
 
+  it("explains why the event can't start before a sale phase closes", () => {
+    expect(toFriendlyMessage(new ApiError(409, { code: "phase.after_event_start" }))).toBe("Các đợt mở bán phải kết thúc trước khi sự kiện bắt đầu.");
+  });
+
   it("falls back to a message per HTTP status for unknown codes", () => {
     expect(toFriendlyMessage(new ApiError(429, { code: "something.new" }))).toMatch(/quá nhiều/i);
     expect(toFriendlyMessage(new ApiError(503, {}))).toMatch(/bận/i);

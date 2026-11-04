@@ -6,6 +6,7 @@ import { StickyActionBar } from "@/components/shared/sticky-action-bar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { categoryName } from "@/lib/catalog/categories";
+import { toParagraphs } from "@/lib/catalog/paragraphs";
 import { externalHttpUrl } from "@/lib/catalog/safe-url";
 import type { EventDetail } from "@/lib/catalog/types";
 import { calendarTile, formatDateTime, formatEventDate, formatTimeRange } from "@/lib/format";
@@ -124,7 +125,7 @@ export function EventDetailView({ event }: { event: EventDetail }) {
           <Section id="about" title={t("catalog.detail.about")}>
             <div className="flex flex-col gap-3 leading-relaxed text-foreground/90">
               {/* Plain paragraphs: organizer text is never rendered as HTML. */}
-              {event.description.split(/\n{2,}/).map((paragraph, i) => (
+              {toParagraphs(event.description).map((paragraph, i) => (
                 <p key={i} className="whitespace-pre-line">
                   {paragraph}
                 </p>

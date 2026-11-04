@@ -56,6 +56,8 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      # Vietnam-time helpers again in a far-away zone: organizer times must not depend on the runner's TZ.
+      - run: npm run test:tz
       - name: Build (with /design for the budget and a11y checks)
         # Builds against e2e/mock-api.mjs (started by the script), like a deploy with the api up: the home page and
         # the soonest event pages are prerendered. E2E and Lighthouse then serve the catalog from the same mock.

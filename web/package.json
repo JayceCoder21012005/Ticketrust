@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:tz": "node -e \"process.env.TZ='America/New_York'; require('child_process').execSync('npx vitest run src/lib/vn-time.test.ts', { stdio: 'inherit' })\"",
     "typecheck": "next typegen && tsc --noEmit",
     "api:gen": "openapi-typescript openapi/ticketrush-api.json -o src/lib/api/schema.d.ts",
     "test:e2e": "playwright test",

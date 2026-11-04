@@ -9,8 +9,11 @@ namespace TicketRush.Infrastructure.Persistence.Seed;
 /// Development catalog: every status, every category, three cities, and sales opening at useful moments:
 /// several are on sale, one opens 5 minutes after seeding (waiting room), one 20 minutes after (pre-queue CTA).
 /// </summary>
-internal sealed class SeedEventCatalog(Guid organizerId, DateTimeOffset now, IReadOnlyDictionary<string, Venue> venues)
+internal sealed class SeedEventCatalog(Guid organizerId, DateTimeOffset now, IReadOnlyDictionary<string, Venue> venues, string presaleCodeHash)
 {
+    /// <summary>Demo presale code (README) for the event with a presale phase.</summary>
+    public const string PresaleCode = "seed-presale";
+
     public const string OpeningSoonSlug = "ha-anh-tuan-chan-troi-ruc-ro";
     public const int SeatsPerSeatedEvent = 3 * 10 * 20;
 
@@ -45,7 +48,7 @@ internal sealed class SeedEventCatalog(Guid organizerId, DateTimeOffset now, IRe
             "Rap và những người bạn.", ["Đen Vâu", "Hậu Vi", "Linh Cáo"],
             evt =>
             {
-                evt.AddPhase("Presale", now.AddDays(14), now.AddDays(15), queueEnabled: true, maxTicketsPerUser: 2, accessCodeHash: "seed-presale");
+                evt.AddPhase("Presale", now.AddDays(14), now.AddDays(15), queueEnabled: true, maxTicketsPerUser: 2, accessCodeHash: presaleCodeHash);
                 evt.AddPhase("Mở bán", now.AddDays(16), now.AddDays(59), queueEnabled: true, maxTicketsPerUser: 4);
             });
 
@@ -146,7 +149,7 @@ internal sealed class SeedEventCatalog(Guid organizerId, DateTimeOffset now, IRe
         Action<Event> phases)
     {
         var evt = Draft(slug, title, category, venue, EveningOf(now.AddDays(days)), tiers);
-        evt.UpdateDetails(description, lineup, null);
+        evt.UpdateInfo(evt.Title, description, lineup, null);
         phases(evt);
         evt.Publish();
         return evt;

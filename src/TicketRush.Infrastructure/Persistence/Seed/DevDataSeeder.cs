@@ -1,3 +1,4 @@
+using TicketRush.Application.Abstractions.Security;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TicketRush.Domain.Users;
@@ -15,7 +16,8 @@ public sealed class DevDataSeeder(
     UserManager<AppUser> userManager,
     RoleManager<AppRole> roleManager,
     IPasswordHasher<AppUser> passwordHasher,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IAccessCodeHasher accessCodeHasher)
 {
     public const string DevPassword = "Dev@12345";
 
@@ -84,7 +86,7 @@ public sealed class DevDataSeeder(
 
     private async Task SeedEventsAsync(Guid organizerId, IReadOnlyDictionary<string, Venue> venues, CancellationToken ct)
     {
-        var catalog = new SeedEventCatalog(organizerId, timeProvider.GetUtcNow(), venues);
+        var catalog = new SeedEventCatalog(organizerId, timeProvider.GetUtcNow(), venues, accessCodeHasher.Hash(SeedEventCatalog.PresaleCode));
 
         var existingSlugs = await db.Events.Select(e => e.Slug).ToListAsync(ct);
         foreach (var evt in catalog.Build().Where(e => !existingSlugs.Contains(e.Slug)))

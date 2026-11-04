@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using TicketRush.Domain.Events;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using TicketRush.Domain.Primitives;
@@ -47,6 +49,8 @@ internal sealed partial class GlobalExceptionHandler(
     private static (int Status, string Code, string Title) Classify(Exception exception) => exception switch
     {
         DomainException domain => (StatusCodes.Status409Conflict, domain.Code, domain.Message),
+        // Only events carry a concurrency token (xmin): another tab or request saved first.
+        DbUpdateConcurrencyException => (StatusCodes.Status409Conflict, EventErrors.ConcurrentEdit.Code, EventErrors.ConcurrentEdit.Message),
         BadHttpRequestException badRequest => (badRequest.StatusCode, "request.invalid", "The request is invalid."),
         _ => (StatusCodes.Status500InternalServerError, "server.error", "An unexpected error occurred."),
     };

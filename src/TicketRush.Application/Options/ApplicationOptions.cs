@@ -45,4 +45,13 @@ public sealed class FrontendOptions
     [Required]
     [Url]
     public string BaseUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The web app's <c>POST /api/revalidate</c> as the worker reaches it (e.g. <c>http://web:3000/api/revalidate</c>).
+    /// Blank disables web cache refresh; pages then update when their ISR window ends.
+    /// </summary>
+    public string? RevalidateUrl { get; set; }
+
+    /// <summary>Shared with the web app's <c>REVALIDATE_SECRET</c>. Secret: AppHost parameter / env only.</summary>
+    public string? RevalidateSecret { get; set; }
 }

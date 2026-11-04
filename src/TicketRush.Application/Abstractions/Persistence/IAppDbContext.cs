@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using TicketRush.Domain.Events;
 using TicketRush.Domain.Users;
 using TicketRush.Domain.Venues;
@@ -18,6 +19,13 @@ public interface IAppDbContext
     DbSet<EventSeat> EventSeats { get; }
 
     DbSet<RefreshToken> RefreshTokens { get; }
+
+    /// <summary>Change tracking access, e.g. to set the original concurrency token a client sent back.</summary>
+    EntityEntry<TEntity> Entry<TEntity>(TEntity entity)
+        where TEntity : class;
+
+    /// <summary>Lets a use case drop a failed unit of work (e.g. after a concurrency conflict) and reload.</summary>
+    ChangeTracker ChangeTracker { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

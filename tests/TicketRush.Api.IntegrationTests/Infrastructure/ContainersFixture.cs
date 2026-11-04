@@ -15,7 +15,10 @@ namespace TicketRush.Api.IntegrationTests.Infrastructure;
 /// </summary>
 public sealed class ContainersFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17").Build();
+    // Every test class runs in parallel against its own database and connection pool; the default 100 isn't enough.
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:17")
+        .WithCommand("-c", "max_connections=500")
+        .Build();
 
     public RedisContainer Redis { get; } = new RedisBuilder("redis:7.4").Build();
 
