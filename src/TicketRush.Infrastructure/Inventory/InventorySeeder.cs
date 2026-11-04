@@ -7,6 +7,8 @@ namespace TicketRush.Infrastructure.Inventory;
 /// <summary>Builds an event's inventory seed from the database and hands it to the store (warm on publish, reconcile).</summary>
 public sealed class InventorySeeder(IHoldCatalog catalog, ISoldInventorySource sold, IInventoryStore store) : IInventorySeeder
 {
+    private const int MaxAttempts = 3;
+
     /// <returns>Null when the event is not published (nothing to warm).</returns>
     public async Task<ReconcileReport?> SeedAsync(Guid eventId, CancellationToken ct)
     {
@@ -15,10 +17,19 @@ public sealed class InventorySeeder(IHoldCatalog catalog, ISoldInventorySource s
             return null;
         }
 
-        var soldNow = await sold.GetAsync(eventId, ct);
-        return await store.ReconcileAsync(
-            new InventorySeed(eventId, entry.Seats.Count, entry.GaCapacity, soldNow.Seats, soldNow.GaSold, soldNow.BoughtByUser),
-            ct);
+        // Fence: a checkout that commits after the database read is missing from it, so the script refuses (Stale) and
+        // the seed is read again rather than undoing that commit.
+        ReconcileReport? report = null;
+        for (var attempt = 0; attempt < MaxAttempts && report is not { Stale: false }; attempt++)
+        {
+            var fence = await store.GetCommitFenceAsync(eventId, ct);
+            var soldNow = await sold.GetAsync(eventId, ct);
+            report = await store.ReconcileAsync(
+                new InventorySeed(eventId, entry.Seats.Count, entry.GaCapacity, soldNow.Seats, soldNow.GaSold, soldNow.BoughtByUser, fence),
+                ct);
+        }
+
+        return report;
     }
 }
 

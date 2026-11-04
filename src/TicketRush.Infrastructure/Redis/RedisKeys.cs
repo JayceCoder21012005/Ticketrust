@@ -86,6 +86,9 @@ public sealed class RedisKeys(IOptions<RedisOptions> options)
     /// <summary>STRING: version of the event's inventory, bumped by every mutating script and sent with each delta.</summary>
     public RedisKey InvVersion(Guid eventId) => Inv(eventId, "ver");
 
+    /// <summary>STRING: checkout commits so far; the reconciler's fence against a commit landing after its database read.</summary>
+    public RedisKey InvCommits(Guid eventId) => Inv(eventId, "commits");
+
     /// <summary>HASH: warm (1 once seeded), seatCount, gaCap:&lt;tierId&gt;.</summary>
     public RedisKey InvMeta(Guid eventId) => Inv(eventId, "meta");
 

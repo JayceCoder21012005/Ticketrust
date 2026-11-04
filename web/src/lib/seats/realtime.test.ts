@@ -5,6 +5,7 @@ type Handler = (...args: unknown[]) => void;
 const connection = {
   handlers: new Map<string, Handler>(),
   reconnected: undefined as (() => void) | undefined,
+  closed: undefined as (() => void) | undefined,
   start: vi.fn(() => Promise.resolve()),
   stop: vi.fn(() => Promise.resolve()),
   invoke: vi.fn(() => Promise.resolve()),
@@ -14,16 +15,21 @@ const connection = {
   onreconnected(handler: () => void) {
     this.reconnected = handler;
   },
+  onclose(handler: () => void) {
+    this.closed = handler;
+  },
 };
 
 const withUrl = vi.fn();
+const reconnectPolicy = vi.fn();
 vi.mock("@microsoft/signalr", () => ({
   HubConnectionBuilder: class {
     withUrl(url: string, options: unknown) {
       withUrl(url, options);
       return this;
     }
-    withAutomaticReconnect() {
+    withAutomaticReconnect(policy: unknown) {
+      reconnectPolicy(policy);
       return this;
     }
     build() {
@@ -71,5 +77,43 @@ describe("connectSeatFeed", () => {
     await feed.stop();
 
     expect(connection.stop).toHaveBeenCalled();
+  });
+
+  it("never stops retrying while reconnecting", () => {
+    connectSeatFeed("e1", { accessToken: () => Promise.resolve("tok"), onDelta: vi.fn(), onResync: vi.fn() });
+
+    const policy = reconnectPolicy.mock.calls.at(-1)![0] as { nextRetryDelayInMilliseconds: (c: { previousRetryCount: number }) => number | null };
+    expect(policy.nextRetryDelayInMilliseconds({ previousRetryCount: 50 })).toBeGreaterThan(0);
+    expect(policy.nextRetryDelayInMilliseconds({ previousRetryCount: 50 })).toBeLessThanOrEqual(30_000);
+  });
+
+  it("starts again after the connection closed for good, then resyncs", async () => {
+    vi.useFakeTimers();
+    const onResync = vi.fn();
+    connectSeatFeed("e1", { accessToken: () => Promise.resolve("tok"), onDelta: vi.fn(), onResync });
+    await vi.advanceTimersByTimeAsync(0);
+    connection.start.mockClear();
+    onResync.mockClear();
+
+    connection.closed!();
+    await vi.advanceTimersByTimeAsync(31_000);
+
+    expect(connection.start).toHaveBeenCalled();
+    expect(onResync).toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("retries a first start that failed", async () => {
+    vi.useFakeTimers();
+    connection.start.mockClear();
+    connection.start.mockRejectedValueOnce(new Error("hub down"));
+    const onResync = vi.fn();
+    connectSeatFeed("e1", { accessToken: () => Promise.resolve("tok"), onDelta: vi.fn(), onResync });
+
+    await vi.advanceTimersByTimeAsync(31_000);
+
+    expect(connection.start.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(onResync).toHaveBeenCalled();
+    vi.useRealTimers();
   });
 });

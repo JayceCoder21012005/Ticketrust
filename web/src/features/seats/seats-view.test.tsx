@@ -137,6 +137,21 @@ describe("SeatsView", () => {
     expect(holds.createHold.mock.calls[0][3]).toBe(holds.createHold.mock.calls[1][3]);
   });
 
+  it("a final refusal gets a fresh idempotency key on the next try, so it is not replayed", async () => {
+    arrange();
+    holds.createHold.mockRejectedValueOnce(new ApiError(409, { code: "hold.insufficient_quantity" })).mockResolvedValueOnce(hold([1, 2]));
+    const user = userEvent.setup();
+    render(<SeatsView event={event} />);
+
+    const best = await screen.findByRole("button", { name: /Chọn chỗ tốt nhất/ });
+    await user.click(best);
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalled());
+    await user.click(best);
+
+    await vi.waitFor(() => expect(holds.createHold).toHaveBeenCalledTimes(2));
+    expect(holds.createHold.mock.calls[0][3]).not.toBe(holds.createHold.mock.calls[1][3]);
+  });
+
   it("sends buyers whose admission ended back to the waiting room", async () => {
     arrange();
     holds.createHold.mockRejectedValue(new ApiError(403, { code: "admission.invalid" }));

@@ -272,6 +272,8 @@ public sealed class HoldApiTests(ContainersFixture containers) : IAsyncLifetime
 
         public Task<IReadOnlyList<Guid>> DueHoldsAsync(Guid eventId, DateTimeOffset now, int limit, CancellationToken ct) => Down<IReadOnlyList<Guid>>();
 
+        public Task<long> GetCommitFenceAsync(Guid eventId, CancellationToken ct) => Down<long>();
+
         public Task<ReconcileReport> ReconcileAsync(InventorySeed seed, CancellationToken ct) => Down<ReconcileReport>();
     }
 }

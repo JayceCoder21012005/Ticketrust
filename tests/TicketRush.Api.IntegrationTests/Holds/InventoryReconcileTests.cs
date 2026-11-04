@@ -141,4 +141,37 @@ public sealed class InventoryReconcileTests(ContainersFixture containers) : IAsy
 
         (await store.GetSnapshotAsync(evt.Id, [], None)).Warm.ShouldBeTrue();
     }
+
+    /// <summary>Plays the database while a checkout commits between its read and the reconcile script.</summary>
+    private sealed class CommitDuringRead(InventoryHarness h, Guid user, Guid holdId) : ISoldInventorySource
+    {
+        private int _reads;
+
+        public async Task<SoldInventory> GetAsync(Guid eventId, CancellationToken ct)
+        {
+            if (Interlocked.Increment(ref _reads) == 1)
+            {
+                // The database answer below was read before this commit, so it does not contain it.
+                await h.Store.CommitAsync(eventId, holdId, user, [1], [new GaLine(h.GaTier, 2)], h.GaTiers, ct);
+                return new SoldInventory([], new Dictionary<Guid, int>(), new Dictionary<Guid, int>());
+            }
+
+            return new SoldInventory([1], new Dictionary<Guid, int> { [h.GaTier] = 2 }, new Dictionary<Guid, int> { [user] = 3 });
+        }
+    }
+
+    [Fact]
+    public async Task A_commit_landing_between_the_database_read_and_the_script_is_not_undone()
+    {
+        var user = Guid.NewGuid();
+        var hold = await _h.Store.CreateHoldAsync(_h.Request(user, [1], [new GaLine(_h.GaTier, 2)]), None);
+        var catalog = new HoldCatalogEntry(_h.EventId, "x", [new CatalogSeat(1, "A", "1", "1", 0, 0, Guid.NewGuid())], [new CatalogTier(_h.GaTier, "GA", 1, TicketKind.GeneralAdmission, 10)], []);
+        var seeder = new InventorySeeder(new FakeCatalog(catalog), new CommitDuringRead(_h, user, hold.HoldId!.Value), _h.Store);
+
+        await seeder.SeedAsync(_h.EventId, None);
+
+        var snapshot = await _h.Store.GetSnapshotAsync(_h.EventId, _h.GaTiers, None);
+        snapshot.GaRemaining[_h.GaTier].ShouldBe(8);
+        snapshot.Sold.ShouldBe([1]);
+    }
 }

@@ -66,6 +66,17 @@ describe("createSeatStore", () => {
     expect(store.selected()).toEqual([4]);
   });
 
+  it("ignores a snapshot older than what deltas already brought", () => {
+    const store = createSeatStore(10);
+    store.load({ version: 10, unavailable: [], mine: [] });
+    store.applyDelta(delta(11, 11, { held: [7] }));
+
+    store.load({ version: 10, unavailable: [], mine: [] });
+
+    expect(store.get(7)).toBe("taken");
+    expect(store.version()).toBe(11);
+  });
+
   it("toggles free seats only", () => {
     const store = createSeatStore(10);
     store.load({ version: 1, unavailable: [2], mine: [] });

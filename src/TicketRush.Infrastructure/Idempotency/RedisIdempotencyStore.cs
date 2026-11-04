@@ -7,11 +7,15 @@ namespace TicketRush.Infrastructure.Idempotency;
 
 /// <summary>
 /// One Redis string per (user, key): <c>P|fingerprint</c> while the first request runs (SET NX, so exactly one wins),
-/// then the stored response as JSON. Both carry the TTL.
+/// then the stored response as JSON with the full TTL. The pending marker lives at most <see cref="PendingTtl"/>, so a
+/// request that dies mid-flight blocks its retries for a minute, not for the whole window.
 /// </summary>
 public sealed class RedisIdempotencyStore(IConnectionMultiplexer redis, RedisKeys keys) : IIdempotencyStore
 {
     private const string PendingPrefix = "P|";
+
+    /// <summary>How long a running request blocks retries with its key (409) if it never completes, e.g. the api crashed.</summary>
+    public static readonly TimeSpan PendingTtl = TimeSpan.FromSeconds(60);
 
     private sealed record Stored(string Fingerprint, int Status, string ContentType, string Body);
 
@@ -20,7 +24,7 @@ public sealed class RedisIdempotencyStore(IConnectionMultiplexer redis, RedisKey
         {
             var db = redis.GetDatabase();
             var redisKey = keys.Idempotency(userId, key);
-            if (await db.StringSetAsync(redisKey, PendingPrefix + fingerprint, ttl, When.NotExists))
+            if (await db.StringSetAsync(redisKey, PendingPrefix + fingerprint, Pending(ttl), When.NotExists))
             {
                 return new IdempotencyBegin.Started();
             }
@@ -29,7 +33,7 @@ public sealed class RedisIdempotencyStore(IConnectionMultiplexer redis, RedisKey
             if (value is null)
             {
                 // Expired or abandoned between the two calls: claim it again.
-                return await db.StringSetAsync(redisKey, PendingPrefix + fingerprint, ttl, When.NotExists)
+                return await db.StringSetAsync(redisKey, PendingPrefix + fingerprint, Pending(ttl), When.NotExists)
                     ? new IdempotencyBegin.Started()
                     : new IdempotencyBegin.InProgress();
             }
@@ -53,6 +57,8 @@ public sealed class RedisIdempotencyStore(IConnectionMultiplexer redis, RedisKey
 
     public Task AbandonAsync(Guid userId, Guid key, CancellationToken ct) =>
         GuardAsync(() => redis.GetDatabase().KeyDeleteAsync(keys.Idempotency(userId, key)));
+
+    private static TimeSpan Pending(TimeSpan ttl) => ttl < PendingTtl ? ttl : PendingTtl;
 
     private static async Task<T> GuardAsync<T>(Func<Task<T>> action)
     {

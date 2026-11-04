@@ -27,6 +27,9 @@ public interface IInventoryStore
     /// <summary>Holds of the event whose expiry is at or before <paramref name="now"/>, oldest first.</summary>
     Task<IReadOnlyList<Guid>> DueHoldsAsync(Guid eventId, DateTimeOffset now, int limit, CancellationToken ct);
 
+    /// <summary>Checkout commits counted so far; read it before the database and pass it in <see cref="InventorySeed.CommitFence"/>.</summary>
+    Task<long> GetCommitFenceAsync(Guid eventId, CancellationToken ct);
+
     /// <summary>Makes Redis agree with the database (sold seats, GA remaining, bought counts) and marks the event warm.</summary>
     Task<ReconcileReport> ReconcileAsync(InventorySeed seed, CancellationToken ct);
 }

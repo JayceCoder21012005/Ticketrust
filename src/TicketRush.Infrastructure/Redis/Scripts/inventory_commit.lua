@@ -1,6 +1,6 @@
 -- Marks a paid order's seats sold, after checkout committed it to the database (spec 07/08).
 -- KEYS: 1 sold (SET), 2 held (HASH), 3 expiry (ZSET), 4 userhold (STRING), 5 bought (STRING), 6 version (STRING),
---       7 gaheld (HASH), 8 hold (HASH), 9.. GA remaining of every GA tier of the event, in the order of ARGV[6]
+--       7 gaheld (HASH), 8 hold (HASH), 9 commits (STRING), 10.. GA remaining of every GA tier, in the order of ARGV[6]
 -- ARGV: 1 holdId, 2 userId, 3 seats csv (sorted), 4 ga csv "tier:qty,...", 5 delta channel, 6 GA tier ids csv
 -- Returns {'OK', version}.
 -- Live hold: its GA was already taken when it was created, so only the held counter moves. Expired hold (late payment,
@@ -16,7 +16,7 @@ end
 
 local holdId = ARGV[1]
 local gaKey = {}
-for i, tier in ipairs(split(ARGV[6])) do gaKey[tier] = KEYS[8 + i] end
+for i, tier in ipairs(split(ARGV[6])) do gaKey[tier] = KEYS[9 + i] end
 local live = redis.call('EXISTS', KEYS[8]) == 1
 
 local seats = split(ARGV[3])
@@ -44,6 +44,8 @@ if live then redis.call('DEL', KEYS[8]) end
 redis.call('ZREM', KEYS[3], holdId)
 if redis.call('GET', KEYS[4]) == holdId then redis.call('DEL', KEYS[4]) end
 redis.call('INCRBY', KEYS[5], count)
+-- Tells a reconcile that read the database before this commit that its picture is stale.
+redis.call('INCR', KEYS[9])
 
 local version = redis.call('INCR', KEYS[6])
 redis.call('PUBLISH', ARGV[5], '{"v":' .. version .. ',"held":[],"freed":[],"sold":[' .. table.concat(seats, ',')

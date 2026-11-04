@@ -75,6 +75,9 @@ export function createSeatStore(seatCount: number): SeatStore {
     revision: () => revision,
     version: () => version,
     load(snapshot) {
+      // A resync that left before deltas arrived must not roll them back. While a gap is open no delta is applied, so a
+      // store ahead of the snapshot is in sync, and only a snapshot at least as new can teach it something.
+      if (snapshot.version < version) return;
       const changed = new Set<number>([...mine, ...selection]);
       for (let i = 0; i < seatCount; i++) if (taken[i]) changed.add(i);
       taken.fill(0);

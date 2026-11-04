@@ -19,7 +19,7 @@ public sealed partial class RedisInventoryStore
             var buyers = seed.BoughtByUser.Keys.ToArray();
             RedisKey[] redisKeys =
             [
-                keys.InvSold(e), keys.InvMeta(e), keys.InvVersion(e), keys.InvGaHeld(e),
+                keys.InvSold(e), keys.InvMeta(e), keys.InvVersion(e), keys.InvGaHeld(e), keys.InvCommits(e),
                 .. InventoryScripts.GaKeys(keys, e, tiers),
                 .. buyers.Select(u => keys.InvBought(e, u)),
             ];
@@ -33,12 +33,21 @@ public sealed partial class RedisInventoryStore
                     string.Join(',', tiers.Select(t => seed.GaSold.GetValueOrDefault(t))),
                     string.Join(',', buyers.Select(u => seed.BoughtByUser[u])),
                     keys.InvChanges(e).ToString(),
+                    seed.CommitFence?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
                 ]))!;
             return ToReport(result);
         });
 
+    public Task<long> GetCommitFenceAsync(Guid eventId, CancellationToken ct) =>
+        GuardAsync(async () => (long?)await redis.GetDatabase().StringGetAsync(keys.InvCommits(eventId)) ?? 0);
+
     private static ReconcileReport ToReport(RedisResult[] result)
     {
+        if (result.Length == 1 && (string?)result[0] == "RETRY")
+        {
+            return new ReconcileReport(0, 0, new Dictionary<Guid, GaFix>()) { Stale = true };
+        }
+
         var fixes = new Dictionary<Guid, GaFix>();
         for (var i = 2; i + 2 < result.Length; i += 3)
         {

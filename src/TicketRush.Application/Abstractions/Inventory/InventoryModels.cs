@@ -45,13 +45,17 @@ public sealed record InventorySeed(
     IReadOnlyDictionary<Guid, int> GaCapacity,
     IReadOnlyList<int> SoldSeats,
     IReadOnlyDictionary<Guid, int> GaSold,
-    IReadOnlyDictionary<Guid, int> BoughtByUser);
+    IReadOnlyDictionary<Guid, int> BoughtByUser,
+    long? CommitFence = null);
 
 public sealed record GaFix(int Before, int After);
 
 public sealed record ReconcileReport(int SoldAdded, int SoldRemoved, IReadOnlyDictionary<Guid, GaFix> GaFixed)
 {
     public bool HadDrift => SoldAdded > 0 || SoldRemoved > 0 || GaFixed.Count > 0;
+
+    /// <summary>A checkout committed after the database was read; nothing was written and the seed must be read again.</summary>
+    public bool Stale { get; init; }
 }
 
 /// <param name="SeatCount">Seats of the layout (from the seeded meta).</param>

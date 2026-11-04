@@ -135,10 +135,13 @@ export function useSeatPage(event: SeatPageEvent) {
   };
 
   const handleFailure = async (store: SeatStore, error: unknown) => {
+    // The server stores every answer below 500 under the key (C2): keep it only when there was no final answer, so a
+    // deliberate retry after a refusal really runs again instead of replaying the refusal.
+    const final = error instanceof ApiError && error.status < 500 && error.code !== "idempotency.in_progress";
+    if (final) attempt.current = null;
     const taken = unavailableOf(error);
     if (taken.length > 0) {
       store.markTaken(taken);
-      attempt.current = null;
       toast.error(t("seats.seatsTaken", "vi", { count: taken.length }));
     } else if (error instanceof ApiError && ADMISSION_CODES.has(error.code ?? "")) {
       router.replace(queuePath);
