@@ -13,8 +13,17 @@ namespace TicketRush.Infrastructure.Inventory;
 /// <summary>
 /// A cancelled event stops selling at once (spec 06/07, follow-up A2). Order matters: first every waiting room closes and
 /// its admissions are revoked (nobody new can reach the buy path, so no hold can appear while we clean up), then every
-/// hold is released in batches. Each step is idempotent and the handler does as much as it can before it reports a
-/// failure, so at-least-once redelivery simply finishes a half-done run.
+/// hold is released in batches. If any room could not be closed, no hold is released in that run (releasing while a room
+/// is still open would re-open the window we are closing); the failure is thrown and redelivery tries again. Each step is
+/// idempotent, so at-least-once redelivery simply finishes a half-done run.
+/// <para>
+/// Known limitation: retries are finite. The outbox retries a failing message <c>OutboxRetryPolicy.MaxAttempts</c> (10) times
+/// with exponential backoff (about 4-8 minutes in total), then dead-letters it and never runs it again, and nothing else
+/// sweeps a cancelled event's holds (the hold-expiry sweep only covers Published events). A Redis outage longer than that
+/// leaves holds and rooms orphaned until an operator re-drives the message. That is not silent: the processor logs
+/// "Outbox message ... dead-lettered" at Error and increments <c>ticketrush.outbox.dead_lettered</c> tagged with this
+/// message's type, which is the alert to act on.
+/// </para>
 /// </summary>
 public sealed class EventCancelledInventoryHandler(IAppDbContext db, IInventoryStore store, IConnectionMultiplexer redis, RedisKeys keys)
     : IIntegrationEventHandler<EventCancelled>
@@ -39,18 +48,24 @@ public sealed class EventCancelledInventoryHandler(IAppDbContext db, IInventoryS
 
         var failures = new List<Exception>();
         await CloseRoomsAsync(evt.Phases, failures);
-        await ReleaseHoldsAsync(message.EventId, evt.Ga, failures, ct);
+        if (failures.Count == 0)
+        {
+            await ReleaseHoldsAsync(message.EventId, evt.Ga, failures, ct);
+        }
 
         // EXTENSION POINT (spec 08 task B9): open orders -> Cancelled and paid orders -> RefundPending go here, strictly
         // after the rooms are closed and the holds released (same rule: stop selling first, then settle). They must be
-        // batched, re-run safe and add their own failures to `failures`. No order code lives here yet.
+        // batched, re-run safe and add their own failures to `failures` (and, like the holds, run only if no room failed to close). No order code lives here yet.
         if (failures.Count > 0)
         {
             throw new AggregateException("Cancelling the event's inventory did not finish; it will be retried.", failures);
         }
     }
 
-    /// <summary>Closes each room and drops its admissions: an admitted shopper's token stops passing the buy-path check.</summary>
+    /// <summary>
+    /// Closes each room and drops its admissions: an admitted shopper's token stops passing the buy-path check. Keeps going
+    /// past a failed room so the others are closed too, but reports every failure.
+    /// </summary>
     private async Task CloseRoomsAsync(IReadOnlyList<Guid> phaseIds, List<Exception> failures)
     {
         var cache = redis.GetDatabase();

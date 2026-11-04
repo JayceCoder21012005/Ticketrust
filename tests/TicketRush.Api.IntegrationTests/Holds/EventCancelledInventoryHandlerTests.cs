@@ -139,6 +139,32 @@ public sealed class EventCancelledInventoryHandlerTests(ContainersFixture contai
         await HandleAsync(_store);
     }
 
+    [Fact]
+    public async Task When_a_room_cannot_be_closed_no_hold_is_released_until_a_rerun_closes_it()
+    {
+        await HoldSeatAsync(5);
+        await HoldSeatAsync(6);
+        var broken = _event.Phases[0].Id;
+        var brokenKey = _keys.QueueState(broken);
+        await _redis.KeyDeleteAsync(brokenKey);
+        await _redis.StringSetAsync(brokenKey, "not-a-hash"); // the status script fails with WRONGTYPE: stands in for an outage
+        var spy = new SpyStore(_store);
+
+        var failure = await Should.ThrowAsync<AggregateException>(() => HandleAsync(spy));
+
+        failure.InnerExceptions.ShouldNotBeEmpty();
+        spy.Released.ShouldBeEmpty();
+        (await _store.GetSnapshotAsync(_event.Id, [], Ct)).Held.Count.ShouldBe(2);
+
+        await _redis.KeyDeleteAsync(brokenKey);
+        await _redis.HashSetAsync(brokenKey, "status", "Open");
+        await HandleAsync(spy);
+
+        (await RoomStatusAsync(broken)).ShouldBe("Closed");
+        spy.Released.Count.ShouldBe(2);
+        (await _store.GetSnapshotAsync(_event.Id, [], Ct)).Held.ShouldBeEmpty();
+    }
+
     /// <summary>Delegates to the real store and records how the handler uses it.</summary>
     private sealed class SpyStore(IInventoryStore inner, Func<Task>? onRelease = null, int failOnRelease = 0) : IInventoryStore
     {
