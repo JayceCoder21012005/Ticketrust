@@ -54,6 +54,15 @@ public sealed record ReconcileReport(int SoldAdded, int SoldRemoved, IReadOnlyDi
     public bool HadDrift => SoldAdded > 0 || SoldRemoved > 0 || GaFixed.Count > 0;
 }
 
+/// <param name="SeatCount">Seats of the layout (from the seeded meta).</param>
+public sealed record InventoryCounts(bool Warm, int SeatCount, int SeatsHeld, int SeatsSold, int GaRemaining, int GaHeld)
+{
+    /// <summary>Seats and GA tickets nobody holds or bought.</summary>
+    public int Available => Math.Max(0, SeatCount - SeatsHeld - SeatsSold) + GaRemaining;
+
+    public int Held => SeatsHeld + GaHeld;
+}
+
 public sealed record CatalogSeat(int Index, string Section, string Row, string Number, decimal X, decimal Y, Guid TierId);
 
 /// <param name="Price">Whole VND, frozen at publish (spec 05), so the price shown is the price paid.</param>

@@ -6,5 +6,9 @@
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server
 	}
+	# SignalR goes straight to the api: Next's standalone server does not proxy WebSocket upgrades (vercel/next.js#44209).
+	handle /hubs/* {
+		reverse_proxy api:8080
+	}
 	reverse_proxy web:3000
 }

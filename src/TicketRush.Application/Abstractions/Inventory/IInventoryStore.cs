@@ -18,6 +18,9 @@ public interface IInventoryStore
 
     Task<InventorySnapshot> GetSnapshotAsync(Guid eventId, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct);
 
+    /// <summary>Totals only (no seat lists): what the waiting room needs to tell AllHeld from SoldOut.</summary>
+    Task<InventoryCounts> GetCountsAsync(Guid eventId, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct);
+
     /// <summary>True once the event's inventory has been seeded (cheap: one field).</summary>
     Task<bool> IsWarmAsync(Guid eventId, CancellationToken ct);
 

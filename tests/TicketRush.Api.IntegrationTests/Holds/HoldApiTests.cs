@@ -266,6 +266,8 @@ public sealed class HoldApiTests(ContainersFixture containers) : IAsyncLifetime
 
         public Task<InventorySnapshot> GetSnapshotAsync(Guid eventId, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct) => Down<InventorySnapshot>();
 
+        public Task<InventoryCounts> GetCountsAsync(Guid eventId, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct) => Down<InventoryCounts>();
+
         public Task<bool> IsWarmAsync(Guid eventId, CancellationToken ct) => Down<bool>();
 
         public Task<IReadOnlyList<Guid>> DueHoldsAsync(Guid eventId, DateTimeOffset now, int limit, CancellationToken ct) => Down<IReadOnlyList<Guid>>();

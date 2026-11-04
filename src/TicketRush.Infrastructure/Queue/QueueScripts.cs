@@ -24,6 +24,11 @@ public static class QueueScripts
             [keys.QueueState(phaseId), keys.QueuePre(phaseId), keys.QueueLine(phaseId), keys.QueueSeq(phaseId), keys.QueueOpening(phaseId)],
             []);
 
+    /// <summary>Moves the room to <paramref name="status"/> only from one of <paramref name="from"/>.</summary>
+    /// <returns>The status before the call (empty when the room does not exist).</returns>
+    public static async Task<string> SetStatusAsync(IDatabase db, RedisKeys keys, Guid phaseId, string status, IReadOnlyList<string> from) =>
+        (string)(await LuaScripts.RunAsync(db, "queue_set_status", [keys.QueueState(phaseId)], [status, string.Join(',', from)]))!;
+
     public static async Task<AdmitTick> AdmitAsync(
         IDatabase db, RedisKeys keys, Guid phaseId, DateTimeOffset now, int ratePerSecond, int maxActive)
     {

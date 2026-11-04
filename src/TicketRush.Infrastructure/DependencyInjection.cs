@@ -87,6 +87,7 @@ public static class DependencyInjection
         services.AddScoped<IInventorySeeder>(sp => sp.GetRequiredService<InventorySeeder>());
         services.AddSingleton<IIdempotencyStore, RedisIdempotencyStore>();
         services.AddIntegrationEventHandler<EventPublished, InventoryWarmHandler>();
+        services.AddIntegrationEventHandler<EventCancelled, EventCancelledInventoryHandler>();
 
         PersistDataProtectionKeysToRedis(services);
         AddAccounts(services);

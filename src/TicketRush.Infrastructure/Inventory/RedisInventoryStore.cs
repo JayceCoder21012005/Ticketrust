@@ -84,6 +84,25 @@ public sealed partial class RedisInventoryStore(IConnectionMultiplexer redis, Re
                 warm.Result == "1");
         });
 
+    public Task<InventoryCounts> GetCountsAsync(Guid eventId, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct) =>
+        GuardAsync(async () =>
+        {
+            var db = redis.GetDatabase();
+            var meta = db.HashGetAsync(keys.InvMeta(eventId), ["warm", "seatCount"]);
+            var held = db.HashLengthAsync(keys.InvHeld(eventId));
+            var sold = db.SetLengthAsync(keys.InvSold(eventId));
+            var ga = db.StringGetAsync(InventoryScripts.GaKeys(keys, eventId, eventGaTiers));
+            var gaHeld = db.HashValuesAsync(keys.InvGaHeld(eventId));
+            await Task.WhenAll(meta, held, sold, ga, gaHeld);
+            return new InventoryCounts(
+                meta.Result[0] == "1",
+                (int?)meta.Result[1] ?? 0,
+                (int)held.Result,
+                (int)sold.Result,
+                ga.Result.Sum(v => Math.Max(0, (int?)v ?? 0)),
+                gaHeld.Result.Sum(v => Math.Max(0, (int)v)));
+        });
+
     public Task<bool> IsWarmAsync(Guid eventId, CancellationToken ct) =>
         GuardAsync(async () => await redis.GetDatabase().HashGetAsync(keys.InvMeta(eventId), "warm") == "1");
 

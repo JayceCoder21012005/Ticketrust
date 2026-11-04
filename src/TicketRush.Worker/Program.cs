@@ -21,5 +21,6 @@ builder.Services.AddHostedService<InventoryReconcilerService>();
 builder.Services.AddHostedService<HoldExpiryService>();
 builder.Services.AddTicketRushSignalR(builder.Configuration);
 builder.Services.AddHostedService<SeatDeltaBroadcaster>();
+builder.Services.AddHostedService<QueueRoomStatusService>();
 
 await builder.Build().RunAsync();
