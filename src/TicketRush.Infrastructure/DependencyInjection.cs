@@ -24,6 +24,8 @@ using TicketRush.Infrastructure.Outbox;
 using TicketRush.Infrastructure.Persistence;
 using TicketRush.Infrastructure.Persistence.Interceptors;
 using TicketRush.Infrastructure.Persistence.Seed;
+using TicketRush.Application.Abstractions.Queue;
+using TicketRush.Infrastructure.Queue;
 using TicketRush.Infrastructure.Redis;
 using TicketRush.Infrastructure.Storage;
 using TicketRush.Domain.Users;
@@ -50,6 +52,7 @@ public static class DependencyInjection
         var services = builder.Services;
         services.AddValidatedOptions<RedisOptions>(RedisOptions.SectionName);
         services.AddValidatedOptions<JwtOptions>(JwtOptions.SectionName);
+        services.AddValidatedOptions<AdmissionTokenOptions>(AdmissionTokenOptions.SectionName);
         services.AddValidatedOptions<PaymentOptions>(PaymentOptions.SectionName);
         services.AddValidatedOptions<EmailOptions>(EmailOptions.SectionName);
         services.AddValidatedOptions<StorageOptions>(StorageOptions.SectionName);
@@ -64,6 +67,13 @@ public static class DependencyInjection
         services.AddSingleton<DomainEventTypeRegistry>();
         services.AddSingleton<OutboxMetrics>();
         services.AddSingleton<OutboxProcessor>();
+
+        services.AddSingleton<IAdmissionTokenFactory, AdmissionTokenFactory>();
+        services.AddSingleton<IWaitingRoom, RedisWaitingRoom>();
+        services.AddSingleton<IQueuePhaseSource, QueuePhaseSource>();
+        services.AddScoped<ISaleWindowProvider, SaleWindowProvider>();
+        services.AddSingleton<WaitingRoomOpener>();
+        services.AddSingleton<WaitingRoomAdmitter>();
 
         PersistDataProtectionKeysToRedis(services);
         AddAccounts(services);

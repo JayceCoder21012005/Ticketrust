@@ -25,7 +25,8 @@ nhanh và **không bao giờ bán trùng một ghế**. Toàn bộ đặc tả n
 | [03](specs/03-auth-and-user-accounts.md) | Đăng ký, đăng nhập, refresh token, hồ sơ, phân quyền | ✅ Hoàn thành |
 | [04](specs/04-event-catalog-and-search.md) | Trang chủ, danh sách và tìm kiếm sự kiện, trang chi tiết, cache | ✅ Hoàn thành |
 | [05](specs/05-organizer-event-management.md) | Khu nhà tổ chức: địa điểm, wizard tạo sự kiện, sơ đồ ghế, đợt mở bán, xuất bản, huỷ | ✅ Hoàn thành |
-| [06](specs/06-virtual-waiting-room.md) – [17](specs/17-load-testing-and-observability.md) | Phòng chờ, chọn ghế, thanh toán… | ⏳ Chưa làm |
+| [06](specs/06-virtual-waiting-room.md) | Phòng chờ: hàng đợi ngẫu nhiên trước giờ mở bán, nhận người theo tốc độ, admission token gắn với tài khoản. **Phần lõi** xong; còn nối với kho vé (07), CAPTCHA (12), waitlist (13) | 🟡 Phần lõi |
+| [07](specs/07-seat-selection-and-hold.md) – [17](specs/17-load-testing-and-observability.md) | Chọn ghế, thanh toán… | ⏳ Chưa làm |
 
 ## Yêu cầu
 
@@ -74,6 +75,7 @@ Lần chạy đầu, AppHost tự sinh các secret dev và lưu vào user-secret
 |---|---|
 | `jwt-signing-key` | Ký access token (spec 03) |
 | `access-code-pepper` | Hash mã presale: `SHA-256(pepper ‖ mã)` (spec 05) |
+| `admission-token-signing-key` | Ký admission token của phòng chờ, khác khoá của access token (spec 06) |
 | `revalidate-secret` | Worker gọi `POST /api/revalidate` của web để làm mới trang công khai sau khi xuất bản, sửa hoặc huỷ sự kiện (spec 05) |
 
 ## Tài khoản dùng để test
@@ -125,6 +127,7 @@ Tài khoản chưa xác nhận vẫn đăng nhập được, nhưng sẽ không 
 | `/forgot-password`, `/reset-password` | Quên và đặt lại mật khẩu. Email nằm trong Mailpit, link có hiệu lực 1 giờ |
 | `/verify-email` | Trang mở từ link xác nhận email |
 | `/account` | Hồ sơ, số điện thoại, ảnh đại diện (JPEG/PNG/WebP/AVIF, tối đa 2 MB), đăng xuất |
+| `/events/{slug}/queue` | Phòng chờ (cần đăng nhập và email đã xác nhận). Sự kiện mẫu "Hà Anh Tuấn" mở bán sau 5 phút, "Vũ Cát Tường" sau 20 phút: vào phòng chờ trước giờ mở để được xếp ngẫu nhiên, khi mở bán sẽ được nhận dần 50 người/giây (cấu hình `Queue` trong `appsettings.json`) |
 | `/design` | Design system: token màu, component dùng chung, màu ghế trên sơ đồ |
 | `/organizer/events` | Đăng nhập bằng `organizer@ticketrush.dev`. Danh sách sự kiện (lọc theo trạng thái, tìm không dấu), nút "Tạo sự kiện" (5 trường, tạo ngay bản nháp) |
 | `/organizer/events/{id}/info` → `review` | Wizard 5 bước, tự lưu: thông tin và ảnh cover cắt 16:9 → hạng vé → sơ đồ (mẫu dựng sẵn, xem trước SVG) → đợt mở bán (dòng thời gian, mã presale) → checklist, xem trước trang người mua, xuất bản, huỷ |

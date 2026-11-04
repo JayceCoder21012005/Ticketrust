@@ -21,6 +21,22 @@ public sealed class JwtOptions
     public int AccessTokenMinutes { get; set; } = 10;
 }
 
+/// <summary>Admission token settings (spec 06). Deliberately a different key from <see cref="JwtOptions"/>.</summary>
+public sealed class AdmissionTokenOptions
+{
+    public const string SectionName = "AdmissionToken";
+
+    [Required]
+    [MinLength(32)]
+    public string SigningKey { get; set; } = string.Empty;
+
+    [Required]
+    public string Issuer { get; set; } = "ticketrush-api";
+
+    [Required]
+    public string Audience { get; set; } = "ticketrush-admission";
+}
+
 /// <summary>Payment gateway selection (spec 08).</summary>
 public sealed class PaymentOptions
 {

@@ -7,6 +7,13 @@ var jwtSigningKey = builder.AddParameter(
     secret: true,
     persist: true);
 
+// Signs admission tokens (spec 06); must differ from the access-token key.
+var admissionTokenSigningKey = builder.AddParameter(
+    "admission-token-signing-key",
+    new GenerateParameterDefault { MinLength = 64, Special = false },
+    secret: true,
+    persist: true);
+
 // Presale codes are stored as SHA-256(pepper ‖ code) (spec 05).
 var accessCodePepper = builder.AddParameter(
     "access-code-pepper",
@@ -47,6 +54,7 @@ var api = builder.AddProject<Projects.TicketRush_Api>("api")
     .WithReference(redis)
     .WithReference(mailpit)
     .WithEnvironment("Jwt__SigningKey", jwtSigningKey)
+    .WithEnvironment("AdmissionToken__SigningKey", admissionTokenSigningKey)
     .WithEnvironment("Catalog__AccessCodePepper", accessCodePepper)
     .WaitFor(redis)
     .WaitForCompletion(migrations)
@@ -57,6 +65,7 @@ var worker = builder.AddProject<Projects.TicketRush_Worker>("worker")
     .WithReference(redis)
     .WithReference(mailpit)
     .WithEnvironment("Jwt__SigningKey", jwtSigningKey)
+    .WithEnvironment("AdmissionToken__SigningKey", admissionTokenSigningKey)
     .WithEnvironment("Catalog__AccessCodePepper", accessCodePepper)
     .WaitFor(redis)
     .WaitForCompletion(migrations);

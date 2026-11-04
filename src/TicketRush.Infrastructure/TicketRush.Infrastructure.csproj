@@ -23,6 +23,9 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Redis\Scripts\*.lua" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="TicketRush.Api.IntegrationTests" />
   </ItemGroup>
 </Project>
