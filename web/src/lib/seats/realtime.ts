@@ -38,6 +38,12 @@ export function connectSeatFeed(eventId: string, { accessToken, onDelta, onResyn
   // close it, and onclose below schedules the next attempt.
   const leave = () => void connection.stop().catch(() => undefined);
 
+  // The backoff restarts only once a join worked; resetting it earlier would retry a failing join every second forever.
+  const joined = () =>
+    join().then(() => {
+      attempt = 0;
+    }, leave);
+
   const start = async () => {
     try {
       await connection.start();
@@ -46,13 +52,12 @@ export function connectSeatFeed(eventId: string, { accessToken, onDelta, onResyn
       return;
     }
 
-    attempt = 0;
-    await join().catch(leave);
+    await joined();
   };
 
   connection.on("SeatDelta", (delta: SeatDelta) => onDelta(delta));
   connection.onreconnected(() => {
-    void join().catch(leave);
+    void joined();
   });
   connection.onclose(() => {
     if (!stopped) timer = setTimeout(() => void start(), retryDelayMs(attempt++));

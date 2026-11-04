@@ -11,7 +11,7 @@ import type { SeatMap } from "@/lib/seats/types";
 import { useStoreRevision } from "@/lib/seats/use-seat";
 
 /** Heading of the summary panel (selection or hold); focus lands here when the panel swaps. */
-export const PANEL_TITLE_ID = "seat-panel-title";
+export const PANEL_TITLE_SELECTOR = "[data-panel-title]";
 
 type SelectionPanelProps = {
   map: SeatMap;
@@ -50,7 +50,7 @@ export function SelectionPanel({ map, store, tiers, limit, ga, gaRemaining, busy
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <h2 id={PANEL_TITLE_ID} tabIndex={-1} className="text-base font-semibold outline-none">
+        <h2 data-panel-title="" tabIndex={-1} className="text-base font-semibold outline-none">
           {t("seats.summary.title")}
         </h2>
         <p className="text-xs text-muted-foreground">{t("seats.limit", "vi", { count: limit })}</p>
@@ -108,7 +108,7 @@ export function SelectionPanel({ map, store, tiers, limit, ga, gaRemaining, busy
         </div>
       ) : null}
 
-      <p className="flex justify-between border-t pt-2 font-semibold" aria-live="polite">
+      <p className="flex justify-between border-t pt-2 font-semibold" aria-live="polite" aria-atomic="true">
         <span>{t("seats.summary.total")}</span>
         <span className="tabular-nums">{formatVnd(total)}</span>
       </p>

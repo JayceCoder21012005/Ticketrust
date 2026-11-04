@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/errors";
@@ -71,6 +71,7 @@ describe("SeatsView", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.useRealTimers();
   });
 
@@ -213,6 +214,26 @@ describe("SeatsView", () => {
 
     await user.click(screen.getByRole("button", { name: "Bỏ giữ chỗ" }));
     expect(await screen.findByRole("heading", { name: "Lựa chọn của bạn" })).toHaveFocus();
+  });
+
+  it("moves focus to the heading inside the open mobile drawer, not the hidden desktop panel", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    arrange();
+    holds.createHold.mockResolvedValue(hold([0]));
+    holds.releaseMyHold.mockResolvedValue(undefined);
+    render(<SeatsView event={event} />);
+    fireEvent.click(await seatButton(1));
+    fireEvent.click(screen.getByRole("button", { name: "Xem lựa chọn" }));
+    const drawer = await screen.findByRole("dialog");
+
+    fireEvent.click(within(drawer).getByRole("button", { name: "Tiếp tục" }));
+    const held = await within(drawer).findByRole("heading", { name: "Bạn đang giữ 1 vé" });
+    expect(held).toHaveFocus();
+
+    fireEvent.click(within(drawer).getByRole("button", { name: "Bỏ giữ chỗ" }));
+    // The drawer's own sr-only title has the same text: pick the panel heading by its marker.
+    await within(drawer).findByRole("button", { name: "Tiếp tục" });
+    expect(drawer.querySelector("[data-panel-title]")).toHaveFocus();
   });
 
   it("does not take focus when the page opens with a hold already running", async () => {

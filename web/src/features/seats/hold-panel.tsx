@@ -8,7 +8,6 @@ import { formatVnd } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { seatPlace } from "@/lib/seats/format";
 import type { Hold } from "@/lib/seats/types";
-import { PANEL_TITLE_ID } from "./selection-panel";
 
 /** Counts down from `expiresAt` on server time (C10) and calls `onExpire` once at zero. */
 export function HoldCountdown({ expiresAt, offsetMs, onExpire }: { expiresAt: string; offsetMs: number; onExpire: () => void }) {
@@ -49,7 +48,7 @@ export function HoldSummary({ hold, offsetMs, onExpire, onRelease }: { hold: Hol
   const count = hold.seats.length + hold.ga.reduce((sum, g) => sum + g.quantity, 0);
   return (
     <div className="flex flex-col gap-3">
-      <h2 id={PANEL_TITLE_ID} tabIndex={-1} className="text-base font-semibold outline-none">
+      <h2 data-panel-title="" tabIndex={-1} className="text-base font-semibold outline-none">
         {t("seats.summary.held", "vi", { count })}
       </h2>
       <HoldCountdown expiresAt={hold.expiresAt} offsetMs={offsetMs} onExpire={onExpire} />
