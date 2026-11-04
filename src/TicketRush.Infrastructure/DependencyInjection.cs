@@ -84,6 +84,7 @@ public static class DependencyInjection
         services.AddSingleton<ISoldInventorySource, NoTicketsSoldInventorySource>();
         services.AddSingleton<IInventoryEventSource, InventoryEventSource>();
         services.AddScoped<InventorySeeder>();
+        services.AddScoped<IInventorySeeder>(sp => sp.GetRequiredService<InventorySeeder>());
         services.AddSingleton<IIdempotencyStore, RedisIdempotencyStore>();
         services.AddIntegrationEventHandler<EventPublished, InventoryWarmHandler>();
 

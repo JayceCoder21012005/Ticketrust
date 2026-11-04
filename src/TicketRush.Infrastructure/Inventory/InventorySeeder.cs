@@ -5,7 +5,7 @@ using TicketRush.Domain.Events;
 namespace TicketRush.Infrastructure.Inventory;
 
 /// <summary>Builds an event's inventory seed from the database and hands it to the store (warm on publish, reconcile).</summary>
-public sealed class InventorySeeder(IHoldCatalog catalog, ISoldInventorySource sold, IInventoryStore store)
+public sealed class InventorySeeder(IHoldCatalog catalog, ISoldInventorySource sold, IInventoryStore store) : IInventorySeeder
 {
     /// <returns>Null when the event is not published (nothing to warm).</returns>
     public async Task<ReconcileReport?> SeedAsync(Guid eventId, CancellationToken ct)

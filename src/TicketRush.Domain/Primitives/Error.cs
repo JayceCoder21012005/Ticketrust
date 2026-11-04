@@ -15,11 +15,13 @@ public enum ErrorType
 /// <param name="Message">Human readable message, safe to show to end users.</param>
 /// <param name="Type">Category that decides the HTTP status code.</param>
 /// <param name="Details">Optional structured details (e.g. validation failures per field).</param>
+/// <param name="Extensions">Optional extra members of the problem body, e.g. <c>unavailable: int[]</c> (spec 07).</param>
 public sealed record Error(
     string Code,
     string Message,
     ErrorType Type,
-    IReadOnlyDictionary<string, string[]>? Details = null)
+    IReadOnlyDictionary<string, string[]>? Details = null,
+    IReadOnlyDictionary<string, object?>? Extensions = null)
 {
     public static Error Validation(string code, string message, IReadOnlyDictionary<string, string[]>? details = null) =>
         new(code, message, ErrorType.Validation, details);
