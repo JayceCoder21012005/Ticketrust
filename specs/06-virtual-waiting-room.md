@@ -82,10 +82,10 @@ Phase A (core) is done; the items that need specs 07, 12 and 13 are listed under
 
 ### Deferred to later specs
 
-- [ ] Inventory listener: `AllHeld` / `SoldOut` and back to `Open` when 07 reports stock (the statuses, API and UI already exist; nothing sets them yet).
+- [x] Inventory listener: `AllHeld` / `SoldOut` and back to `Open` (built with 07: Worker `QueueRoomStatusService` writes the room status from the Redis inventory every second; `QueueRoomStatusTests`).
 - [ ] SoldOut offers the waitlist (13).
 - [ ] `captchaToken` is required on join (12). The field is accepted and ignored today.
-- [ ] `RequireAdmissionToken` is applied to the seat, hold and checkout endpoints (07, 08). The filter and the `X-Admission-Token` header are built and tested.
-- [ ] Event cancellation (07/08): the waiting room is not closed and admission tokens are not revoked when an event is cancelled. Buy handlers must check the event status; the API serves joins for up to 30 s from its sale cache.
+- [x] `RequireAdmissionToken` is applied to `POST /events/{id}/holds` (07; `HoldApiTests`). Checkout (08) does not need it: a live hold is the proof of admission.
+- [x] Event cancellation: `EventCancelledInventoryHandler` releases every hold and closes every room of the event, which revokes admissions on their next check (`QueueRoomStatusTests`). The API may still serve joins for up to 30 s from its sale cache.
 - [ ] Adjacent phases (presale then general sale with no gap): the room always shows the open phase, so the next phase has no pre-queue and opens FIFO. Needs a rule for which phase a buyer is queued for (client-chosen `phaseId`, or prefer the upcoming queued phase inside `PreQueueMinutes`).
-- [ ] Phases without a queue (`QueueEnabled = false`): the catalog CTA still links straight to `/events/{slug}/seats`. When 07 lands, link to `/queue` (it admits instantly) so every buyer holds a token, and create the `/seats` page the queue redirects to.
+- [x] Phases without a queue (`QueueEnabled = false`): the catalog CTA links to `/queue` (it admits instantly), so every buyer holds a token; the `/seats` page exists (07).

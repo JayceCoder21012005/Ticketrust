@@ -15,7 +15,11 @@ using TicketRush.Application.Abstractions.Notifications;
 using TicketRush.Application.Abstractions.Persistence;
 using TicketRush.Application.Abstractions.Storage;
 using TicketRush.Application.Options;
+using TicketRush.Application.Abstractions.Inventory;
+using TicketRush.Application.Abstractions.Idempotency;
+using TicketRush.Infrastructure.Idempotency;
 using TicketRush.Infrastructure.Identity;
+using TicketRush.Infrastructure.Inventory;
 using TicketRush.Infrastructure.Locking;
 using TicketRush.Infrastructure.Options;
 using TicketRush.Infrastructure.Security;
@@ -74,6 +78,16 @@ public static class DependencyInjection
         services.AddScoped<ISaleWindowProvider, SaleWindowProvider>();
         services.AddSingleton<WaitingRoomOpener>();
         services.AddSingleton<WaitingRoomAdmitter>();
+
+        services.AddScoped<IHoldCatalog, HoldCatalog>();
+        services.AddSingleton<IInventoryStore, RedisInventoryStore>();
+        services.AddSingleton<ISoldInventorySource, NoTicketsSoldInventorySource>();
+        services.AddSingleton<IInventoryEventSource, InventoryEventSource>();
+        services.AddScoped<InventorySeeder>();
+        services.AddScoped<IInventorySeeder>(sp => sp.GetRequiredService<InventorySeeder>());
+        services.AddSingleton<IIdempotencyStore, RedisIdempotencyStore>();
+        services.AddIntegrationEventHandler<EventPublished, InventoryWarmHandler>();
+        services.AddIntegrationEventHandler<EventCancelled, EventCancelledInventoryHandler>();
 
         PersistDataProtectionKeysToRedis(services);
         AddAccounts(services);

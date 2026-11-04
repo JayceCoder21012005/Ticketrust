@@ -1397,6 +1397,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/events/{eventId}/holds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CreateHold"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events/{eventId}/holds/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetMyHold"];
+        put?: never;
+        post?: never;
+        delete: operations["ReleaseMyHold"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/user": {
         parameters: {
             query?: never;
@@ -1600,7 +1632,28 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["Body"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -1624,6 +1677,15 @@ export interface components {
             /** Format: int64 */
             size: number | string;
         };
+        BestAvailableRequest: {
+            /** Format: uuid */
+            tierId: string;
+            /** Format: int32 */
+            quantity: number | string;
+        };
+        Body: {
+            value: string;
+        };
         ConfirmEmailCommand: {
             /** Format: uuid */
             userId: string;
@@ -1643,6 +1705,12 @@ export interface components {
             startsAt: string;
             /** Format: date-time */
             endsAt: string;
+        };
+        CreateHoldRequest: {
+            seatIndexes: null | (number | string)[];
+            ga: null | components["schemas"]["GaLineRequest"][];
+            bestAvailable: null | components["schemas"]["BestAvailableRequest"];
+            replaceExisting: boolean;
         };
         CreateVenueRequest: {
             name: string;
@@ -1701,6 +1769,44 @@ export interface components {
         };
         ForgotPasswordCommand: {
             email: string;
+        };
+        GaLineRequest: {
+            /** Format: uuid */
+            tierId: string;
+            /** Format: int32 */
+            quantity: number | string;
+        };
+        HeldGa: {
+            /** Format: uuid */
+            tierId: string;
+            name: string;
+            /** Format: int32 */
+            quantity: number | string;
+            /** Format: int64 */
+            price: number | string;
+        };
+        HeldSeat: {
+            /** Format: int32 */
+            index: number | string;
+            section: string;
+            row: string;
+            number: string;
+            /** Format: uuid */
+            tierId: string;
+            /** Format: int64 */
+            price: number | string;
+        };
+        HoldResponse: {
+            /** Format: uuid */
+            holdId: string;
+            seats: components["schemas"]["HeldSeat"][];
+            ga: components["schemas"]["HeldGa"][];
+            /** Format: int64 */
+            total: number | string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            serverNow: string;
         };
         HttpValidationProblemDetails: {
             type?: null | string;
@@ -2336,6 +2442,164 @@ export interface operations {
         };
     };
     LeaveQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CreateHold: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateHoldRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoldResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetMyHold: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoldResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ReleaseMyHold: {
         parameters: {
             query?: never;
             header?: never;

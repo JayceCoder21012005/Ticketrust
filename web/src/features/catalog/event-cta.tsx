@@ -165,7 +165,8 @@ function CtaAction({ state, slug, compact = false }: { state: CtaState | null; s
     case "OnSale":
       return (
         <Button asChild size={size} className={full}>
-          <Link href={state.phase?.queueEnabled ? queue : `/events/${slug}/seats`} prefetch={false}>
+          {/* Instant phases go through the waiting room too: it admits at once and hands out the admission /seats needs. */}
+          <Link href={queue} prefetch={false}>
             {t("catalog.cta.buy")}
           </Link>
         </Button>

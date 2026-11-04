@@ -1,3 +1,4 @@
+using TicketRush.Application.Abstractions.Inventory;
 using TicketRush.Domain.Events;
 using TicketRush.Domain.Primitives;
 
@@ -23,10 +24,20 @@ public sealed class GetSeatMapHandler(IEventCatalogReader reader)
 /// <summary><c>serverNow</c> is stamped per response (never cached) so clients can compute their clock offset (C10).</summary>
 public sealed class GetAvailabilityHandler(IEventCatalogReader reader, TimeProvider time)
 {
-    public async Task<Result<AvailabilityResponse>> HandleAsync(Guid eventId, CancellationToken ct) =>
-        await reader.GetAvailabilityAsync(eventId, ct) is { } availability
-            ? new AvailabilityResponse(time.GetUtcNow(), availability.Version, availability.Unavailable, availability.Tiers)
-            : EventErrors.NotFound;
+    public async Task<Result<AvailabilityResponse>> HandleAsync(Guid eventId, CancellationToken ct)
+    {
+        try
+        {
+            return await reader.GetAvailabilityAsync(eventId, ct) is { } availability
+                ? new AvailabilityResponse(time.GetUtcNow(), availability.Version, availability.Unavailable, availability.Tiers)
+                : EventErrors.NotFound;
+        }
+        catch (InventoryUnavailableException)
+        {
+            // Live seat state comes only from Redis; never guess "all free" (spec 00 fail closed).
+            return CommonErrors.SystemBusy;
+        }
+    }
 }
 
 public sealed class ListCitiesHandler(IEventCatalogReader reader)

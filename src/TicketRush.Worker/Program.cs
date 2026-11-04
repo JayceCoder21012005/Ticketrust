@@ -1,5 +1,7 @@
 using TicketRush.Application;
 using TicketRush.Infrastructure;
+using TicketRush.Infrastructure.Realtime;
+using TicketRush.Worker.Inventory;
 using TicketRush.Worker.Outbox;
 using TicketRush.Worker.Queue;
 
@@ -14,5 +16,11 @@ builder.Services.AddHostedService<OutboxDispatcherService>();
 builder.Services.AddSingleton<LiveSales>();
 builder.Services.AddHostedService<QueueOpenerService>();
 builder.Services.AddHostedService<QueueAdmitterService>();
+builder.Services.AddSingleton<LiveInventoryEvents>();
+builder.Services.AddHostedService<InventoryReconcilerService>();
+builder.Services.AddHostedService<HoldExpiryService>();
+builder.Services.AddTicketRushSignalR(builder.Configuration);
+builder.Services.AddHostedService<SeatDeltaBroadcaster>();
+builder.Services.AddHostedService<QueueRoomStatusService>();
 
 await builder.Build().RunAsync();

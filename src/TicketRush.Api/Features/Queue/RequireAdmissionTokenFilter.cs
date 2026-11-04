@@ -16,6 +16,9 @@ public sealed class RequireAdmissionTokenFilter : IEndpointFilter
 {
     public const string HeaderName = "X-Admission-Token";
 
+    /// <summary><c>HttpContext.Items</c> key of the validated <see cref="AdmissionTokenClaims"/>.</summary>
+    public const string ClaimsItemKey = "tr.admission";
+
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var http = context.HttpContext;
@@ -49,6 +52,7 @@ public sealed class RequireAdmissionTokenFilter : IEndpointFilter
             return CommonErrors.SystemBusy.ToProblem();
         }
 
+        http.Items[ClaimsItemKey] = claims;
         return await next(context);
     }
 
@@ -58,6 +62,11 @@ public sealed class RequireAdmissionTokenFilter : IEndpointFilter
 
 public static class RequireAdmissionTokenExtensions
 {
+    /// <summary>The admission validated by <see cref="RequireAdmissionTokenFilter"/> for this request.</summary>
+    public static AdmissionTokenClaims AdmissionClaims(this HttpContext http) =>
+        http.Items[RequireAdmissionTokenFilter.ClaimsItemKey] as AdmissionTokenClaims
+        ?? throw new InvalidOperationException("RequireAdmissionToken must run before reading the admission.");
+
     /// <summary>Requires a valid admission token for the event in the route (<c>{eventId}</c> or <c>{id}</c>).</summary>
     public static TBuilder RequireAdmissionToken<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder =>

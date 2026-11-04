@@ -29,11 +29,15 @@ public sealed class HoldsOptions
 {
     public const string SectionName = "Holds";
 
-    [Range(1, 60)]
-    public int HoldTtlMinutes { get; set; } = 10;
+    /// <summary>How long a hold lasts (spec 07: 480 s). Waitlist offers (13) pass their own TTL to the scripts.</summary>
+    [Range(60, 3600)]
+    public int TtlSeconds { get; set; } = 480;
 
+    /// <summary>Hard cap on top of the phase's per-user limit.</summary>
     [Range(1, 8)]
     public int MaxSeatsPerHold { get; set; } = 8;
+
+    public TimeSpan Ttl => TimeSpan.FromSeconds(TtlSeconds);
 }
 
 /// <summary>Rate limit budgets (spec 12).</summary>

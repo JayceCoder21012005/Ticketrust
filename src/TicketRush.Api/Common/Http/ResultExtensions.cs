@@ -18,6 +18,10 @@ public static class ResultExtensions
     {
         var status = StatusCodeFor(error.Type);
         var extensions = new Dictionary<string, object?> { ["code"] = error.Code };
+        foreach (var (name, value) in error.Extensions ?? new Dictionary<string, object?>())
+        {
+            extensions[name] = value;
+        }
 
         if (error.Type == ErrorType.Validation && error.Details is not null)
         {

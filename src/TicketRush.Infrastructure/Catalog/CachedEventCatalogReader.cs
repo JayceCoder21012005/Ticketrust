@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Caching.Hybrid;
+using TicketRush.Application.Abstractions.Inventory;
 using TicketRush.Application.Features.Catalog;
+using TicketRush.Domain.Events;
 
 namespace TicketRush.Infrastructure.Catalog;
 
@@ -8,7 +10,13 @@ namespace TicketRush.Infrastructure.Catalog;
 /// an uncached event costs a single database query (no stampede). Entries are tagged so event writes (spec 05)
 /// can evict them through <see cref="ICatalogCacheInvalidator"/>.
 /// </summary>
-internal sealed class CachedEventCatalogReader(EventCatalogReader inner, HybridCache cache)
+/// Availability of a published event is read live from the Redis inventory (spec 07) and never cached here.
+internal sealed class CachedEventCatalogReader(
+    EventCatalogReader inner,
+    HybridCache cache,
+    IHoldCatalog holdCatalog,
+    IInventoryStore inventory,
+    IInventorySeeder seeder)
     : IEventCatalogReader, ICatalogCacheInvalidator
 {
     public const string ListTag = "events:list";
@@ -50,14 +58,42 @@ internal sealed class CachedEventCatalogReader(EventCatalogReader inner, HybridC
             [EventTag(eventId)],
             ct);
 
-    public async Task<EventAvailability?> GetAvailabilityAsync(Guid eventId, CancellationToken ct) =>
-        await cache.GetOrCreateAsync(
-            $"catalog:availability:{eventId}",
-            (inner, eventId),
-            static (state, token) => new ValueTask<EventAvailability?>(state.inner.GetAvailabilityAsync(state.eventId, token)),
-            Availability,
-            [EventTag(eventId)],
-            ct);
+    public async Task<EventAvailability?> GetAvailabilityAsync(Guid eventId, CancellationToken ct)
+    {
+        if (await holdCatalog.GetAsync(eventId, ct) is not { } entry)
+        {
+            // Ended events have no live inventory; their (static) answer can be cached briefly.
+            return await cache.GetOrCreateAsync(
+                $"catalog:availability:{eventId}",
+                (inner, eventId),
+                static (state, token) => new ValueTask<EventAvailability?>(state.inner.GetAvailabilityAsync(state.eventId, token)),
+                Availability,
+                [EventTag(eventId)],
+                ct);
+        }
+
+        var snapshot = await inventory.GetSnapshotAsync(eventId, entry.GaTierIds, ct);
+        if (!snapshot.Warm)
+        {
+            await seeder.SeedAsync(eventId, ct);
+            snapshot = await inventory.GetSnapshotAsync(eventId, entry.GaTierIds, ct);
+        }
+
+        return ToAvailability(entry, snapshot);
+    }
+
+    private static EventAvailability ToAvailability(HoldCatalogEntry entry, InventorySnapshot snapshot)
+    {
+        var unavailable = snapshot.Held.Union(snapshot.Sold).Order().ToList();
+        var taken = unavailable.ToHashSet();
+        var tiers = entry.Tiers.Select(t => new TierRemaining(
+                t.Id,
+                t.Kind == TicketKind.GeneralAdmission
+                    ? snapshot.GaRemaining.GetValueOrDefault(t.Id)
+                    : entry.Seats.Count(s => s.TierId == t.Id && !taken.Contains(s.Index))))
+            .ToList();
+        return new EventAvailability(snapshot.Version, unavailable, tiers);
+    }
 
     public async Task<IReadOnlyList<string>> ListCitiesAsync(CancellationToken ct) =>
         await cache.GetOrCreateAsync(

@@ -2,15 +2,18 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
 using TicketRush.Api.Common.Auth;
+using TicketRush.Api.Common.Idempotency;
 using TicketRush.Api.Common.Errors;
 using TicketRush.Api.Common.Middleware;
 using TicketRush.Api.Features.Auth;
 using TicketRush.Api.Features.Catalog;
 using TicketRush.Api.Features.Organizer;
+using TicketRush.Api.Features.Holds;
 using TicketRush.Api.Features.Queue;
 using TicketRush.Api.Features.ServerTime;
 using TicketRush.Api.Features.Storage;
 using TicketRush.Api.Features.Users;
+using TicketRush.Infrastructure.Realtime;
 using TicketRush.Application.Options;
 
 namespace TicketRush.Api;
@@ -65,6 +68,7 @@ public static class ApiServiceCollectionExtensions
         app.UseLocalMedia();
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseIdempotencyBuffering();
         return app;
     }
 
@@ -82,7 +86,10 @@ public static class ApiServiceCollectionExtensions
         v1.MapCatalogEndpoints();
         v1.MapOrganizerEndpoints();
         v1.MapQueueEndpoints();
+        v1.MapHoldEndpoints();
         v1.MapLocalStorageEndpoints();
+
+        app.MapHub<EventsHub>(EventsHub.Path);
         return app;
     }
 }
