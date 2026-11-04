@@ -15,7 +15,9 @@ using TicketRush.Application.Abstractions.Notifications;
 using TicketRush.Application.Abstractions.Persistence;
 using TicketRush.Application.Abstractions.Storage;
 using TicketRush.Application.Options;
+using TicketRush.Application.Abstractions.Inventory;
 using TicketRush.Infrastructure.Identity;
+using TicketRush.Infrastructure.Inventory;
 using TicketRush.Infrastructure.Locking;
 using TicketRush.Infrastructure.Options;
 using TicketRush.Infrastructure.Security;
@@ -74,6 +76,8 @@ public static class DependencyInjection
         services.AddScoped<ISaleWindowProvider, SaleWindowProvider>();
         services.AddSingleton<WaitingRoomOpener>();
         services.AddSingleton<WaitingRoomAdmitter>();
+
+        services.AddScoped<IHoldCatalog, HoldCatalog>();
 
         PersistDataProtectionKeysToRedis(services);
         AddAccounts(services);
