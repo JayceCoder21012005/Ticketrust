@@ -211,6 +211,11 @@ docker compose -f docker-compose.prod.yml --env-file .env up -d
 
 Mỗi lần push lên `main`, CI build và publish image lên GHCR.
 
+SignalR (`/hubs/*`) đi thẳng từ Caddy tới `api:8080`, không qua Next (bản `standalone` không proxy được WebSocket).
+`CaddyWebSocketTests` kiểm tra điều này bằng thật: chạy image `caddy:2` với đúng `deploy/Caddyfile` (chỉ thay địa chỉ site
+và upstream), mở kết nối SignalR chỉ dùng WebSocket qua Caddy tới api chạy trên Kestrel, rồi nhận một `SeatDelta`.
+Cần Docker: `dotnet test --project tests/TicketRush.Api.IntegrationTests --filter-class "*CaddyWebSocketTests"`.
+
 ### Độ bền của Redis
 
 Ghế đang giữ và tập ghế đã bán nằm trong Redis (spec 07), nên Redis production chạy với
