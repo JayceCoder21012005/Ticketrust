@@ -84,7 +84,7 @@ public sealed class QueueRoomStatusTests(ContainersFixture containers) : IAsyncL
     {
         var user = Guid.NewGuid();
         var hold = await _h.Store.CreateHoldAsync(_h.Request(user, [0, 1], [new GaLine(_h.GaTier, 1)]), Ct);
-        await _h.Store.CommitAsync(_h.EventId, hold.HoldId!.Value, user, [0, 1], [new GaLine(_h.GaTier, 1)], _h.GaTiers, Ct);
+        await _h.Store.CommitAsync(_h.EventId, Guid.NewGuid(), hold.HoldId!.Value, user, [0, 1], [new GaLine(_h.GaTier, 1)], _h.GaTiers, Ct);
 
         await Service().RunOnceAsync(Ct);
 

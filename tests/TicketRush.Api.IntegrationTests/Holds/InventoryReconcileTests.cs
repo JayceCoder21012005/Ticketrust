@@ -152,7 +152,7 @@ public sealed class InventoryReconcileTests(ContainersFixture containers) : IAsy
             if (Interlocked.Increment(ref _reads) == 1)
             {
                 // The database answer below was read before this commit, so it does not contain it.
-                await h.Store.CommitAsync(eventId, holdId, user, [1], [new GaLine(h.GaTier, 2)], h.GaTiers, ct);
+                await h.Store.CommitAsync(eventId, Guid.NewGuid(), holdId, user, [1], [new GaLine(h.GaTier, 2)], h.GaTiers, ct);
                 return new SoldInventory([], new Dictionary<Guid, int>(), new Dictionary<Guid, int>());
             }
 

@@ -13,8 +13,11 @@ public interface IInventoryStore
 
     Task<ActiveHold?> GetUserHoldAsync(Guid eventId, Guid userId, CancellationToken ct);
 
-    /// <summary>Called by checkout (08) after the database commit; also covers a hold that already expired.</summary>
-    Task CommitAsync(Guid eventId, Guid holdId, Guid userId, IReadOnlyList<int> seats, IReadOnlyList<GaLine> ga, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct);
+    /// <summary>
+    /// Called by checkout (08) after the database commit; also covers a hold that already expired. Idempotent per
+    /// <paramref name="orderId"/>: a redelivery answers <see cref="CommitStatus.Duplicate"/> and changes nothing.
+    /// </summary>
+    Task<CommitOutcome> CommitAsync(Guid eventId, Guid orderId, Guid holdId, Guid userId, IReadOnlyList<int> seats, IReadOnlyList<GaLine> ga, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct);
 
     Task<InventorySnapshot> GetSnapshotAsync(Guid eventId, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct);
 

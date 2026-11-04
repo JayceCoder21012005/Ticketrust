@@ -19,7 +19,7 @@ public sealed class RedisOptions
 /// <list type="bullet">
 /// <item><c>tr:{env}:lock:{name}</c> — string, random owner token, PX = lock TTL (spec 01, <see cref="Locking.RedisDistributedLock"/>).</item>
 /// <item><c>tr:{env}:q:{sale:&lt;phaseId&gt;}:state|pre|line|seq|admitted|active|tokens|done</c> — waiting room of one sale phase (spec 06). One hash tag, so Lua scripts stay Cluster-safe.</item>
-/// <item><c>tr:{env}:inv:{evt:&lt;eventId&gt;}:sold|held|ga:&lt;tier&gt;|gaheld|hold:&lt;id&gt;|expiry|userhold:&lt;user&gt;|bought:&lt;user&gt;|ver|meta</c> and channel <c>…:changes</c> — inventory of one event (spec 07).</item>
+/// <item><c>tr:{env}:inv:{evt:&lt;eventId&gt;}:sold|held|ga:&lt;tier&gt;|gaheld|hold:&lt;id&gt;|expiry|userhold:&lt;user&gt;|bought:&lt;user&gt;|ver|commits|committed:&lt;orderId&gt;|meta</c> and channel <c>…:changes</c> — inventory of one event (spec 07).</item>
 /// </list>
 /// </summary>
 public sealed class RedisKeys(IOptions<RedisOptions> options)
@@ -88,6 +88,9 @@ public sealed class RedisKeys(IOptions<RedisOptions> options)
 
     /// <summary>STRING: checkout commits so far; the reconciler's fence against a commit landing after its database read.</summary>
     public RedisKey InvCommits(Guid eventId) => Inv(eventId, "commits");
+
+    /// <summary>STRING: marker that the order's commit was applied (SET NX, 7 days); makes <c>inventory_commit</c> idempotent per order.</summary>
+    public RedisKey InvCommitted(Guid eventId, Guid orderId) => Inv(eventId, $"committed:{orderId:N}");
 
     /// <summary>HASH: warm (1 once seeded), seatCount, gaCap:&lt;tierId&gt;.</summary>
     public RedisKey InvMeta(Guid eventId) => Inv(eventId, "meta");

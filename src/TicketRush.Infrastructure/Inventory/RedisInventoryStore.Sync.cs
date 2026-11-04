@@ -8,8 +8,13 @@ namespace TicketRush.Infrastructure.Inventory;
 /// <summary>Checkout commit and database reconciliation.</summary>
 public sealed partial class RedisInventoryStore
 {
-    public Task CommitAsync(Guid eventId, Guid holdId, Guid userId, IReadOnlyList<int> seats, IReadOnlyList<GaLine> ga, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct) =>
-        GuardAsync(() => InventoryScripts.CommitAsync(redis.GetDatabase(), keys, eventId, holdId, userId, seats, ga, eventGaTiers));
+    public Task<CommitOutcome> CommitAsync(Guid eventId, Guid orderId, Guid holdId, Guid userId, IReadOnlyList<int> seats, IReadOnlyList<GaLine> ga, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct) =>
+        GuardAsync(async () =>
+        {
+            var result = await InventoryScripts.CommitAsync(redis.GetDatabase(), keys, eventId, orderId, holdId, userId, seats, ga, eventGaTiers);
+            var status = (string)result[0]! == "DUPLICATE" ? CommitStatus.Duplicate : CommitStatus.Committed;
+            return new CommitOutcome(status, (long)result[1]);
+        });
 
     public Task<ReconcileReport> ReconcileAsync(InventorySeed seed, CancellationToken ct) =>
         GuardAsync(async () =>
