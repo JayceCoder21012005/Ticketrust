@@ -51,7 +51,7 @@ public sealed class HoldWorkersTests(ContainersFixture containers) : IAsyncLifet
         var entry = new HoldCatalogEntry(_h.EventId, "x", [], [new CatalogTier(_h.GaTier, "GA", 1, TicketKind.GeneralAdmission, _h.GaCapacity)], []);
         return new ServiceCollection()
             .AddSingleton<IHoldCatalog>(new FixedCatalog(entry))
-            .AddSingleton(sold ?? new NoTicketsSoldInventorySource())
+            .AddSingleton(sold ?? new DatabaseSold())
             .AddSingleton<IInventoryStore>(_h.Store)
             .AddScoped<InventorySeeder>()
             .BuildServiceProvider()

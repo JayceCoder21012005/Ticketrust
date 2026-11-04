@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.DataProtection.StackExchangeRedis;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -83,7 +84,8 @@ public static class DependencyInjection
 
         services.AddScoped<IHoldCatalog, HoldCatalog>();
         services.AddSingleton<IInventoryStore, RedisInventoryStore>();
-        services.AddSingleton<ISoldInventorySource, NoTicketsSoldInventorySource>();
+        services.AddScoped<ISoldInventorySource, DbSoldInventorySource>();
+        services.AddScoped<ITierInventory, TierInventory>();
         services.AddSingleton<IInventoryEventSource, InventoryEventSource>();
         services.AddScoped<InventorySeeder>();
         services.AddScoped<IInventorySeeder>(sp => sp.GetRequiredService<InventorySeeder>());
@@ -112,6 +114,7 @@ public static class DependencyInjection
         services.AddDbContext<AppDbContext>((provider, options) => options
             .UseNpgsql(connectionString, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history"))
             .UseSnakeCaseNamingConvention()
+            .ReplaceService<IModelCacheKeyFactory, AppModelCacheKeyFactory>()
             .AddInterceptors(
                 provider.GetRequiredService<AuditableEntitiesInterceptor>(),
                 provider.GetRequiredService<DomainEventsToOutboxInterceptor>()));

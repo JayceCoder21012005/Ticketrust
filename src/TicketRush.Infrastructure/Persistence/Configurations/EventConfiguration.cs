@@ -95,6 +95,11 @@ internal sealed class TicketTierConfiguration : IEntityTypeConfiguration<TicketT
             price.Property(m => m.Amount).HasColumnName("price_amount");
             price.Property(m => m.Currency).HasColumnName("price_currency").HasMaxLength(3);
         });
+
+        // Spec 08 (C1): general-admission tickets paid for. Only ITierInventory writes it, with a conditional UPDATE, so
+        // editing a tier never touches it (EF writes modified columns only).
+        builder.Property<int>(TicketTierShadowProperties.SoldCount).HasDefaultValue(0);
+        builder.ToTable(table => table.HasCheckConstraint("ck_ticket_tiers_sold_count", "sold_count >= 0"));
     }
 }
 

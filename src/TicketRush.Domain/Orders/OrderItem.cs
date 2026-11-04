@@ -9,6 +9,12 @@ namespace TicketRush.Domain.Orders;
 /// </summary>
 public sealed record OrderItem(Guid TierId, int? SeatIndex, Money UnitPrice, int Quantity)
 {
+    // Required by EF Core, which cannot bind the Money parameter of the primary constructor to a mapped column.
+    private OrderItem()
+        : this(Guid.Empty, null, Money.Zero(), 0)
+    {
+    }
+
     /// <summary>A method, not a property, so JSON/EF mappings of the record don't pick it up.</summary>
     public Money LineTotal() => UnitPrice * Quantity;
 }

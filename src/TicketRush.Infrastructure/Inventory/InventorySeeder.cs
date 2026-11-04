@@ -33,14 +33,6 @@ public sealed class InventorySeeder(IHoldCatalog catalog, ISoldInventorySource s
     }
 }
 
-/// <summary>Until spec 08 creates tickets nothing is sold in the database; 08 replaces this source.</summary>
-public sealed class NoTicketsSoldInventorySource : ISoldInventorySource
-{
-    private static readonly SoldInventory Empty = new([], new Dictionary<Guid, int>(), new Dictionary<Guid, int>());
-
-    public Task<SoldInventory> GetAsync(Guid eventId, CancellationToken ct) => Task.FromResult(Empty);
-}
-
 /// <summary>Warms the inventory as soon as an event is published (spec 07), well before its first phase opens.</summary>
 public sealed class InventoryWarmHandler(InventorySeeder seeder) : IIntegrationEventHandler<EventPublished>
 {
