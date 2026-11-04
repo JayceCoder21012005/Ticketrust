@@ -49,6 +49,9 @@ public sealed class CreateOrderHandler(IAppDbContext db, IHoldCatalog catalog, I
             return new CreatedOrder(await views.ToResponseAsync(existing, ct), false);
         }
 
+        // Invariant: the catalog is cached, so these prices equal what the hold showed ONLY because tier prices cannot change
+        // after publish (Event.ReplaceTiers is Draft-only). Anyone allowing price edits on a published event must snapshot
+        // the prices on the hold instead, or an order could be priced differently from what the buyer saw.
         var priced = HoldPricing.ToResponse(entry, hold.Value.HoldId, hold.Value.Seats, hold.Value.Ga, hold.Value.ExpiresAt, now);
         return await SaveAsync(command, priced, now, views, ct);
     }
@@ -92,10 +95,24 @@ public sealed class CreateOrderHandler(IAppDbContext db, IHoldCatalog catalog, I
 
     private async Task<Result<CreatedOrder>> SaveAsync(CreateOrderCommand command, HoldResponse priced, DateTimeOffset now, OrderViews views, CancellationToken ct)
     {
-        Order order;
+        var created = BuildOrder(command, priced, now);
+        if (created.IsFailure)
+        {
+            return created.Error;
+        }
+
+        var order = created.Value;
+        var winner = await TryInsertAsync(order, command, ct);
+        return winner is null
+            ? new CreatedOrder(await views.ToResponseAsync(order, ct), true)
+            : new CreatedOrder(await views.ToResponseAsync(winner, ct), false);
+    }
+
+    private static Result<Order> BuildOrder(CreateOrderCommand command, HoldResponse priced, DateTimeOffset now)
+    {
         try
         {
-            order = Order.Create(
+            return Order.Create(
                 command.UserId,
                 command.EventId,
                 command.HoldId,
@@ -109,25 +126,30 @@ public sealed class CreateOrderHandler(IAppDbContext db, IHoldCatalog catalog, I
         {
             return Error.Conflict(ex.Code, ex.Message);
         }
+    }
 
+    /// <returns>Null when the order was inserted; the order that won the race for <c>ux_orders_open_hold</c> otherwise.</returns>
+    private async Task<Order?> TryInsertAsync(Order order, CreateOrderCommand command, CancellationToken ct)
+    {
         db.Orders.Add(order);
         try
         {
             await db.SaveChangesAsync(ct);
+            return null;
         }
         catch (DbUpdateException)
         {
-            // Lost the race for ux_orders_open_hold; if nobody else has an open order the failure is something else.
             db.ChangeTracker.Clear();
-            if (await FindOpenOrderAsync(command.HoldId, command.UserId, ct) is not { } winner)
+            var winner = await FindOpenOrderAsync(command.HoldId, command.UserId, ct);
+
+            if (winner is null)
             {
+                // Nobody else has an open order for the hold: the failure is something else.
                 throw;
             }
 
-            return new CreatedOrder(await views.ToResponseAsync(winner, ct), false);
+            return winner;
         }
-
-        return new CreatedOrder(await views.ToResponseAsync(order, ct), true);
     }
 
     private static List<OrderItem> ItemsOf(HoldResponse priced) =>

@@ -85,7 +85,8 @@ public sealed record OrderCursor(DateTimeOffset CreatedAt, Guid Id)
                 return false;
             }
 
-            cursor = decoded;
+            // Npgsql only writes UTC offsets to timestamptz; a hand-made cursor may carry any offset.
+            cursor = decoded with { CreatedAt = decoded.CreatedAt.ToUniversalTime() };
             return true;
         }
         catch (JsonException)

@@ -105,6 +105,19 @@ public sealed class OrderValidatorTests
         cursor.Id.ShouldBe(id);
     }
 
+    [Fact]
+    public void A_cursor_with_a_non_utc_offset_decodes_to_the_same_instant_in_utc()
+    {
+        var id = Guid.CreateVersion7();
+        var json = $$"""{"CreatedAt":"2026-01-01T07:00:00+07:00","Id":"{{id}}"}""";
+        var encoded = System.Buffers.Text.Base64Url.EncodeToString(System.Text.Encoding.UTF8.GetBytes(json));
+
+        OrderCursor.TryDecode(encoded, out var cursor).ShouldBeTrue();
+
+        cursor.CreatedAt.Offset.ShouldBe(TimeSpan.Zero);
+        cursor.CreatedAt.ShouldBe(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

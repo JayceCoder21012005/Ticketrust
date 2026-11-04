@@ -703,6 +703,35 @@ public sealed class OrderApiTests(ContainersFixture containers) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_hand_made_cursor_with_a_non_utc_offset_pages_like_the_real_one()
+    {
+        var me = await NewBuyerAsync();
+        await SeedOrdersAsync(me, 5);
+        var first = await JsonAsync(await SendAsync(HttpMethod.Get, "/api/v1/me/orders?limit=2", me.Access));
+        var last = first.GetProperty("items").EnumerateArray().Last();
+        var real = first.GetProperty("nextCursor").GetString()!;
+        var crafted = System.Buffers.Text.Base64Url.EncodeToString(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            CreatedAt = last.GetProperty("createdAt").GetDateTimeOffset().ToOffset(TimeSpan.FromHours(7)),
+            Id = last.GetProperty("id").GetGuid(),
+        }));
+
+        var viaReal = await JsonAsync(await SendAsync(HttpMethod.Get, $"/api/v1/me/orders?limit=2&cursor={Uri.EscapeDataString(real)}", me.Access));
+        var viaCrafted = await JsonAsync(await SendAsync(HttpMethod.Get, $"/api/v1/me/orders?limit=2&cursor={Uri.EscapeDataString(crafted)}", me.Access));
+
+        viaCrafted.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("id").GetGuid())
+            .ShouldBe(viaReal.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("id").GetGuid()));
+    }
+
+    [Fact]
+    public async Task A_non_numeric_limit_is_400()
+    {
+        var buyer = await NewBuyerAsync();
+
+        await JsonAsync(await SendAsync(HttpMethod.Get, "/api/v1/me/orders?limit=abc", buyer.Access), HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task My_orders_items_carry_event_details_totals_and_status()
     {
         var buyer = await NewBuyerAsync();

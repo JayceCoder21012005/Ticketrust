@@ -34,30 +34,32 @@ public sealed class CancelOrderHandler(IAppDbContext db, ReleaseMyHoldHandler re
             return OrderErrors.NotFound;
         }
 
-        if (order.Status == OrderStatus.Pending)
+        var cancelled = await EnsureCancelledAsync(order, ct);
+        if (cancelled.IsFailure)
         {
-            var cancelled = await CancelAsync(order, ct);
-            if (cancelled.IsFailure)
-            {
-                return cancelled.Error;
-            }
-
-            order = cancelled.Value;
-        }
-        else if (order.Status != OrderStatus.Cancelled)
-        {
-            return OrderErrors.NotPayable;
+            return cancelled.Error;
         }
 
-        // Only this order's own hold: a newer hold the buyer made since is not ours to release. A cancelled event has no
-        // catalog (and its holds were already released), so there is nothing left to do for it.
-        var released = await release.HandleAsync(userId, order.EventId, order.HoldId, ct);
-        if (released.IsFailure && released.Error.Code != EventErrors.NotFound.Code)
-        {
-            return released.Error;
-        }
+        var released = await ReleaseHoldAsync(cancelled.Value, ct);
+        return released.IsFailure ? released.Error : await new OrderViews(db, time).ToResponseAsync(cancelled.Value, ct);
+    }
 
-        return await new OrderViews(db, time).ToResponseAsync(order, ct);
+    /// <summary>Pending is cancelled now; Cancelled stays as it is (idempotent); any other state is not cancellable.</summary>
+    private async Task<Result<Order>> EnsureCancelledAsync(Order order, CancellationToken ct) => order.Status switch
+    {
+        OrderStatus.Pending => await CancelAsync(order, ct),
+        OrderStatus.Cancelled => order,
+        _ => OrderErrors.NotPayable,
+    };
+
+    /// <summary>
+    /// Only this order's own hold: a newer hold the buyer made since is not ours to release. A cancelled event has no
+    /// catalog (and its holds were already released), so there is nothing left to do for it.
+    /// </summary>
+    private async Task<Result> ReleaseHoldAsync(Order order, CancellationToken ct)
+    {
+        var released = await release.HandleAsync(order.UserId, order.EventId, order.HoldId, ct);
+        return released.IsFailure && released.Error.Code != EventErrors.NotFound.Code ? released : Result.Success();
     }
 
     private async Task<Result<Order>> CancelAsync(Order order, CancellationToken ct)
