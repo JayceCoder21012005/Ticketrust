@@ -78,6 +78,7 @@ public static class DependencyInjection
         services.AddSingleton<WaitingRoomAdmitter>();
 
         services.AddScoped<IHoldCatalog, HoldCatalog>();
+        services.AddSingleton<IInventoryStore, RedisInventoryStore>();
 
         PersistDataProtectionKeysToRedis(services);
         AddAccounts(services);
