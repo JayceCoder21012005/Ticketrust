@@ -210,3 +210,22 @@ docker compose -f docker-compose.prod.yml --env-file .env up -d
 ```
 
 Mỗi lần push lên `main`, CI build và publish image lên GHCR.
+
+### Độ bền của Redis
+
+Ghế đang giữ và tập ghế đã bán nằm trong Redis (spec 07), nên Redis production chạy với
+`--appendonly yes` (xem `docker-compose.prod.yml`). Mặc định `appendfsync everysec`: Redis ghi AOF xuống đĩa
+mỗi giây, vì vậy nếu Redis sập đột ngột thì **mất tối đa khoảng 1 giây** lệnh ghi cuối (một ít lượt giữ ghế).
+Đây là quyết định R3 của spec 07: chấp nhận cửa sổ mất dữ liệu này, không thêm replica và không đổi sang
+`appendfsync always`.
+
+Phần mất đi được sửa bằng hai lớp, vì Postgres mới là nguồn sự thật về ghế đã bán:
+
+- **Reconciler** (`worker`, chạy lúc khởi động và mỗi 5 phút, thêm một lượt nhanh mỗi 5 giây để làm nóng lại sự kiện
+  còn lạnh) dựng lại tập `sold` và số GA còn lại từ database, rồi ghi log cảnh báo nếu có lệch.
+- **Unique index trên bảng vé** (spec 08) chặn bán trùng một ghế ngay cả khi Redis lỡ cho một lượt giữ lọt qua.
+
+Cả api và worker đều kiểm tra lúc khởi động (chỉ ngoài môi trường Development): nếu Redis không chạy với AOF
+(`aof_enabled` trong `INFO persistence`) thì ghi log **Warning**. Khi không đọc được (ví dụ Redis do nhà cung cấp quản lý
+chặn lệnh) thì chỉ ghi log Information và vẫn chạy bình thường. Không có AOF, mỗi lần Redis khởi động lại sẽ mất toàn bộ
+lượt giữ ghế, không chỉ 1 giây cuối.

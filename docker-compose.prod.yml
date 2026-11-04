@@ -27,6 +27,8 @@ services:
       interval: 5s
       retries: 10
 
+  # AOF, appendfsync everysec (default): a crash can lose up to ~1 s of holds (spec 07, R3). The worker reconciler and
+  # the tickets unique index (spec 08) repair it; api and worker warn at start if appendonly is not yes (README).
   redis:
     image: redis:7.4
     restart: unless-stopped

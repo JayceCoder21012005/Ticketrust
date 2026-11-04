@@ -29,6 +29,13 @@ public sealed class HoldWorkersTests(ContainersFixture containers) : IAsyncLifet
             Task.FromResult<IReadOnlyList<LiveInventoryEvent>>(events);
     }
 
+    /// <summary>Stands in for the tickets table (spec 08): the seats the database records as sold.</summary>
+    private sealed class DatabaseSold(params int[] seats) : ISoldInventorySource
+    {
+        public Task<SoldInventory> GetAsync(Guid eventId, CancellationToken ct) =>
+            Task.FromResult(new SoldInventory(seats, new Dictionary<Guid, int>(), new Dictionary<Guid, int>()));
+    }
+
     private sealed class FixedCatalog(HoldCatalogEntry entry) : IHoldCatalog
     {
         public Task<HoldCatalogEntry?> GetAsync(Guid eventId, CancellationToken ct) => Task.FromResult<HoldCatalogEntry?>(entry);
@@ -39,12 +46,12 @@ public sealed class HoldWorkersTests(ContainersFixture containers) : IAsyncLifet
 
     private RedisDistributedLock Lock() => new(_h.Redis, _h.Keys, NullLogger<RedisDistributedLock>.Instance);
 
-    private IServiceScopeFactory Scopes()
+    private IServiceScopeFactory Scopes(ISoldInventorySource? sold = null)
     {
         var entry = new HoldCatalogEntry(_h.EventId, "x", [], [new CatalogTier(_h.GaTier, "GA", 1, TicketKind.GeneralAdmission, _h.GaCapacity)], []);
         return new ServiceCollection()
             .AddSingleton<IHoldCatalog>(new FixedCatalog(entry))
-            .AddSingleton<ISoldInventorySource, NoTicketsSoldInventorySource>()
+            .AddSingleton(sold ?? new NoTicketsSoldInventorySource())
             .AddSingleton<IInventoryStore>(_h.Store)
             .AddScoped<InventorySeeder>()
             .BuildServiceProvider()
@@ -55,8 +62,8 @@ public sealed class HoldWorkersTests(ContainersFixture containers) : IAsyncLifet
         new(new LiveInventoryEvents(new FixedEvents(new LiveInventoryEvent(_h.EventId, _h.GaTiers)), Options.Create(new QueueOptions()), time ?? _h.Time),
             _h.Store, Lock(), time ?? _h.Time, NullLogger<HoldExpiryService>.Instance);
 
-    private InventoryReconcilerService Reconciler() =>
-        new(Live(), _h.Store, Scopes(), Lock(), _h.Time, NullLogger<InventoryReconcilerService>.Instance);
+    private InventoryReconcilerService Reconciler(ISoldInventorySource? sold = null) =>
+        new(Live(), _h.Store, Scopes(sold), Lock(), _h.Time, NullLogger<InventoryReconcilerService>.Instance);
 
     [Fact]
     public async Task A_quick_pass_warms_cold_live_events()
@@ -81,6 +88,26 @@ public sealed class HoldWorkersTests(ContainersFixture containers) : IAsyncLifet
 
         await reconciler.RunOnceAsync(full: true, Ct);
         ((int)await _h.Db.StringGetAsync(_h.Keys.InvGa(_h.EventId, _h.GaTier))).ShouldBe(10);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_sold_set_lost_with_redis_state_is_rebuilt_from_the_database(bool fullPass)
+    {
+        // R3: AOF everysec can drop the last second of writes, or the whole dataset after a restart without AOF.
+        var reconciler = Reconciler(new DatabaseSold(4, 5));
+        await reconciler.RunOnceAsync(full: true, Ct);
+        (await _h.Store.GetSnapshotAsync(_h.EventId, _h.GaTiers, Ct)).Sold.ShouldBe([4, 5]);
+        await _h.Db.KeyDeleteAsync([_h.Keys.InvSold(_h.EventId), _h.Keys.InvMeta(_h.EventId)]);
+        (await _h.Store.GetSnapshotAsync(_h.EventId, _h.GaTiers, Ct)).Sold.ShouldBeEmpty();
+
+        await reconciler.RunOnceAsync(fullPass, Ct);
+
+        var snapshot = await _h.Store.GetSnapshotAsync(_h.EventId, _h.GaTiers, Ct);
+        snapshot.Warm.ShouldBeTrue();
+        snapshot.Sold.ShouldBe([4, 5]);
+        (await _h.HoldAsync(Guid.NewGuid(), 4)).Status.ShouldBe(HoldStatus.SeatUnavailable);
     }
 
     [Fact]

@@ -67,6 +67,8 @@ public static class DependencyInjection
         services.AddValidatedOptions<OutboxOptions>(OutboxOptions.SectionName);
 
         services.AddSingleton<RedisKeys>();
+        services.AddSingleton<IRedisPersistenceProbe, RedisPersistenceProbe>();
+        services.AddHostedService<RedisDurabilityCheck>();
         services.AddSingleton<IDistributedLock, RedisDistributedLock>();
         services.AddSingleton<DomainEventTypeRegistry>();
         services.AddSingleton<OutboxMetrics>();
