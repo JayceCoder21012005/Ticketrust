@@ -39,4 +39,13 @@ public interface IAppDbContext
     ChangeTracker ChangeTracker { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Runs <paramref name="work"/> in one database transaction and commits when it returns; if it throws, everything it
+    /// wrote (raw SQL included) is rolled back and the exception surfaces. For use cases that need several statements
+    /// (and <see cref="SaveChangesAsync"/> calls) to stand or fall together, such as fulfilling a paid order.
+    /// Goes through EF's execution strategy, so it stays correct if connection retries are ever enabled; then
+    /// <paramref name="work"/> may run more than once and must start from a clean change tracker.
+    /// </summary>
+    Task<T> InTransactionAsync<T>(Func<CancellationToken, Task<T>> work, CancellationToken ct);
 }

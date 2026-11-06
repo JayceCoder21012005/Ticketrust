@@ -51,6 +51,23 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataPr
 
     Task<int> IAppDbContext.SaveChangesAsync(CancellationToken ct) => SaveChangesAsync(ct);
 
+    /// <inheritdoc />
+    /// <remarks>Retries are disabled (<c>DisableRetry</c>), so today the strategy runs the work exactly once.</remarks>
+    public Task<T> InTransactionAsync<T>(Func<CancellationToken, Task<T>> work, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+        return Database.CreateExecutionStrategy().ExecuteAsync(
+            async token =>
+            {
+                // Disposing without a commit rolls back.
+                await using var transaction = await Database.BeginTransactionAsync(token);
+                var result = await work(token);
+                await transaction.CommitAsync(token);
+                return result;
+            },
+            ct);
+    }
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

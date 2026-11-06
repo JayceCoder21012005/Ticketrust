@@ -88,6 +88,11 @@ public static class DependencyInjection
         services.AddSingleton<IInventoryStore, RedisInventoryStore>();
         services.AddScoped<ISoldInventorySource, DbSoldInventorySource>();
         services.AddScoped<ITierInventory, TierInventory>();
+        services.AddScoped<IInventoryStrategy, GeneralAdmissionInventoryStrategy>();
+        services.AddScoped<IInventoryStrategy, SeatedInventoryStrategy>();
+        services.AddScoped<ITicketPurchaseLimit, TicketPurchaseLimit>();
+        services.AddScoped<IEventSaleLock, EventSaleLock>();
+        services.AddScoped<Application.Abstractions.Payments.IWebhookInbox, WebhookInbox>();
         services.AddSingleton<IInventoryEventSource, InventoryEventSource>();
         services.AddScoped<InventorySeeder>();
         services.AddScoped<IInventorySeeder>(sp => sp.GetRequiredService<InventorySeeder>());
