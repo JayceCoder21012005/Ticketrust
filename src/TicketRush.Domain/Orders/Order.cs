@@ -187,7 +187,21 @@ public sealed class Order : AggregateRoot, IAuditable
     /// <summary>
     /// Expired, AwaitingPayment or PaymentFailed → RefundPending: the money arrived but the seats are gone (C3).
     /// </summary>
-    public void MarkUnfulfillable() => RequestRefund(Trigger.MarkUnfulfillable, RefundReasons.SeatsUnavailable);
+    public void MarkUnfulfillable() => MarkUnfulfillable(RefundReasons.SeatsUnavailable);
+
+    /// <summary>
+    /// Same transition with the reason the order cannot be fulfilled (one of <see cref="RefundReasons"/>), e.g.
+    /// <see cref="RefundReasons.EventCancelled"/> when the money arrives after the organizer cancelled the event.
+    /// </summary>
+    public void MarkUnfulfillable(string reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainException("order.invalid_refund_reason", "A refund needs a reason.");
+        }
+
+        RequestRefund(Trigger.MarkUnfulfillable, reason);
+    }
 
     /// <summary>Paid → RefundPending because the organizer cancelled the event.</summary>
     public void RequestRefundForCancelledEvent() => RequestRefund(Trigger.RequestRefundForCancelledEvent, RefundReasons.EventCancelled);

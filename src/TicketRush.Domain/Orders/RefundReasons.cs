@@ -8,4 +8,16 @@ public static class RefundReasons
 
     /// <summary>The organizer cancelled the event after the order was paid.</summary>
     public const string EventCancelled = "event_cancelled";
+
+    /// <summary>
+    /// A second session paid for an order another session already paid (or that is already being refunded); only that
+    /// session's money goes back (<see cref="PaymentRefundRequested"/>), the order and its tickets stay as they are.
+    /// </summary>
+    public const string DuplicatePayment = "duplicate_payment";
+
+    /// <summary>Money arrived for an order that can no longer be paid (cancelled, or never started payment).</summary>
+    public const string OrderClosed = "order_closed";
+
+    /// <summary>The provider reports a different amount than the session was opened for: nothing is issued, the money goes back.</summary>
+    public const string AmountMismatch = "amount_mismatch";
 }

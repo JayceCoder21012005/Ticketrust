@@ -12,6 +12,9 @@ namespace TicketRush.Infrastructure.Persistence.Configurations;
 /// </summary>
 internal sealed class TicketConfiguration : IEntityTypeConfiguration<Ticket>
 {
+    /// <summary>The partial unique index that makes a second non-voided ticket for a seat impossible.</summary>
+    internal const string SeatIndexName = "ux_tickets_event_seat";
+
     public void Configure(EntityTypeBuilder<Ticket> builder)
     {
         builder.ToTable("tickets");
@@ -29,7 +32,7 @@ internal sealed class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         builder.HasIndex(t => new { t.EventId, t.SeatIndex })
             .IsUnique()
             .HasFilter("status <> 'Voided' AND seat_index IS NOT NULL")
-            .HasDatabaseName("ux_tickets_event_seat");
+            .HasDatabaseName(SeatIndexName);
 
         // "My tickets" (spec 10) and the per-user purchase limit of an event.
         builder.HasIndex(t => t.OwnerUserId);

@@ -58,18 +58,68 @@ public sealed class PaymentAttemptTests
 
     [Theory]
     [MemberData(nameof(AllStatuses))]
-    public void MarkSucceeded_is_legal_from_anything_but_succeeded_because_webhooks_arrive_out_of_order(PaymentAttemptStatus from)
+    public void MarkSucceeded_is_legal_from_pending_failed_and_expired_because_webhooks_arrive_out_of_order(PaymentAttemptStatus from)
     {
         var attempt = InStatus(from);
 
-        if (from == PaymentAttemptStatus.Succeeded)
+        if (from is PaymentAttemptStatus.Succeeded or PaymentAttemptStatus.RefundPending or PaymentAttemptStatus.Refunded)
         {
             Should.Throw<DomainException>(attempt.MarkSucceeded).Code.ShouldBe("payment.illegal_transition");
+            attempt.Status.ShouldBe(from);
             return;
         }
 
         attempt.MarkSucceeded();
         attempt.Status.ShouldBe(PaymentAttemptStatus.Succeeded);
+    }
+
+    [Theory]
+    [MemberData(nameof(AllStatuses))]
+    public void RequestRefund_sends_back_money_that_reached_a_session_which_cannot_pay_for_its_order(PaymentAttemptStatus from)
+    {
+        var attempt = InStatus(from);
+        attempt.DequeueDomainEvents();
+
+        if (from is PaymentAttemptStatus.Succeeded or PaymentAttemptStatus.RefundPending or PaymentAttemptStatus.Refunded)
+        {
+            Should.Throw<DomainException>(() => attempt.RequestRefund(RefundReasons.DuplicatePayment, attempt.Amount)).Code.ShouldBe("payment.illegal_transition");
+            attempt.Status.ShouldBe(from);
+            attempt.DomainEvents.ShouldBeEmpty();
+            return;
+        }
+
+        attempt.RequestRefund(RefundReasons.DuplicatePayment, new Money(1_500_000));
+
+        attempt.Status.ShouldBe(PaymentAttemptStatus.RefundPending);
+        attempt.DomainEvents.ShouldHaveSingleItem().ShouldBe(new PaymentRefundRequested(
+            attempt.Id, attempt.OrderId, "vnpay", "sess-1", 1_500_000, "VND", RefundReasons.DuplicatePayment));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void RequestRefund_needs_a_reason(string reason)
+    {
+        var attempt = Create();
+
+        Should.Throw<DomainException>(() => attempt.RequestRefund(reason, attempt.Amount)).Code.ShouldBe("payment.invalid_refund");
+        attempt.Status.ShouldBe(PaymentAttemptStatus.Pending);
+    }
+
+    [Theory]
+    [MemberData(nameof(AllStatuses))]
+    public void MarkRefunded_is_legal_only_from_refund_pending(PaymentAttemptStatus from)
+    {
+        var attempt = InStatus(from);
+
+        if (from != PaymentAttemptStatus.RefundPending)
+        {
+            Should.Throw<DomainException>(attempt.MarkRefunded).Code.ShouldBe("payment.illegal_transition");
+            return;
+        }
+
+        attempt.MarkRefunded();
+        attempt.Status.ShouldBe(PaymentAttemptStatus.Refunded);
     }
 
     [Theory]
@@ -100,6 +150,13 @@ public sealed class PaymentAttemptTests
                 break;
             case PaymentAttemptStatus.Expired:
                 attempt.MarkExpired();
+                break;
+            case PaymentAttemptStatus.RefundPending:
+                attempt.RequestRefund(RefundReasons.DuplicatePayment, attempt.Amount);
+                break;
+            case PaymentAttemptStatus.Refunded:
+                attempt.RequestRefund(RefundReasons.DuplicatePayment, attempt.Amount);
+                attempt.MarkRefunded();
                 break;
         }
 

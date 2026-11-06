@@ -98,9 +98,10 @@ internal sealed class ProcessedWebhookConfiguration : IEntityTypeConfiguration<P
     public void Configure(EntityTypeBuilder<ProcessedWebhook> builder)
     {
         builder.ToTable("processed_webhooks");
-        builder.HasKey(w => w.ProviderEventId).HasName("pk_processed_webhooks");
-        builder.Property(w => w.ProviderEventId).HasMaxLength(200).ValueGeneratedNever();
-        builder.Property(w => w.Provider).HasMaxLength(50);
+        // Event ids are unique per provider only. WebhookInbox's ON CONFLICT targets exactly these columns.
+        builder.HasKey(w => new { w.Provider, w.ProviderEventId }).HasName("pk_processed_webhooks");
+        builder.Property(w => w.ProviderEventId).HasMaxLength(ProcessedWebhook.MaxProviderEventIdLength).ValueGeneratedNever();
+        builder.Property(w => w.Provider).HasMaxLength(50).ValueGeneratedNever();
 
         // Retention sweeps delete by age.
         builder.HasIndex(w => w.ProcessedAt);

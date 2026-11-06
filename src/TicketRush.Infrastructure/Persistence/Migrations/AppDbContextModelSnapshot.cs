@@ -709,6 +709,11 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("TicketRush.Domain.Orders.ProcessedWebhook", b =>
                 {
+                    b.Property<string>("Provider")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("provider");
+
                     b.Property<string>("ProviderEventId")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
@@ -718,13 +723,7 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("processed_at");
 
-                    b.Property<string>("Provider")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("provider");
-
-                    b.HasKey("ProviderEventId")
+                    b.HasKey("Provider", "ProviderEventId")
                         .HasName("pk_processed_webhooks");
 
                     b.HasIndex("ProcessedAt")

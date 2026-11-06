@@ -258,6 +258,31 @@ public sealed class OrderTests
     }
 
     [Fact]
+    public void MarkUnfulfillable_can_carry_why_the_order_cannot_be_fulfilled()
+    {
+        var order = InStatus(OrderStatus.AwaitingPayment);
+        order.DequeueDomainEvents();
+
+        order.MarkUnfulfillable(RefundReasons.EventCancelled);
+
+        order.Status.ShouldBe(OrderStatus.RefundPending);
+        order.RefundReason.ShouldBe(RefundReasons.EventCancelled);
+        order.DequeueDomainEvents().ShouldHaveSingleItem()
+            .ShouldBe(new RefundRequested(order.Id, UserId, EventId, 1_600_000, "VND", RefundReasons.EventCancelled));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void MarkUnfulfillable_needs_a_reason(string reason)
+    {
+        var order = InStatus(OrderStatus.Expired);
+
+        Should.Throw<DomainException>(() => order.MarkUnfulfillable(reason)).Code.ShouldBe("order.invalid_refund_reason");
+        order.Status.ShouldBe(OrderStatus.Expired);
+    }
+
+    [Fact]
     public void RequestRefundForCancelledEvent_moves_a_paid_order_to_refund_pending()
     {
         var order = InStatus(OrderStatus.Paid);
@@ -338,6 +363,7 @@ public sealed class OrderTests
             new OrderExpired(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()),
             new RefundRequested(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 10, "VND", RefundReasons.EventCancelled),
             new OrderRefunded(Guid.NewGuid(), Guid.NewGuid(), 10, "VND"),
+            new PaymentRefundRequested(Guid.NewGuid(), Guid.NewGuid(), "mock", "sess-1", 10, "VND", RefundReasons.DuplicatePayment),
         ];
 
         foreach (var domainEvent in events)

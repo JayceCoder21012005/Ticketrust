@@ -33,5 +33,20 @@ public sealed record OrderExpired(Guid OrderId, Guid UserId, Guid EventId, Guid 
 /// </summary>
 public sealed record RefundRequested(Guid OrderId, Guid UserId, Guid EventId, long Amount, string Currency, string Reason) : IDomainEvent;
 
+/// <summary>
+/// Money reached one payment session that cannot pay for its order (for example a second session paid an order that
+/// is already paid): refund exactly that session. Unlike <see cref="RefundRequested"/> the order does not change. The
+/// refund worker calls the gateway with <c>idempotencyKey = $"attempt:{AttemptId}"</c>, so it never collides with the
+/// order-level refund keyed by the order id.
+/// </summary>
+public sealed record PaymentRefundRequested(
+    Guid AttemptId,
+    Guid OrderId,
+    string Provider,
+    string SessionId,
+    long Amount,
+    string Currency,
+    string Reason) : IDomainEvent;
+
 /// <summary>The gateway confirmed the refund: notify the buyer.</summary>
 public sealed record OrderRefunded(Guid OrderId, Guid UserId, long Amount, string Currency) : IDomainEvent;

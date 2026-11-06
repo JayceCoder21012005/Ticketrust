@@ -5,8 +5,13 @@ namespace TicketRush.Domain.Orders;
 /// <summary>
 /// One gateway session for an order. It expires <see cref="GatewayMargin"/> before the order does, so the gateway
 /// normally refuses payment after the hold dies. Webhooks can arrive out of order, so
-/// <see cref="MarkSucceeded"/> is legal from every status except <c>Succeeded</c> (like <c>Order.MarkPaid</c>);
+/// <see cref="MarkSucceeded"/> is legal from Pending, Failed and Expired (like <c>Order.MarkPaid</c>);
 /// <see cref="MarkFailed"/> and <see cref="MarkExpired"/> are legal only from <c>Pending</c>.
+/// <para>
+/// Invariant kept by the webhook handler: an order has at most one <c>Succeeded</c> attempt, the one whose money paid it
+/// (or, for an unfulfillable order, the one the order-level refund sends back). Money on any other session of the order
+/// goes back through <see cref="RequestRefund"/>.
+/// </para>
 /// </summary>
 public sealed class PaymentAttempt : AggregateRoot, IAuditable
 {
@@ -93,14 +98,49 @@ public sealed class PaymentAttempt : AggregateRoot, IAuditable
     /// <summary>True while a buyer can still be sent to this session: pending and not yet past <see cref="ExpiresAt"/>.</summary>
     public bool IsLive(DateTimeOffset now) => Status == PaymentAttemptStatus.Pending && now < ExpiresAt;
 
+    /// <summary>This session's money pays for the order. Legal from Pending, Failed and Expired (webhooks arrive out of order).</summary>
     public void MarkSucceeded()
     {
-        if (Status == PaymentAttemptStatus.Succeeded)
+        EnsureMoneyNotSettled(nameof(MarkSucceeded));
+        Status = PaymentAttemptStatus.Succeeded;
+    }
+
+    /// <summary>
+    /// Pending, Failed or Expired → RefundPending: money reached this session but it cannot pay for the order (a second
+    /// payment of a paid order, a closed order, a wrong amount). Raises <see cref="PaymentRefundRequested"/> for
+    /// <paramref name="amount"/>; the order itself is not touched.
+    /// </summary>
+    public void RequestRefund(string reason, Money amount)
+    {
+        ArgumentNullException.ThrowIfNull(amount);
+        if (string.IsNullOrWhiteSpace(reason))
         {
-            throw IllegalTransition(nameof(MarkSucceeded));
+            throw new DomainException("payment.invalid_refund", "A refund needs a reason.");
         }
 
-        Status = PaymentAttemptStatus.Succeeded;
+        EnsureMoneyNotSettled(nameof(RequestRefund));
+        Status = PaymentAttemptStatus.RefundPending;
+        Raise(new PaymentRefundRequested(Id, OrderId, Provider, ProviderSessionId, amount.Amount, amount.Currency, reason));
+    }
+
+    /// <summary>RefundPending → Refunded once the gateway confirmed the refund of this session.</summary>
+    public void MarkRefunded()
+    {
+        if (Status != PaymentAttemptStatus.RefundPending)
+        {
+            throw IllegalTransition(nameof(MarkRefunded));
+        }
+
+        Status = PaymentAttemptStatus.Refunded;
+    }
+
+    /// <summary>A session's money is decided once: it either pays the order (Succeeded) or goes back (RefundPending, Refunded).</summary>
+    private void EnsureMoneyNotSettled(string method)
+    {
+        if (Status is PaymentAttemptStatus.Succeeded or PaymentAttemptStatus.RefundPending or PaymentAttemptStatus.Refunded)
+        {
+            throw IllegalTransition(method);
+        }
     }
 
     public void MarkFailed() => LeavePending(PaymentAttemptStatus.Failed, nameof(MarkFailed));
