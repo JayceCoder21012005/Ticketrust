@@ -1871,6 +1871,67 @@
         }
       }
     },
+    "/api/v1/orders/{id}/pay": {
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "operationId": "PayOrder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayOrderResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/orders/{id}/cancel": {
       "post": {
         "tags": [
@@ -3494,6 +3555,32 @@
           "Failed",
           "Expired"
         ]
+      },
+      "PayOrderResponse": {
+        "required": [
+          "redirectUrl",
+          "attemptId",
+          "expiresAt",
+          "serverNow"
+        ],
+        "type": "object",
+        "properties": {
+          "redirectUrl": {
+            "type": "string"
+          },
+          "attemptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "serverNow": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       },
       "PhaseInfo": {
         "required": [

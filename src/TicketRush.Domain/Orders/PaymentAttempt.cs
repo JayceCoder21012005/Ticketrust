@@ -12,10 +12,14 @@ public sealed class PaymentAttempt : AggregateRoot, IAuditable
 {
     public static readonly TimeSpan GatewayMargin = TimeSpan.FromSeconds(30);
 
+    /// <summary>Column width of <see cref="RedirectUrl"/>.</summary>
+    public const int MaxRedirectUrlLength = 2000;
+
     private PaymentAttempt(
         Guid orderId,
         string provider,
         string providerSessionId,
+        string redirectUrl,
         Money amount,
         DateTimeOffset expiresAt)
         : base(Guid.CreateVersion7())
@@ -23,6 +27,7 @@ public sealed class PaymentAttempt : AggregateRoot, IAuditable
         OrderId = orderId;
         Provider = provider;
         ProviderSessionId = providerSessionId;
+        RedirectUrl = redirectUrl;
         Amount = amount;
         ExpiresAt = expiresAt;
         Status = PaymentAttemptStatus.Pending;
@@ -33,6 +38,7 @@ public sealed class PaymentAttempt : AggregateRoot, IAuditable
     {
         Provider = string.Empty;
         ProviderSessionId = string.Empty;
+        RedirectUrl = string.Empty;
         Amount = Money.Zero();
     }
 
@@ -41,6 +47,9 @@ public sealed class PaymentAttempt : AggregateRoot, IAuditable
     public string Provider { get; private set; }
 
     public string ProviderSessionId { get; private set; }
+
+    /// <summary>Where the buyer pays, as the gateway returned it; a repeated pay request sends the buyer back to the same page.</summary>
+    public string RedirectUrl { get; private set; }
 
     public Money Amount { get; private set; }
 
@@ -57,13 +66,14 @@ public sealed class PaymentAttempt : AggregateRoot, IAuditable
         Guid orderId,
         string provider,
         string providerSessionId,
+        string redirectUrl,
         Money amount,
         DateTimeOffset orderExpiresAt,
         DateTimeOffset now)
     {
-        if (orderId == Guid.Empty || string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(providerSessionId))
+        if (orderId == Guid.Empty || string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(providerSessionId) || !IsHttpUrl(redirectUrl))
         {
-            throw new DomainException("payment.invalid_attempt", "A payment attempt needs an order, a provider and a session id.");
+            throw new DomainException("payment.invalid_attempt", "A payment attempt needs an order, a provider, a session id and an http(s) redirect URL.");
         }
 
         var expiresAt = orderExpiresAt.ToUniversalTime() - GatewayMargin;
@@ -72,8 +82,13 @@ public sealed class PaymentAttempt : AggregateRoot, IAuditable
             throw new DomainException("payment.window_closed", "Too little time is left on the order to start a payment.");
         }
 
-        return new PaymentAttempt(orderId, provider.Trim(), providerSessionId.Trim(), amount, expiresAt);
+        return new PaymentAttempt(orderId, provider.Trim(), providerSessionId.Trim(), redirectUrl.Trim(), amount, expiresAt);
     }
+
+    private static bool IsHttpUrl(string? value) =>
+        value?.Trim() is { Length: <= MaxRedirectUrlLength } url
+        && Uri.TryCreate(url, UriKind.Absolute, out var uri)
+        && uri.Scheme is "http" or "https";
 
     /// <summary>True while a buyer can still be sent to this session: pending and not yet past <see cref="ExpiresAt"/>.</summary>
     public bool IsLive(DateTimeOffset now) => Status == PaymentAttemptStatus.Pending && now < ExpiresAt;

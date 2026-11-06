@@ -77,6 +77,7 @@ internal sealed class PaymentAttemptConfiguration : IEntityTypeConfiguration<Pay
         builder.Property(p => p.Id).ValueGeneratedNever();
         builder.Property(p => p.Provider).HasMaxLength(50);
         builder.Property(p => p.ProviderSessionId).HasMaxLength(200);
+        builder.Property(p => p.RedirectUrl).HasMaxLength(PaymentAttempt.MaxRedirectUrlLength);
         builder.Property(p => p.Status).HasConversion<string>().HasMaxLength(20);
         builder.ComplexProperty(p => p.Amount, amount =>
         {

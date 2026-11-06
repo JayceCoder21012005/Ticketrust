@@ -7,7 +7,9 @@ namespace TicketRush.Domain.Tests.Orders;
 public sealed class PaymentAttemptTests
 {
     private static PaymentAttempt Create(DateTimeOffset? orderExpiresAt = null) =>
-        PaymentAttempt.Create(Guid.CreateVersion7(), "vnpay", "sess-1", new Money(1_600_000), orderExpiresAt ?? ExpiresAt, Now);
+        PaymentAttempt.Create(Guid.CreateVersion7(), "vnpay", "sess-1", RedirectUrl, new Money(1_600_000), orderExpiresAt ?? ExpiresAt, Now);
+
+    private const string RedirectUrl = "http://localhost:3000/mock-gateway/sess-1";
 
     public static TheoryData<PaymentAttemptStatus> AllStatuses() => [.. Enum.GetValues<PaymentAttemptStatus>()];
 
@@ -21,6 +23,7 @@ public sealed class PaymentAttemptTests
         attempt.Provider.ShouldBe("vnpay");
         attempt.ProviderSessionId.ShouldBe("sess-1");
         attempt.Amount.ShouldBe(new Money(1_600_000));
+        attempt.RedirectUrl.ShouldBe(RedirectUrl);
     }
 
     [Fact]
@@ -30,12 +33,15 @@ public sealed class PaymentAttemptTests
     }
 
     [Theory]
-    [InlineData("", "s")]
-    [InlineData("p", " ")]
-    public void Create_requires_provider_and_session_id(string provider, string session)
+    [InlineData("", "s", RedirectUrl)]
+    [InlineData("p", " ", RedirectUrl)]
+    [InlineData("p", "s", " ")]
+    [InlineData("p", "s", "/relative/path")]
+    [InlineData("p", "s", "javascript:alert(1)")]
+    public void Create_requires_provider_session_id_and_an_absolute_http_redirect_url(string provider, string session, string redirect)
     {
         Should.Throw<DomainException>(() =>
-            PaymentAttempt.Create(Guid.CreateVersion7(), provider, session, new Money(1), ExpiresAt, Now))
+            PaymentAttempt.Create(Guid.CreateVersion7(), provider, session, redirect, new Money(1), ExpiresAt, Now))
             .Code.ShouldBe("payment.invalid_attempt");
     }
 

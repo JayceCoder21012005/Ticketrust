@@ -382,7 +382,7 @@ public sealed class CheckoutPersistenceTests(ContainersFixture containers) : IAs
         var order = await SaveOrderAsync(NewOrder());
         await using (var scope = Scope())
         {
-            Db(scope).PaymentAttempts.Add(PaymentAttempt.Create(order.Id, "Mock", "sess_1", order.Total, order.ExpiresAt, DateTimeOffset.UtcNow));
+            Db(scope).PaymentAttempts.Add(PaymentAttempt.Create(order.Id, "Mock", "sess_1", "http://localhost:3000/mock-gateway/sess_1", order.Total, order.ExpiresAt, DateTimeOffset.UtcNow));
             await Db(scope).SaveChangesAsync(Ct);
         }
 
@@ -391,13 +391,14 @@ public sealed class CheckoutPersistenceTests(ContainersFixture containers) : IAs
             var loaded = await Db(check).PaymentAttempts.AsNoTracking().SingleAsync(Ct);
             loaded.OrderId.ShouldBe(order.Id);
             loaded.Provider.ShouldBe("Mock");
+            loaded.RedirectUrl.ShouldBe("http://localhost:3000/mock-gateway/sess_1");
             loaded.Amount.ShouldBe(order.Total);
             loaded.Status.ShouldBe(PaymentAttemptStatus.Pending);
             loaded.ExpiresAt.ShouldBe(order.ExpiresAt - PaymentAttempt.GatewayMargin, TimeSpan.FromMilliseconds(1));
         }
 
         await using var duplicate = Scope();
-        Db(duplicate).PaymentAttempts.Add(PaymentAttempt.Create(order.Id, "Mock", "sess_1", order.Total, order.ExpiresAt, DateTimeOffset.UtcNow));
+        Db(duplicate).PaymentAttempts.Add(PaymentAttempt.Create(order.Id, "Mock", "sess_1", "http://localhost:3000/mock-gateway/sess_1", order.Total, order.ExpiresAt, DateTimeOffset.UtcNow));
         var violation = await ViolationAsync(() => Db(duplicate).SaveChangesAsync(Ct));
         violation.ConstraintName.ShouldBe("ux_payment_attempts_provider_session_id");
     }

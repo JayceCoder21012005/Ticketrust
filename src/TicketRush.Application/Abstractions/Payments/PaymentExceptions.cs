@@ -82,6 +82,10 @@ public sealed class PaymentGatewayUnavailableException : Exception
 
 public static class PaymentErrors
 {
+    /// <summary>The gateway refused the session on purpose (retrying the same request cannot help).</summary>
+    public static readonly Error Rejected =
+        Error.Conflict("payment.rejected", "The payment provider refused this payment. Please start again from your order.");
+
     public static readonly Error GatewayUnavailable =
         Error.Unavailable("payment.gateway_unavailable", "The payment provider is temporarily unavailable. Your seats are still held, please try again shortly.");
 }

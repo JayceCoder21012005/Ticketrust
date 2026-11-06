@@ -40,6 +40,12 @@ public sealed record OrderResponse(
     string? RefundReason,
     int? TicketCount);
 
+/// <param name="RedirectUrl">Where to send the buyer to pay (the gateway's page). Same URL while the attempt is live.</param>
+/// <param name="AttemptId">The payment attempt this URL belongs to.</param>
+/// <param name="ExpiresAt">When the attempt stops being payable: the order's expiry minus 30 s.</param>
+/// <param name="ServerNow">Clock reference for the countdown.</param>
+public sealed record PayOrderResponse(string RedirectUrl, Guid AttemptId, DateTimeOffset ExpiresAt, DateTimeOffset ServerNow);
+
 /// <summary>What <c>POST /orders</c> answers with: <paramref name="Created"/> is false when the hold already had an open order.</summary>
 public sealed record CreatedOrder(OrderResponse Order, bool Created);
 

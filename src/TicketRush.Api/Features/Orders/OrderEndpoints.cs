@@ -20,17 +20,17 @@ public sealed record ListMyOrdersRequest(
     [property: FromQuery(Name = "cursor")] string? Cursor,
     [property: FromQuery(Name = "limit")] int? Limit);
 
-/// <summary>Orders (spec 08): creating one from a hold, reading and cancelling it, and the buyer's list. Paying is separate.</summary>
+/// <summary>Orders (spec 08): creating one from a hold, reading, paying and cancelling it, and the buyer's list.</summary>
 public static class OrderEndpoints
 {
     public static RouteGroupBuilder MapOrderEndpoints(this RouteGroupBuilder v1)
     {
         // A replayed answer outlives the hold it was made for only as a stale "Pending"; after the hold's life a retry should see the real state.
-        var createTtl = v1.ServiceProvider().GetRequiredService<IOptions<HoldsOptions>>().Value.Ttl;
+        var holdTtl = v1.ServiceProvider().GetRequiredService<IOptions<HoldsOptions>>().Value.Ttl;
         var orders = v1.MapGroup("/orders").WithTags("Orders").RequireAuthorization();
 
         orders.MapPost("/", CreateAsync)
-            .RequireIdempotencyKey(createTtl)
+            .RequireIdempotencyKey(holdTtl)
             .WithName("CreateOrder")
             .Produces<OrderResponse>(StatusCodes.Status201Created)
             .Produces<OrderResponse>()
@@ -42,6 +42,14 @@ public static class OrderEndpoints
             .WithName("GetOrder")
             .Produces<OrderResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound);
+        // The answer is a redirect into a gateway session that lives as long as the hold, so a replay is useful for that long only.
+        orders.MapPost("/{id:guid}/pay", PayAsync)
+            .RequireIdempotencyKey(holdTtl)
+            .WithName("PayOrder")
+            .Produces<PayOrderResponse>()
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
         orders.MapPost("/{id:guid}/cancel", CancelAsync)
             .RequireIdempotencyKey()
             .WithName("CancelOrder")
@@ -78,6 +86,10 @@ public static class OrderEndpoints
     }
 
     private static async Task<IResult> GetAsync(Guid id, ClaimsPrincipal user, GetOrderHandler handler, CancellationToken ct) =>
+        (await handler.HandleAsync(user.UserId(), id, ct)).ToHttpResult();
+
+    /// <remarks>No request body is read: where the gateway sends the buyer back to is decided by the server, never by the client.</remarks>
+    private static async Task<IResult> PayAsync(Guid id, ClaimsPrincipal user, PayOrderHandler handler, CancellationToken ct) =>
         (await handler.HandleAsync(user.UserId(), id, ct)).ToHttpResult();
 
     private static async Task<IResult> CancelAsync(Guid id, ClaimsPrincipal user, CancelOrderHandler handler, CancellationToken ct) =>

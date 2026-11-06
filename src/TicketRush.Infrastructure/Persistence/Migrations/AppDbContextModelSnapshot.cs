@@ -657,6 +657,12 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("provider_session_id");
 
+                    b.Property<string>("RedirectUrl")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("redirect_url");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
