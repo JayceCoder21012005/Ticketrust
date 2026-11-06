@@ -1,4 +1,5 @@
 using System.Net;
+using System.Reflection;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 using TicketRush.Api.IntegrationTests.Auth;
 using TicketRush.Api.IntegrationTests.Infrastructure;
 using TicketRush.Application.Abstractions.Inventory;
@@ -90,10 +92,10 @@ public sealed class PayOrderApiTests(ContainersFixture containers) : IAsyncLifet
     }
 
     /// <summary>A buyer with a live hold of two GA tickets and a Pending order for it (what checkout has when the buyer presses "pay").</summary>
-    private async Task<Placed> PlaceOrderAsync()
+    private async Task<Placed> PlaceOrderAsync(TimeSpan? holdTtl = null)
     {
         var buyer = await NewBuyerAsync();
-        var request = new HoldRequest(_event, buyer.UserId, [], [new GaLine(_gaTier, 2)], _gaTiers, 8, false, DateTimeOffset.UtcNow, TimeSpan.FromMinutes(8));
+        var request = new HoldRequest(_event, buyer.UserId, [], [new GaLine(_gaTier, 2)], _gaTiers, 8, false, DateTimeOffset.UtcNow, holdTtl ?? TimeSpan.FromMinutes(8));
         (await Store.CreateHoldAsync(request, Ct)).Status.ShouldBe(HoldStatus.Ok);
         var hold = (await Store.GetUserHoldAsync(_event, buyer.UserId, Ct))!;
         var body = new { eventId = _event, holdId = hold.HoldId, buyer = new { name = "Nguyễn Văn An", email = "an@example.com", phone = "0901234567" } };
@@ -174,11 +176,11 @@ public sealed class PayOrderApiTests(ContainersFixture containers) : IAsyncLifet
                 order.Expire();
                 break;
             case OrderStatus.Paid:
-                order.StartPayment(now);
+                StartIfPending(order, now);
                 order.MarkPaid(now);
                 break;
             case OrderStatus.RefundPending:
-                order.StartPayment(now);
+                StartIfPending(order, now);
                 order.MarkPaid(now);
                 order.RequestRefundForCancelledEvent();
                 break;
@@ -189,6 +191,14 @@ public sealed class PayOrderApiTests(ContainersFixture containers) : IAsyncLifet
         await db.SaveChangesAsync(Ct);
         return 0;
     });
+
+    private static void StartIfPending(Order order, DateTimeOffset now)
+    {
+        if (order.Status == OrderStatus.Pending)
+        {
+            order.StartPayment(now);
+        }
+    }
 
     private static string SessionIdOf(string redirectUrl) => new Uri(redirectUrl).Segments[^1];
 
@@ -218,6 +228,7 @@ public sealed class PayOrderApiTests(ContainersFixture containers) : IAsyncLifet
         attempt.Amount.ShouldBe(new Money(placed.Total));
         attempt.RedirectUrl.ShouldBe(redirect);
         (await StatusAsync(placed.OrderId)).ShouldBe(OrderStatus.AwaitingPayment);
+        (await MockSessionAsync(redirect))!.ExpiresAt.ShouldBe(attempt.ExpiresAt, TimeSpan.FromMilliseconds(5));
     }
 
     [Fact]
@@ -337,7 +348,7 @@ public sealed class PayOrderApiTests(ContainersFixture containers) : IAsyncLifet
     {
         var placed = await PlaceOrderAsync();
         string? winnerUrl = null;
-        _spy.AfterCreate = async () =>
+        _spy.AfterCreate = async _ =>
         {
             // Another tab pressed "pay" after this request opened its session and before it saved.
             _spy.AfterCreate = null;
@@ -454,7 +465,6 @@ public sealed class PayOrderApiTests(ContainersFixture containers) : IAsyncLifet
 
     [Theory]
     [InlineData(OrderStatus.Cancelled)]
-    [InlineData(OrderStatus.Expired)]
     [InlineData(OrderStatus.Paid)]
     [InlineData(OrderStatus.RefundPending)]
     public async Task An_order_in_a_closed_state_is_not_payable_and_opens_no_session(OrderStatus status)
@@ -467,6 +477,19 @@ public sealed class PayOrderApiTests(ContainersFixture containers) : IAsyncLifet
         _spy.CreateCalls.ShouldBe(0);
         (await AttemptsAsync(placed.OrderId)).ShouldBeEmpty();
         (await StatusAsync(placed.OrderId)).ShouldBe(status);
+    }
+
+    [Fact]
+    public async Task An_order_the_sweep_already_expired_says_order_expired_like_one_it_has_not_reached_yet()
+    {
+        var placed = await PlaceOrderAsync();
+        await ForceStatusAsync(placed.OrderId, OrderStatus.Expired);
+
+        await ShouldFailWithAsync(await PayAsync(placed), HttpStatusCode.Conflict, "order.expired");
+
+        _spy.CreateCalls.ShouldBe(0);
+        (await AttemptsAsync(placed.OrderId)).ShouldBeEmpty();
+        (await StatusAsync(placed.OrderId)).ShouldBe(OrderStatus.Expired);
     }
 
     [Fact]
@@ -536,6 +559,190 @@ public sealed class PayOrderApiTests(ContainersFixture containers) : IAsyncLifet
         (await StatusAsync(placed.OrderId)).ShouldBe(OrderStatus.Pending);
     }
 
+
+    // ---- the order changes while the session is being opened ----
+
+    [Theory]
+    [InlineData(OrderStatus.Paid, "order.not_payable")]
+    [InlineData(OrderStatus.Expired, "order.expired")]
+    public async Task An_awaiting_order_that_changes_during_the_call_gets_no_new_attempt(OrderStatus becomes, string code)
+    {
+        var placed = await AwaitingWithFailedAttemptAsync();
+        _spy.AfterCreate = async _ =>
+        {
+            // A webhook or the expiry sweep got to the order after this request read it and before it saved.
+            _spy.AfterCreate = null;
+            await ForceStatusAsync(placed.OrderId, becomes);
+        };
+
+        await ShouldFailWithAsync(await PayAsync(placed), HttpStatusCode.Conflict, code);
+
+        _spy.CreateCalls.ShouldBe(1);
+        (await AttemptsAsync(placed.OrderId)).ShouldHaveSingleItem().Status.ShouldBe(PaymentAttemptStatus.Failed);
+        (await StatusAsync(placed.OrderId)).ShouldBe(becomes);
+    }
+
+    [Fact]
+    public async Task Losing_only_the_unique_index_race_returns_the_winners_attempt()
+    {
+        var placed = await AwaitingWithFailedAttemptAsync();
+        Guid winner = Guid.Empty;
+        _spy.AfterCreate = async session =>
+        {
+            // Another request recorded the very same session and left the order untouched.
+            _spy.AfterCreate = null;
+            winner = await RecordAttemptAsync(placed, session);
+        };
+
+        var pay = await JsonAsync(await PayAsync(placed));
+
+        winner.ShouldNotBe(Guid.Empty);
+        pay.GetProperty("attemptId").GetGuid().ShouldBe(winner);
+        (await AttemptsAsync(placed.OrderId)).Count.ShouldBe(2);
+        (await StatusAsync(placed.OrderId)).ShouldBe(OrderStatus.AwaitingPayment);
+    }
+
+    /// <summary>AwaitingPayment whose only attempt failed: the path where the handler does not change the order itself.</summary>
+    private async Task<Placed> AwaitingWithFailedAttemptAsync()
+    {
+        var placed = await PlaceOrderAsync();
+        await JsonAsync(await PayAsync(placed));
+        await WithDbAsync(async db =>
+        {
+            (await db.PaymentAttempts.SingleAsync(a => a.OrderId == placed.OrderId, Ct)).MarkFailed();
+            await db.SaveChangesAsync(Ct);
+            return 0;
+        });
+        _spy.Reset();
+        return placed;
+    }
+
+    private Task<Guid> RecordAttemptAsync(Placed placed, PaymentSession session) => WithDbAsync(async db =>
+    {
+        var attempt = PaymentAttempt.Create(
+            placed.OrderId, "mock", session.SessionId, session.RedirectUrl.AbsoluteUri, new Money(placed.Total), placed.ExpiresAt, DateTimeOffset.UtcNow);
+        db.PaymentAttempts.Add(attempt);
+        await db.SaveChangesAsync(Ct);
+        return attempt.Id;
+    });
+
+    // ---- the clock moves while the gateway is called ----
+
+    private (WebApplicationFactory<Program> Host, HttpClient Client, FakeTimeProvider Time) FakeClockHost()
+    {
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var host = _factory.WithWebHostBuilder(b => b.ConfigureTestServices(s =>
+        {
+            s.AddSingleton<TimeProvider>(time);
+            s.AddSingleton<IPaymentGatewayResolver>(sp => new SpyResolver(ActivatorUtilities.CreateInstance<PaymentGatewayResolver>(sp), _spy));
+        }));
+        return (host, host.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false }), time);
+    }
+
+    [Fact]
+    public async Task An_order_that_runs_out_of_time_while_the_session_opens_is_order_expired_and_no_attempt_is_written()
+    {
+        var placed = await PlaceOrderAsync();
+        var (host, client, time) = FakeClockHost();
+        await using var hostLease = host;
+        using var clientLease = client;
+        _spy.AfterCreate = _ =>
+        {
+            time.Advance(TimeSpan.FromMinutes(9));
+            return Task.CompletedTask;
+        };
+
+        var response = await SendAsync(HttpMethod.Post, $"/api/v1/orders/{placed.OrderId}/pay", placed.Buyer.Access, key: Guid.NewGuid().ToString(), client: client);
+
+        await ShouldFailWithAsync(response, HttpStatusCode.Conflict, "order.expired");
+        _spy.CreateCalls.ShouldBe(1);
+        (await AttemptsAsync(placed.OrderId)).ShouldBeEmpty();
+        (await StatusAsync(placed.OrderId)).ShouldBe(OrderStatus.Pending);
+    }
+
+    [Fact]
+    public async Task The_attempt_and_the_response_use_the_time_after_the_session_opened()
+    {
+        var placed = await PlaceOrderAsync();
+        var (host, client, time) = FakeClockHost();
+        await using var hostLease = host;
+        using var clientLease = client;
+        var before = time.GetUtcNow();
+        _spy.AfterCreate = _ =>
+        {
+            time.Advance(TimeSpan.FromSeconds(20));
+            return Task.CompletedTask;
+        };
+
+        var pay = await JsonAsync(await SendAsync(HttpMethod.Post, $"/api/v1/orders/{placed.OrderId}/pay", placed.Buyer.Access, key: Guid.NewGuid().ToString(), client: client));
+
+        pay.GetProperty("serverNow").GetDateTimeOffset().ShouldBe(before.AddSeconds(20));
+        (await AttemptsAsync(placed.OrderId)).ShouldHaveSingleItem().CreatedAt.ShouldBe(before.AddSeconds(20), TimeSpan.FromMilliseconds(1));
+    }
+
+    // ---- more refusals and the stale attempt ----
+
+    [Fact]
+    public async Task A_hold_replaced_by_a_newer_one_no_longer_backs_the_order()
+    {
+        var placed = await PlaceOrderAsync();
+        var newer = new HoldRequest(_event, placed.Buyer.UserId, [], [new GaLine(_gaTier, 1)], _gaTiers, 8, true, DateTimeOffset.UtcNow, TimeSpan.FromMinutes(8));
+        (await Store.CreateHoldAsync(newer, Ct)).Status.ShouldBe(HoldStatus.Ok);
+
+        await ShouldFailWithAsync(await PayAsync(placed), HttpStatusCode.Conflict, "order.hold_expired");
+
+        _spy.CreateCalls.ShouldBe(0);
+        (await StatusAsync(placed.OrderId)).ShouldBe(OrderStatus.Pending);
+    }
+
+    [Fact]
+    public async Task A_hold_that_ran_out_by_time_is_hold_expired_even_while_the_order_row_still_has_time()
+    {
+        var placed = await PlaceOrderAsync(holdTtl: TimeSpan.FromSeconds(2));
+        await SetOrderExpiryAsync(placed.OrderId, DateTimeOffset.UtcNow.AddMinutes(8));
+        await Task.Delay(TimeSpan.FromSeconds(2.5), Ct);
+
+        await ShouldFailWithAsync(await PayAsync(placed), HttpStatusCode.Conflict, "order.hold_expired");
+
+        _spy.CreateCalls.ShouldBe(0);
+        (await StatusAsync(placed.OrderId)).ShouldBe(OrderStatus.Pending);
+    }
+
+    [Fact]
+    public async Task Redis_being_down_while_the_hold_is_checked_is_system_busy_and_changes_nothing()
+    {
+        var placed = await PlaceOrderAsync();
+        var proxy = DispatchProxy.Create<IInventoryStore, SwitchableStore>();
+        var board = new Switchboard { Down = true };
+        ((SwitchableStore)(object)proxy).Setup(Store, board);
+        await using var host = _factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton(proxy)));
+        using var client = host.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+
+        var response = await SendAsync(HttpMethod.Post, $"/api/v1/orders/{placed.OrderId}/pay", placed.Buyer.Access, key: Guid.NewGuid().ToString(), client: client);
+
+        await ShouldFailWithAsync(response, HttpStatusCode.ServiceUnavailable, "system.busy");
+        (await AttemptsAsync(placed.OrderId)).ShouldBeEmpty();
+        (await StatusAsync(placed.OrderId)).ShouldBe(OrderStatus.Pending);
+    }
+
+    [Fact]
+    public async Task An_awaiting_order_whose_attempt_ran_out_of_time_gets_a_new_attempt_with_a_matching_session()
+    {
+        var placed = await PlaceOrderAsync();
+        var first = await JsonAsync(await PayAsync(placed));
+        await WithDbAsync(db => db.Database.ExecuteSqlAsync(
+            $"UPDATE payment_attempts SET expires_at = {DateTimeOffset.UtcNow.AddMinutes(-1)} WHERE order_id = {placed.OrderId}", Ct));
+
+        var pay = await JsonAsync(await PayAsync(placed));
+
+        pay.GetProperty("redirectUrl").GetString().ShouldNotBe(first.GetProperty("redirectUrl").GetString());
+        var attempts = await AttemptsAsync(placed.OrderId);
+        attempts.Count.ShouldBe(2);
+        var current = attempts.Single(a => a.Id == pay.GetProperty("attemptId").GetGuid());
+        (await MockSessionAsync(current.RedirectUrl))!.ExpiresAt.ShouldBe(current.ExpiresAt, TimeSpan.FromMilliseconds(5));
+        (await StatusAsync(placed.OrderId)).ShouldBe(OrderStatus.AwaitingPayment);
+    }
+
     // ---- gateway outage ----
 
     [Fact]
@@ -592,7 +799,9 @@ public sealed class PayOrderApiTests(ContainersFixture containers) : IAsyncLifet
 
         public Exception? Failure { get; set; }
 
-        public Func<Task>? AfterCreate { get; set; }
+        public Func<PaymentSession, Task>? AfterCreate { get; set; }
+
+        public void Reset() => Interlocked.Exchange(ref _createCalls, 0);
 
         public void Count() => Interlocked.Increment(ref _createCalls);
     }
@@ -612,7 +821,7 @@ public sealed class PayOrderApiTests(ContainersFixture containers) : IAsyncLifet
             var session = await inner.CreateSessionAsync(order, returnUrl, expiresAt, idempotencyKey, ct);
             if (spy.AfterCreate is { } after)
             {
-                await after();
+                await after(session);
             }
 
             return session;
@@ -624,5 +833,36 @@ public sealed class PayOrderApiTests(ContainersFixture containers) : IAsyncLifet
             inner.RefundAsync(sessionId, amount, idempotencyKey, ct);
 
         public WebhookEvent VerifyAndParse(WebhookHeaders headers, string body) => inner.VerifyAndParse(headers, body);
+    }
+
+    public sealed class Switchboard
+    {
+        public bool Down { get; set; }
+    }
+
+    /// <summary>Wraps the real inventory so the hold lookup fails like a Redis outage.</summary>
+    public class SwitchableStore : DispatchProxy
+    {
+        private IInventoryStore _inner = null!;
+        private Switchboard _board = null!;
+
+        internal void Setup(IInventoryStore inner, Switchboard board) => (_inner, _board) = (inner, board);
+
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            if (_board.Down && targetMethod!.Name == nameof(IInventoryStore.GetUserHoldAsync))
+            {
+                throw new InventoryUnavailableException("down");
+            }
+
+            try
+            {
+                return targetMethod!.Invoke(_inner, args);
+            }
+            catch (TargetInvocationException ex) when (ex.InnerException is not null)
+            {
+                throw ex.InnerException;
+            }
+        }
     }
 }

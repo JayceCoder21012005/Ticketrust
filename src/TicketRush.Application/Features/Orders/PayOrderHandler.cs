@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TicketRush.Application.Abstractions.Inventory;
 using TicketRush.Application.Abstractions.Payments;
@@ -23,12 +24,13 @@ namespace TicketRush.Application.Features.Orders;
 /// reloads and answers from what the winner committed. The return URL is built here from configuration, never taken from the client.
 /// </para>
 /// </summary>
-public sealed class PayOrderHandler(
+public sealed partial class PayOrderHandler(
     IAppDbContext db,
     IPaymentGatewayResolver gateways,
     IInventoryStore store,
     IOptions<FrontendOptions> frontend,
-    TimeProvider time)
+    TimeProvider time,
+    ILogger<PayOrderHandler> logger)
 {
     public Task<Result<PayOrderResponse>> HandleAsync(Guid userId, Guid orderId, CancellationToken ct) =>
         HandleAsync(userId, orderId, retried: false, ct);
@@ -65,19 +67,20 @@ public sealed class PayOrderHandler(
     private static Error? RefusalFor(Order order, DateTimeOffset now) => order.Status switch
     {
         OrderStatus.Pending or OrderStatus.AwaitingPayment or OrderStatus.PaymentFailed => now >= order.ExpiresAt ? OrderErrors.Expired : null,
+        OrderStatus.Expired => OrderErrors.Expired,
         _ => OrderErrors.NotPayable,
     };
 
     private Task<PaymentAttempt?> FindLiveAttemptAsync(Guid orderId, DateTimeOffset now, CancellationToken ct) =>
         db.PaymentAttempts.AsNoTracking()
-            .Where(a => a.OrderId == orderId && a.Status == PaymentAttemptStatus.Pending && a.ExpiresAt > now)
+            .Where(a => a.OrderId == orderId && a.Status == PaymentAttemptStatus.Pending && a.ExpiresAt > now && a.RedirectUrl != string.Empty)
             .OrderByDescending(a => a.CreatedAt)
             .FirstOrDefaultAsync(ct);
 
     /// <returns>The answer, or null when a concurrent request changed the order first and the caller should look again.</returns>
     private async Task<Result<PayOrderResponse>?> StartAsync(Order order, DateTimeOffset now, bool retried, CancellationToken ct)
     {
-        if (order.ExpiresAt - PaymentAttempt.GatewayMargin <= now)
+        if (WindowClosed(order, now))
         {
             return OrderErrors.Expired;
         }
@@ -90,8 +93,18 @@ public sealed class PayOrderHandler(
         var gateway = gateways.Default;
         var number = await db.PaymentAttempts.CountAsync(a => a.OrderId == order.Id, ct) + 1;
         var session = await OpenSessionAsync(gateway, order, number, ct);
-        return session.IsFailure ? session.Error : await CommitAsync(order, gateway, session.Value, now, retried, ct);
+        if (session.IsFailure)
+        {
+            return session.Error;
+        }
+
+        // Retries and timeouts can take many seconds: judge and stamp the commit with the time it happens, not the time we started.
+        // An order that ran out meanwhile leaves the session unreachable and harmless; it expires on its own.
+        var committedAt = time.GetUtcNow();
+        return WindowClosed(order, committedAt) ? OrderErrors.Expired : await CommitAsync(order, gateway, session.Value, committedAt, retried, ct);
     }
+
+    private static bool WindowClosed(Order order, DateTimeOffset now) => order.ExpiresAt - PaymentAttempt.GatewayMargin <= now;
 
     /// <summary>The buyer's seats must still be theirs: a dead hold means the seats may already be someone else's.</summary>
     private async Task<Error?> CheckHoldAsync(Order order, DateTimeOffset now, CancellationToken ct)
@@ -130,10 +143,7 @@ public sealed class PayOrderHandler(
     {
         try
         {
-            if (order.Status != OrderStatus.AwaitingPayment)
-            {
-                order.StartPayment(now);
-            }
+            StartOrTouch(order, now);
 
             var attempt = PaymentAttempt.Create(order.Id, gateway.Provider, session.SessionId, session.RedirectUrl.AbsoluteUri, order.Total, order.ExpiresAt, now);
             db.PaymentAttempts.Add(attempt);
@@ -144,13 +154,33 @@ public sealed class PayOrderHandler(
         {
             return OrderErrors.Expired;
         }
-        catch (DbUpdateException) when (!retried)
+        catch (DbUpdateException ex) when (!retried)
         {
-            // A concurrent pay (or cancel/expiry) got there first: forget our changes and answer from what it committed.
+            // A concurrent pay (or cancel/expiry/webhook) got there first: forget our changes and answer from what it committed.
+            LogConflict(ex, order.Id);
             db.ChangeTracker.Clear();
             return null;
         }
     }
+
+    /// <summary>
+    /// Pending/PaymentFailed move to AwaitingPayment. An order that is already AwaitingPayment would otherwise stay unchanged,
+    /// EF would skip the <c>xmin</c> check and a Paid or Expired order could get a new payable attempt; marking
+    /// <c>UpdatedAt</c> modified makes the save a guarded <c>UPDATE ... WHERE xmin = @x</c> in both cases.
+    /// </summary>
+    private void StartOrTouch(Order order, DateTimeOffset now)
+    {
+        if (order.Status != OrderStatus.AwaitingPayment)
+        {
+            order.StartPayment(now);
+            return;
+        }
+
+        db.Entry(order).Property(o => o.UpdatedAt).IsModified = true;
+    }
+
+    [LoggerMessage(EventId = 8001, Level = LogLevel.Warning, Message = "Saving a payment attempt for order {OrderId} conflicted with a concurrent change; reloading the order.")]
+    private partial void LogConflict(Exception exception, Guid orderId);
 
     private static PayOrderResponse ToResponse(PaymentAttempt attempt, DateTimeOffset now) =>
         new(attempt.RedirectUrl, attempt.Id, attempt.ExpiresAt, now);
