@@ -25,6 +25,11 @@ builder.Services.AddTicketRushSignalR(builder.Configuration);
 builder.Services.AddHostedService<SeatDeltaBroadcaster>();
 builder.Services.AddHostedService<QueueRoomStatusService>();
 
+// Spec 08: expire unpaid orders (asking the gateway first) and send refunds until they are confirmed or parked.
+builder.Services.AddSingleton<PaymentWorkerMetrics>();
+builder.Services.AddHostedService<OrderExpiryService>();
+builder.Services.AddHostedService<RefundWorker>();
+
 // Dev/demo only: delivers the mock payment gateway's signed webhooks (spec 08). Off unless Payments:Mock:Enabled.
 if (builder.Configuration.GetValue<bool>($"{MockGatewayOptions.SectionName}:Enabled"))
 {

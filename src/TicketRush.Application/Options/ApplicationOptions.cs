@@ -53,6 +53,35 @@ public sealed class FulfilmentOptions
     public TimeSpan LockTimeout { get; set; } = TimeSpan.FromSeconds(5);
 }
 
+/// <summary>
+/// Refund worker (spec 08): how a refund the gateway DECLINES is retried before a person has to look at it. A gateway
+/// outage is not a decline: it is simply tried again on the next pass and never parks anything.
+/// </summary>
+public sealed class RefundOptions
+{
+    public const string SectionName = "Refunds";
+
+    /// <summary>Declines after which the refund is parked (<c>refund_needs_attention</c>) instead of retried.</summary>
+    [Range(1, 100)]
+    public int MaxDeclines { get; set; } = 8;
+
+    /// <summary>Wait after the first decline; doubled after each further one.</summary>
+    [Range(typeof(TimeSpan), "00:00:01", "01:00:00")]
+    public TimeSpan RetryBaseDelay { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>Longest wait between two tries.</summary>
+    [Range(typeof(TimeSpan), "00:00:01", "1.00:00:00")]
+    public TimeSpan RetryMaxDelay { get; set; } = TimeSpan.FromHours(1);
+
+    /// <summary>Wait after the <paramref name="declines"/>-th decline: <see cref="RetryBaseDelay"/> × 2^(declines − 1), at most <see cref="RetryMaxDelay"/>.</summary>
+    public TimeSpan DelayAfter(int declines)
+    {
+        var doublings = Math.Clamp(declines - 1, 0, 40);
+        var ticks = RetryBaseDelay.Ticks * Math.Pow(2, doublings);
+        return ticks >= RetryMaxDelay.Ticks ? RetryMaxDelay : TimeSpan.FromTicks((long)ticks);
+    }
+}
+
 /// <summary>Rate limit budgets (spec 12).</summary>
 public sealed class RateLimitsOptions
 {
