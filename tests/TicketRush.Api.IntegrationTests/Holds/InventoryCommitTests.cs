@@ -141,6 +141,26 @@ public sealed class InventoryCommitTests(ContainersFixture containers) : IAsyncL
     }
 
     [Fact]
+    public async Task Committing_a_seat_that_another_hold_owns_now_sells_it_and_removes_that_holds_claim()
+    {
+        var late = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        var expired = await _h.HoldAsync(late, 3);
+        await _h.Store.ReleaseHoldAsync(_h.EventId, expired.HoldId!.Value, _h.GaTiers, None);
+        var newOwner = await _h.HoldAsync(other, 3);
+        var messages = await _h.ListenAsync();
+
+        await _h.Store.CommitAsync(_h.EventId, Guid.NewGuid(), expired.HoldId!.Value, late, [3], [], _h.GaTiers, None);
+        await _h.Store.ReleaseHoldAsync(_h.EventId, newOwner.HoldId!.Value, _h.GaTiers, None);
+
+        var snapshot = await _h.Store.GetSnapshotAsync(_h.EventId, _h.GaTiers, None);
+        snapshot.Sold.ShouldBe([3]);
+        snapshot.Held.ShouldBeEmpty();
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+        messages.ShouldNotContain(m => m.Contains("\"freed\":[3]", StringComparison.Ordinal), "a sold seat is never announced as free");
+    }
+
+    [Fact]
     public async Task Committed_seats_cannot_be_held_again()
     {
         var user = Guid.NewGuid();

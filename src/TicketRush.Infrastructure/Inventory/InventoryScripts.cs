@@ -61,7 +61,7 @@ public static class InventoryScripts
         RedisKey[] fixedKeys =
         [
             keys.InvHeld(eventId), keys.InvExpiry(eventId), keys.InvUserHold(eventId, userId ?? Guid.Empty),
-            keys.InvVersion(eventId), keys.InvGaHeld(eventId), keys.InvHold(eventId, holdId),
+            keys.InvVersion(eventId), keys.InvGaHeld(eventId), keys.InvHold(eventId, holdId), keys.InvSold(eventId),
         ];
         return (RedisResult[])(await LuaScripts.RunAsync(
             db,

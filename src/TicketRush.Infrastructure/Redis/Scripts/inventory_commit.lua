@@ -8,7 +8,8 @@
 -- Live hold (its hash still exists): its GA was already taken when it was created, so only gaheld moves. A hold that is
 -- not live (expired and swept, released, or replaced by a newer hold of the user): gaheld is not touched (it belongs to
 -- whatever hold holds the GA now) and this order's GA is taken from remaining, exactly once (late payment, C3). The
--- database's unique index (08) is what settles a seat that was re-held by someone else in the meantime.
+-- database's unique index (08) is what settles a seat that was re-held by someone else in the meantime: a sold seat is
+-- removed from held whoever holds it, so it is never both held and sold (the other hold finds nothing to free later).
 
 local function split(s)
   local out = {}
@@ -31,7 +32,7 @@ local seats = split(ARGV[3])
 local count = #seats
 for _, seat in ipairs(seats) do
   redis.call('SADD', KEYS[1], seat)
-  if redis.call('HGET', KEYS[2], seat) == holdId then redis.call('HDEL', KEYS[2], seat) end
+  redis.call('HDEL', KEYS[2], seat)
 end
 
 local tiers = {}

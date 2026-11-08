@@ -40,6 +40,7 @@ using TicketRush.Infrastructure.Catalog;
 using TicketRush.Application.Features.Catalog;
 using TicketRush.Application.Abstractions.Catalog;
 using TicketRush.Domain.Events;
+using TicketRush.Domain.Orders;
 
 namespace TicketRush.Infrastructure;
 
@@ -100,6 +101,8 @@ public static class DependencyInjection
         services.AddSingleton<IIdempotencyStore, RedisIdempotencyStore>();
         services.AddIntegrationEventHandler<EventPublished, InventoryWarmHandler>();
         services.AddIntegrationEventHandler<EventCancelled, EventCancelledInventoryHandler>();
+        services.AddIntegrationEventHandler<OrderPaid, OrderPaidInventoryCommitHandler>();
+        services.AddIntegrationEventHandler<OrderPaid, OrderPaidLeaveQueueHandler>();
 
         PersistDataProtectionKeysToRedis(services);
         AddAccounts(services);

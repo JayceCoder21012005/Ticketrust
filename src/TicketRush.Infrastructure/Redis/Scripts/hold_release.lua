@@ -1,9 +1,10 @@
 -- Releases a hold (user DELETE, expiry sweep, cancellation). Idempotent (spec 07).
 -- KEYS: 1 held (HASH seat -> holdId), 2 expiry (ZSET), 3 userhold (STRING), 4 version (STRING), 5 gaheld (HASH),
---       6 hold (HASH), 7.. GA remaining of every GA tier of the event, in the order of ARGV[3]
+--       6 hold (HASH), 7 sold (SET), 8.. GA remaining of every GA tier of the event, in the order of ARGV[3]
 -- ARGV: 1 holdId, 2 delta channel, 3 GA tier ids csv
 -- Returns {'OK', version} | {'NOT_FOUND'}.
--- Seats are freed only where they still belong to this hold, so a late release never frees another buyer's seat.
+-- Seats are freed only where they still belong to this hold, so a late release never frees another buyer's seat. A seat
+-- that is already sold is cleared from held but never announced as freed.
 
 local function split(s)
   local out = {}
@@ -20,13 +21,13 @@ if not hold[3] then
 end
 
 local gaKey = {}
-for i, tier in ipairs(split(ARGV[3])) do gaKey[tier] = KEYS[6 + i] end
+for i, tier in ipairs(split(ARGV[3])) do gaKey[tier] = KEYS[7 + i] end
 
 local freed = {}
 for _, seat in ipairs(split(hold[1])) do
   if redis.call('HGET', KEYS[1], seat) == holdId then
     redis.call('HDEL', KEYS[1], seat)
-    freed[#freed + 1] = seat
+    if redis.call('SISMEMBER', KEYS[7], seat) == 0 then freed[#freed + 1] = seat end
   end
 end
 
