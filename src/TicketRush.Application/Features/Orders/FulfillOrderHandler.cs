@@ -151,7 +151,7 @@ public sealed partial class FulfillOrderHandler(
         // A provider bug must not mint tickets: no amount, another amount or another currency is a mismatch.
         if (paid != attempt.Amount)
         {
-            return RefundSession(order, attempt, RefundReasons.AmountMismatch, paid ?? attempt.Amount);
+            return RefundSession(order, attempt, RefundReasons.AmountMismatch, RefundableOf(paid, attempt.Amount));
         }
 
         if (order.Status is OrderStatus.AwaitingPayment or OrderStatus.PaymentFailed or OrderStatus.Expired)
@@ -224,6 +224,14 @@ public sealed partial class FulfillOrderHandler(
         LogRefund(order.Id, attempt.Id, reason);
         return PaymentWebhookOutcome.RefundPending;
     }
+
+    /// <summary>
+    /// What a mismatched payment can actually be refunded with: the gateway refunds only in the session's currency and never
+    /// more than the session collected. No amount or another currency → the amount we asked the session to collect; the same
+    /// currency → the reported amount, capped at that.
+    /// </summary>
+    private static Money RefundableOf(Money? paid, Money collected) =>
+        paid is null || paid.Currency != collected.Currency || paid.Amount > collected.Amount ? collected : paid;
 
     /// <summary>Only this session's money goes back (<see cref="PaymentRefundRequested"/>); the order and its tickets stay as they are.</summary>
     private PaymentWebhookOutcome RefundSession(Order order, PaymentAttempt attempt, string reason, Money amount)

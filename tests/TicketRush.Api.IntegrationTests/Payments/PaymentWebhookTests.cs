@@ -1188,15 +1188,46 @@ public sealed class PaymentWebhookTests(ContainersFixture containers) : IAsyncLi
         state.Attempts.ShouldBe([PaymentAttemptStatus.Succeeded]);
     }
 
+    /// <summary>
+    /// An order whose attempt is backed by a real mock-gateway session that the buyer has paid, so a requested refund can be
+    /// executed against the gateway exactly as B8's refund worker will.
+    /// </summary>
+    private Task<Placed> PlaceWithPaidMockSessionAsync(params OrderItem[] items) => WithDbAsync(async db =>
+    {
+        var now = DateTimeOffset.UtcNow;
+        var total = items.Aggregate(Money.Zero(), (sum, item) => sum + item.LineTotal());
+        var order = Order.Create(Guid.CreateVersion7(), _event, Guid.CreateVersion7(), items, total, new BuyerInfo("An", "an@example.com", null), now.AddMinutes(8), now);
+        order.StartPayment(now);
+        var gateway = _factory.Services.GetRequiredService<MockPaymentGateway>();
+        var session = await gateway.CreateSessionAsync(
+            order, new Uri($"http://localhost:3000/checkout/{order.Id}/result"), order.ExpiresAt - PaymentAttempt.GatewayMargin, $"order:{order.Id:N}:attempt:1", Ct);
+        (await _factory.Services.GetRequiredService<MockGatewayControl>().CompleteAsync(session.SessionId, MockOutcome.Succeeded, Ct)).IsSuccess.ShouldBeTrue();
+        var attempt = PaymentAttempt.Create(order.Id, "mock", session.SessionId, session.RedirectUrl.AbsoluteUri, total, order.ExpiresAt, now);
+        db.Orders.Add(order);
+        db.PaymentAttempts.Add(attempt);
+        await db.SaveChangesAsync(Ct);
+        return new Placed(order.Id, attempt.Id, session.SessionId, total.Amount, order.UserId);
+    });
+
+    /// <summary>
+    /// The refund must be one the gateway can execute: in the session's currency and never more than the session collected.
+    /// A smaller same-currency amount is refunded as reported (that is what was captured).
+    /// </summary>
     [Theory]
     [InlineData("missing_amount")]
     [InlineData("other_currency")]
-    public async Task A_success_without_the_sessions_exact_amount_mints_nothing_and_refunds(string kind)
+    [InlineData("more_than_collected")]
+    [InlineData("less_than_collected")]
+    public async Task A_success_without_the_sessions_exact_amount_mints_nothing_and_requests_a_refund_the_gateway_accepts(string kind)
     {
-        var placed = await PlaceAsync(Ga(2));
-        var body = kind == "missing_amount"
-            ? Body(placed.SessionId)
-            : Body(placed.SessionId, amount: placed.Total, currency: "USD");
+        var placed = await PlaceWithPaidMockSessionAsync(Ga(2));
+        var (body, expected) = kind switch
+        {
+            "missing_amount" => (Body(placed.SessionId), placed.Total),
+            "other_currency" => (Body(placed.SessionId, amount: placed.Total, currency: "USD"), placed.Total),
+            "more_than_collected" => (Body(placed.SessionId, amount: placed.Total + 500_000), placed.Total),
+            _ => (Body(placed.SessionId, amount: placed.Total - 1_000), placed.Total - 1_000),
+        };
 
         (await OutcomeAsync(await DeliverAsync(body))).ShouldBe("refund_pending");
 
@@ -1207,8 +1238,11 @@ public sealed class PaymentWebhookTests(ContainersFixture containers) : IAsyncLi
         var refund = await WithDbAsync(db => db.OutboxMessages.AsNoTracking().SingleAsync(m => m.Type == nameof(PaymentRefundRequested), Ct));
         var payload = JsonSerializer.Deserialize<PaymentRefundRequested>(refund.Payload, Json)!;
         payload.Reason.ShouldBe(RefundReasons.AmountMismatch);
-        payload.Amount.ShouldBe(placed.Total);
-        payload.Currency.ShouldBe(kind == "missing_amount" ? "VND" : "USD");
+        payload.Amount.ShouldBe(expected);
+        payload.Currency.ShouldBe("VND");
+        var executed = await _factory.Services.GetRequiredService<MockPaymentGateway>()
+            .RefundAsync(payload.SessionId, new Money(payload.Amount, payload.Currency), $"attempt:{payload.AttemptId}", Ct);
+        executed.IsSuccess.ShouldBeTrue(executed.FailureReason);
     }
 
     [Fact]
