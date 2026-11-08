@@ -1218,12 +1218,14 @@ public sealed class PaymentWebhookTests(ContainersFixture containers) : IAsyncLi
     [InlineData("other_currency")]
     [InlineData("more_than_collected")]
     [InlineData("less_than_collected")]
+    [InlineData("zero_amount")]
     public async Task A_success_without_the_sessions_exact_amount_mints_nothing_and_requests_a_refund_the_gateway_accepts(string kind)
     {
         var placed = await PlaceWithPaidMockSessionAsync(Ga(2));
         var (body, expected) = kind switch
         {
             "missing_amount" => (Body(placed.SessionId), placed.Total),
+            "zero_amount" => (Body(placed.SessionId, amount: 0), placed.Total),
             "other_currency" => (Body(placed.SessionId, amount: placed.Total, currency: "USD"), placed.Total),
             "more_than_collected" => (Body(placed.SessionId, amount: placed.Total + 500_000), placed.Total),
             _ => (Body(placed.SessionId, amount: placed.Total - 1_000), placed.Total - 1_000),

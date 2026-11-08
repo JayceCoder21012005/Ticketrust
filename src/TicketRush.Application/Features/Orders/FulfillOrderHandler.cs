@@ -227,11 +227,11 @@ public sealed partial class FulfillOrderHandler(
 
     /// <summary>
     /// What a mismatched payment can actually be refunded with: the gateway refunds only in the session's currency and never
-    /// more than the session collected. No amount or another currency → the amount we asked the session to collect; the same
-    /// currency → the reported amount, capped at that.
+    /// more than the session collected, and a refund must be positive. No amount, zero, or another currency → the amount we
+    /// asked the session to collect; the same currency → the reported amount, capped at that.
     /// </summary>
     private static Money RefundableOf(Money? paid, Money collected) =>
-        paid is null || paid.Currency != collected.Currency || paid.Amount > collected.Amount ? collected : paid;
+        paid is null || paid.Amount <= 0 || paid.Currency != collected.Currency || paid.Amount > collected.Amount ? collected : paid;
 
     /// <summary>Only this session's money goes back (<see cref="PaymentRefundRequested"/>); the order and its tickets stay as they are.</summary>
     private PaymentWebhookOutcome RefundSession(Order order, PaymentAttempt attempt, string reason, Money amount)
