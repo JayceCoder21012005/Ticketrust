@@ -122,8 +122,8 @@ public sealed class PaymentWebhookTests(ContainersFixture containers) : IAsyncLi
 
     // ---------------------------------------------------------------- sending
 
-    private static string Body(string session, string type = MockWebhookPayload.SucceededType, long? amount = null, string? eventId = null) =>
-        new MockWebhookPayload(eventId ?? $"evt_mock_{Guid.NewGuid():N}", type, session, amount, "VND", DateTimeOffset.UtcNow).ToJson();
+    private static string Body(string session, string type = MockWebhookPayload.SucceededType, long? amount = null, string? eventId = null, string currency = "VND") =>
+        new MockWebhookPayload(eventId ?? $"evt_mock_{Guid.NewGuid():N}", type, session, amount, currency, DateTimeOffset.UtcNow).ToJson();
 
     private static string Sign(string body, DateTimeOffset? at = null) => WebhookSignature.Sign(Secret, body, at ?? DateTimeOffset.UtcNow);
 
@@ -372,8 +372,19 @@ public sealed class PaymentWebhookTests(ContainersFixture containers) : IAsyncLi
         var placed = await PlaceAsync(Seat(_seats[0]), Seat(_seats[1]), Ga(2));
         var body = Body(placed.SessionId, amount: placed.Total);
         var soldBefore = await SoldCountAsync();
+        // Barrier: the delivery that recorded the event holds its transaction open until the four others are all
+        // blocked on its uncommitted processed_webhooks row, so the five really overlap.
+        var (host, client) = HookedHost(before: async (_, call) =>
+        {
+            if (call == 1)
+            {
+                await WaitForLockWaitersAsync("transactionid", 4);
+            }
+        });
+        await using var hostLease = host;
+        using var clientLease = client;
 
-        var responses = await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => DeliverAsync(body)));
+        var responses = await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => DeliverAsync(body, client)));
 
         var outcomes = await Task.WhenAll(responses.Select(OutcomeAsync));
         outcomes.Order().ShouldBe(["duplicate", "duplicate", "duplicate", "duplicate", "paid"]);
@@ -573,6 +584,7 @@ public sealed class PaymentWebhookTests(ContainersFixture containers) : IAsyncLi
         (await OutcomeAsync(await SucceedAsync(second))).ShouldBe("refund_pending");
 
         (await StateAsync(second.OrderId)).Status.ShouldBe(OrderStatus.RefundPending);
+        (await StateAsync(second.OrderId)).RefundReason.ShouldBe(RefundReasons.PurchaseLimitExceeded);
         (await StateAsync(second.OrderId)).Tickets.ShouldBe(0);
         (await SoldCountAsync()).ShouldBe(soldBefore);
         (await WithDbAsync(db => db.Tickets.CountAsync(t => t.OwnerUserId == buyer, Ct))).ShouldBe(3);
@@ -619,7 +631,7 @@ public sealed class PaymentWebhookTests(ContainersFixture containers) : IAsyncLi
 
     [Theory]
     [InlineData("Cancelled", RefundReasons.EventCancelled)]
-    [InlineData("Ended", RefundReasons.SeatsUnavailable)]
+    [InlineData("Ended", RefundReasons.EventEnded)]
     public async Task A_success_for_an_event_no_longer_on_sale_issues_no_tickets_and_goes_to_refund(string eventStatus, string reason)
     {
         var placed = await PlaceAsync(Seat(_seats[9]), Ga(1));
@@ -666,8 +678,18 @@ public sealed class PaymentWebhookTests(ContainersFixture containers) : IAsyncLi
     {
         var placed = await PlaceAsync(Seat(_seats[6]), Ga(1));
         var second = await SecondAttemptAsync(placed);
+        // Barrier: whichever session wins the buyer lock first waits until the other is blocked on it.
+        var (host, client) = HookedHost(after: async (_, call) =>
+        {
+            if (call == 1)
+            {
+                await WaitForLockWaitersAsync("advisory", 1);
+            }
+        });
+        await using var hostLease = host;
+        using var clientLease = client;
 
-        var outcomes = await Task.WhenAll(new[] { placed, second }.Select(async p => await OutcomeAsync(await SucceedAsync(p))));
+        var outcomes = await Task.WhenAll(new[] { placed, second }.Select(async p => await OutcomeAsync(await SucceedAsync(p, client: client))));
 
         outcomes.Order().ShouldBe(["paid", "refund_pending"]);
         var state = await StateAsync(placed.OrderId);
@@ -720,13 +742,44 @@ public sealed class PaymentWebhookTests(ContainersFixture containers) : IAsyncLi
 
     // ================================================================ failures and races
 
-    /// <summary>A host whose purchase-limit check (called inside the fulfilment transaction, before any claim) runs a hook.</summary>
-    private (WebApplicationFactory<Program> Host, HttpClient Client) HookedHost(Func<IServiceProvider, int, Task> hook)
+    /// <summary>
+    /// A host whose purchase-limit check runs hooks inside the fulfilment transaction: <paramref name="before"/> after the
+    /// event sale lock and before the buyer lock, <paramref name="after"/> once the buyer lock is held and the count is done
+    /// (numbered in the order the lock was won). Barrier tests hold a transaction there, so the host's lock timeout is
+    /// generous unless <paramref name="lockTimeout"/> says otherwise.
+    /// </summary>
+    private (WebApplicationFactory<Program> Host, HttpClient Client) HookedHost(
+        Func<IServiceProvider, int, Task>? before = null, Func<IServiceProvider, int, Task>? after = null, string lockTimeout = "00:00:30")
     {
-        var calls = 0;
-        var host = _factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddScoped<ITicketPurchaseLimit>(sp =>
-            new HookedLimit(ActivatorUtilities.CreateInstance<TicketPurchaseLimit>(sp), () => hook(sp, Interlocked.Increment(ref calls))))));
+        var beforeCalls = 0;
+        var afterCalls = 0;
+        var host = _factory.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Fulfilment:LockTimeout", lockTimeout);
+            b.ConfigureTestServices(s => s.AddScoped<ITicketPurchaseLimit>(sp => new HookedLimit(
+                ActivatorUtilities.CreateInstance<TicketPurchaseLimit>(sp),
+                () => before?.Invoke(sp, Interlocked.Increment(ref beforeCalls)) ?? Task.CompletedTask,
+                () => after?.Invoke(sp, Interlocked.Increment(ref afterCalls)) ?? Task.CompletedTask)));
+        });
         return (host, host.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false }));
+    }
+
+    /// <summary>Waits until <paramref name="count"/> sessions of this test's database wait for a lock of the given kind (pg_stat_activity).</summary>
+    private async Task WaitForLockWaitersAsync(string waitEvent, int count)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(20);
+        while (await WithDbAsync(db => db.Database.SqlQuery<int>($"""
+            SELECT count(*)::int AS "Value" FROM pg_stat_activity
+            WHERE datname = current_database() AND wait_event_type = 'Lock' AND wait_event = {waitEvent}
+            """).SingleAsync(Ct)) < count)
+        {
+            if (DateTimeOffset.UtcNow > deadline)
+            {
+                throw new ShouldAssertException($"Expected {count} sessions waiting on a {waitEvent} lock.");
+            }
+
+            await Task.Delay(25, Ct);
+        }
     }
 
     [Fact]
@@ -854,14 +907,332 @@ public sealed class PaymentWebhookTests(ContainersFixture containers) : IAsyncLi
         throw new ShouldAssertException("A webhook was never accepted.");
     }
 
+    // ================================================================ races with barriers (fix round 1)
+
+    [Fact]
+    public async Task Two_orders_of_one_buyer_over_the_limit_together_racing_fulfil_one_and_refund_the_other()
+    {
+        var buyer = Guid.CreateVersion7();
+        var first = await PlaceForAsync(buyer, Ga(3));
+        var second = await PlaceForAsync(buyer, Ga(2));
+        // Barrier: the order that wins the buyer lock holds it, count done, until the other is blocked on that lock.
+        var (host, client) = HookedHost(after: async (_, call) =>
+        {
+            if (call == 1)
+            {
+                await WaitForLockWaitersAsync("advisory", 1);
+            }
+        });
+        await using var hostLease = host;
+        using var clientLease = client;
+
+        var outcomes = await Task.WhenAll(new[] { first, second }.Select(async p => await OutcomeAsync(await SucceedAsync(p, client: client))));
+
+        outcomes.Order().ShouldBe(["paid", "refund_pending"]);
+        var states = new[] { await StateAsync(first.OrderId), await StateAsync(second.OrderId) };
+        var refunded = states.Single(s => s.Status == OrderStatus.RefundPending);
+        refunded.RefundReason.ShouldBe(RefundReasons.PurchaseLimitExceeded);
+        refunded.Tickets.ShouldBe(0);
+        (await WithDbAsync(db => db.Tickets.CountAsync(t => t.OwnerUserId == buyer, Ct))).ShouldBeLessThanOrEqualTo(4);
+        await AssertInventoryInvariantsAsync();
+    }
+
+    [Fact]
+    public async Task Two_event_ids_for_one_session_racing_pay_once_and_ignore_the_other()
+    {
+        var placed = await PlaceAsync(Seat(_seats[10]), Ga(1));
+        var (host, client) = HookedHost(after: async (_, call) =>
+        {
+            if (call == 1)
+            {
+                await WaitForLockWaitersAsync("advisory", 1);
+            }
+        });
+        await using var hostLease = host;
+        using var clientLease = client;
+
+        var outcomes = await Task.WhenAll(Enumerable.Range(0, 2).Select(async _ => await OutcomeAsync(await SucceedAsync(placed, client: client))));
+
+        outcomes.Order().ShouldBe(["ignored", "paid"]);
+        var state = await StateAsync(placed.OrderId);
+        state.Status.ShouldBe(OrderStatus.Paid);
+        state.Tickets.ShouldBe(2);
+        state.Attempts.ShouldBe([PaymentAttemptStatus.Succeeded]);
+        state.Outbox.Count(t => t == nameof(OrderPaid)).ShouldBe(1);
+        (await WithDbAsync(db => db.ProcessedWebhooks.CountAsync(Ct))).ShouldBe(2);
+    }
+
+    private Task<int> CancelEventLikeB9Async() => WithDbAsync(async db =>
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(Ct);
+        await EventSaleLocks.AcquireExclusiveAsync(db, _event, Ct);
+        await db.Database.ExecuteSqlAsync($"UPDATE events SET status = 'Cancelled' WHERE id = {_event}", Ct);
+        await transaction.CommitAsync(Ct);
+        return 0;
+    });
+
+    private Task<EventStatus> EventStatusAsync() =>
+        WithDbAsync(db => db.Events.AsNoTracking().Where(e => e.Id == _event).Select(e => e.Status).SingleAsync(Ct));
+
+    [Fact]
+    public async Task A_cancellation_that_starts_during_a_fulfilment_waits_for_it_and_the_order_is_paid()
+    {
+        var placed = await PlaceAsync(Seat(_seats[11]), Ga(1));
+        Task? cancel = null;
+        var (host, client) = HookedHost(before: async (_, call) =>
+        {
+            if (call == 1)
+            {
+                // The fulfilment holds the shared sale lock; the cancellation must queue behind it.
+                cancel = Task.Run(CancelEventLikeB9Async);
+                await WaitForLockWaitersAsync("advisory", 1);
+                cancel.IsCompleted.ShouldBeFalse();
+            }
+        });
+        await using var hostLease = host;
+        using var clientLease = client;
+
+        (await OutcomeAsync(await SucceedAsync(placed, client: client))).ShouldBe("paid");
+        await cancel!;
+
+        (await EventStatusAsync()).ShouldBe(EventStatus.Cancelled);
+        var state = await StateAsync(placed.OrderId);
+        state.Status.ShouldBe(OrderStatus.Paid, "paid before the cancel committed: B9's sweep refunds it");
+        state.Tickets.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task A_fulfilment_that_starts_during_a_cancellation_waits_for_it_and_sees_the_cancel()
+    {
+        var placed = await PlaceAsync(Seat(_seats[12]), Ga(1));
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var transaction = await db.Database.BeginTransactionAsync(Ct);
+        await EventSaleLocks.AcquireExclusiveAsync(db, _event, Ct);
+        await db.Database.ExecuteSqlAsync($"UPDATE events SET status = 'Cancelled' WHERE id = {_event}", Ct);
+
+        var webhook = SucceedAsync(placed);
+        await WaitForLockWaitersAsync("advisory", 1);
+        webhook.IsCompleted.ShouldBeFalse("the fulfilment must wait for the exclusive sale lock");
+        await transaction.CommitAsync(Ct);
+
+        (await OutcomeAsync(await webhook)).ShouldBe("refund_pending");
+        var state = await StateAsync(placed.OrderId);
+        state.Status.ShouldBe(OrderStatus.RefundPending);
+        state.RefundReason.ShouldBe(RefundReasons.EventCancelled);
+        state.Tickets.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_sale_lock_held_past_the_lock_timeout_is_a_5xx_that_commits_nothing_and_the_redelivery_succeeds()
+    {
+        var placed = await PlaceAsync(Ga(1));
+        var (host, client) = HookedHost(lockTimeout: "00:00:00.500");
+        await using var hostLease = host;
+        using var clientLease = client;
+        var body = Body(placed.SessionId, amount: placed.Total);
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await using var stuck = await db.Database.BeginTransactionAsync(Ct);
+            await EventSaleLocks.AcquireExclusiveAsync(db, _event, Ct);
+
+            await ShouldBeProblemAsync(await DeliverAsync(body, client), HttpStatusCode.InternalServerError, "webhook.not_processed");
+
+            (await WithDbAsync(d => d.ProcessedWebhooks.CountAsync(Ct))).ShouldBe(0);
+            (await StateAsync(placed.OrderId)).Status.ShouldBe(OrderStatus.AwaitingPayment);
+        }
+
+        (await OutcomeAsync(await DeliverAsync(body, client))).ShouldBe("paid");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_deadlock_is_retried_up_to_three_times_then_a_clean_5xx(bool always)
+    {
+        var placed = await PlaceAsync(Ga(1));
+        var calls = 0;
+        var (host, client) = HookedHost(before: (_, call) =>
+        {
+            Interlocked.Exchange(ref calls, call);
+            return always || call == 1 ? Task.FromException(new Npgsql.PostgresException("deadlock detected", "ERROR", "ERROR", "40P01")) : Task.CompletedTask;
+        });
+        await using var hostLease = host;
+        using var clientLease = client;
+        var soldBefore = await SoldCountAsync();
+
+        var response = await SucceedAsync(placed, client: client);
+
+        if (!always)
+        {
+            (await OutcomeAsync(response)).ShouldBe("paid");
+            calls.ShouldBe(2);
+            return;
+        }
+
+        await ShouldBeProblemAsync(response, HttpStatusCode.InternalServerError, "webhook.not_processed");
+        calls.ShouldBe(1 + 3);
+        (await StateAsync(placed.OrderId)).ShouldBe(new OrderState(OrderStatus.AwaitingPayment, null, [PaymentAttemptStatus.Pending], 0, []), new OrderStateComparer());
+        (await WithDbAsync(db => db.ProcessedWebhooks.CountAsync(Ct))).ShouldBe(0);
+        (await SoldCountAsync()).ShouldBe(soldBefore);
+    }
+
+    [Fact]
+    public async Task A_conflict_without_a_reason_is_a_bug_answered_5xx_and_never_refunded()
+    {
+        var placed = await PlaceAsync(Ga(1));
+        var calls = 0;
+        var (host, client) = HookedHost(before: (_, call) =>
+        {
+            Interlocked.Exchange(ref calls, call);
+            return Task.FromException(new InventoryConflictException("a strategy forgot to say why"));
+        });
+        await using var hostLease = host;
+        using var clientLease = client;
+
+        await ShouldBeProblemAsync(await SucceedAsync(placed, client: client), HttpStatusCode.InternalServerError, "webhook.not_processed");
+
+        calls.ShouldBe(1);
+        (await StateAsync(placed.OrderId)).ShouldBe(new OrderState(OrderStatus.AwaitingPayment, null, [PaymentAttemptStatus.Pending], 0, []), new OrderStateComparer());
+        (await WithDbAsync(db => db.ProcessedWebhooks.CountAsync(Ct))).ShouldBe(0);
+    }
+
+    // ================================================================ remaining decision-table cells (fix round 1)
+
+    /// <summary>An order with one Pending attempt (one GA ticket), moved by <paramref name="then"/> into the state a cell needs.</summary>
+    private Task<Placed> PlaceWithAsync(bool started, Action<Order> then) => WithDbAsync(async db =>
+    {
+        var now = DateTimeOffset.UtcNow;
+        var order = Order.Create(Guid.CreateVersion7(), _event, Guid.CreateVersion7(), [Ga(1)], new Money(_ga.Price), new BuyerInfo("An", "an@example.com", null), now.AddMinutes(8), now);
+        if (started)
+        {
+            order.StartPayment(now);
+        }
+
+        var placed = await AddAttemptAsync(db, order, now);
+        then(order);
+        await db.SaveChangesAsync(Ct);
+        return placed;
+    });
+
+    [Theory]
+    [InlineData(OrderStatus.RefundPending, RefundReasons.DuplicatePayment)]
+    [InlineData(OrderStatus.Refunded, RefundReasons.DuplicatePayment)]
+    [InlineData(OrderStatus.Pending, RefundReasons.OrderClosed)]
+    public async Task A_success_on_an_order_that_cannot_take_this_money_refunds_the_session_only(OrderStatus status, string reason)
+    {
+        var placed = await PlaceWithAsync(status != OrderStatus.Pending, order =>
+        {
+            if (status != OrderStatus.Pending)
+            {
+                order.MarkUnfulfillable();
+            }
+
+            if (status == OrderStatus.Refunded)
+            {
+                order.MarkRefunded();
+            }
+        });
+
+        (await OutcomeAsync(await SucceedAsync(placed))).ShouldBe("refund_pending");
+
+        var state = await StateAsync(placed.OrderId);
+        state.Status.ShouldBe(status);
+        state.Tickets.ShouldBe(0);
+        state.Attempts.ShouldBe([PaymentAttemptStatus.RefundPending]);
+        var refund = await WithDbAsync(db => db.OutboxMessages.AsNoTracking().SingleAsync(m => m.Type == nameof(PaymentRefundRequested), Ct));
+        JsonSerializer.Deserialize<PaymentRefundRequested>(refund.Payload, Json)!.Reason.ShouldBe(reason);
+    }
+
+    [Theory]
+    [InlineData(OrderStatus.Expired)]
+    [InlineData(OrderStatus.PaymentFailed)]
+    [InlineData(OrderStatus.Paid)]
+    public async Task A_failure_of_a_pending_attempt_on_an_order_that_is_not_awaiting_only_fails_the_attempt(OrderStatus status)
+    {
+        var placed = await PlaceWithAsync(true, order =>
+        {
+            switch (status)
+            {
+                case OrderStatus.Expired:
+                    order.Expire();
+                    break;
+                case OrderStatus.PaymentFailed:
+                    order.MarkPaymentFailed();
+                    break;
+                default:
+                    order.MarkPaid(DateTimeOffset.UtcNow);
+                    break;
+            }
+        });
+
+        (await OutcomeAsync(await DeliverAsync(Body(placed.SessionId, MockWebhookPayload.FailedType, placed.Total)))).ShouldBe("failed");
+
+        var state = await StateAsync(placed.OrderId);
+        state.Status.ShouldBe(status);
+        state.Attempts.ShouldBe([PaymentAttemptStatus.Failed]);
+    }
+
+    [Fact]
+    public async Task A_refund_confirmation_on_a_paid_order_is_ignored()
+    {
+        var placed = await PlaceAsync(Ga(1));
+        (await OutcomeAsync(await SucceedAsync(placed))).ShouldBe("paid");
+
+        (await OutcomeAsync(await DeliverAsync(Body(placed.SessionId, MockWebhookPayload.RefundedType, placed.Total)))).ShouldBe("ignored");
+
+        var state = await StateAsync(placed.OrderId);
+        state.Status.ShouldBe(OrderStatus.Paid);
+        state.Tickets.ShouldBe(1);
+        state.Attempts.ShouldBe([PaymentAttemptStatus.Succeeded]);
+    }
+
+    [Theory]
+    [InlineData("missing_amount")]
+    [InlineData("other_currency")]
+    public async Task A_success_without_the_sessions_exact_amount_mints_nothing_and_refunds(string kind)
+    {
+        var placed = await PlaceAsync(Ga(2));
+        var body = kind == "missing_amount"
+            ? Body(placed.SessionId)
+            : Body(placed.SessionId, amount: placed.Total, currency: "USD");
+
+        (await OutcomeAsync(await DeliverAsync(body))).ShouldBe("refund_pending");
+
+        var state = await StateAsync(placed.OrderId);
+        state.Status.ShouldBe(OrderStatus.AwaitingPayment);
+        state.Tickets.ShouldBe(0);
+        state.Attempts.ShouldBe([PaymentAttemptStatus.RefundPending]);
+        var refund = await WithDbAsync(db => db.OutboxMessages.AsNoTracking().SingleAsync(m => m.Type == nameof(PaymentRefundRequested), Ct));
+        var payload = JsonSerializer.Deserialize<PaymentRefundRequested>(refund.Payload, Json)!;
+        payload.Reason.ShouldBe(RefundReasons.AmountMismatch);
+        payload.Amount.ShouldBe(placed.Total);
+        payload.Currency.ShouldBe(kind == "missing_amount" ? "VND" : "USD");
+    }
+
+    [Fact]
+    public async Task An_event_id_longer_than_200_characters_is_400_and_changes_nothing()
+    {
+        var placed = await PlaceAsync(Ga(1));
+        var before = await TotalsAsync();
+
+        var response = await DeliverAsync(Body(placed.SessionId, amount: placed.Total, eventId: new string('e', 201)));
+
+        await ShouldBeProblemAsync(response, HttpStatusCode.BadRequest, "webhook.invalid_payload");
+        (await TotalsAsync()).ShouldBe(before);
+    }
+
     // ================================================================ test doubles
 
-    private sealed class HookedLimit(ITicketPurchaseLimit inner, Func<Task> hook) : ITicketPurchaseLimit
+    private sealed class HookedLimit(ITicketPurchaseLimit inner, Func<Task> before, Func<Task> after) : ITicketPurchaseLimit
     {
         public async Task<bool> AllowsAsync(Guid eventId, Guid userId, int adding, CancellationToken ct)
         {
-            await hook();
-            return await inner.AllowsAsync(eventId, userId, adding, ct);
+            await before();
+            var allowed = await inner.AllowsAsync(eventId, userId, adding, ct);
+            await after();
+            return allowed;
         }
     }
 

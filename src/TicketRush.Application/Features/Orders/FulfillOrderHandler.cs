@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using TicketRush.Application.Abstractions.Inventory;
 using TicketRush.Application.Abstractions.Payments;
 using TicketRush.Application.Abstractions.Persistence;
+using TicketRush.Application.Options;
 using TicketRush.Domain.Events;
 using TicketRush.Domain.Orders;
 using TicketRush.Domain.Primitives;
@@ -39,7 +41,8 @@ public enum PaymentWebhookOutcome
 /// limit is re-checked in the database. When the inventory is gone the transaction is rolled back (dedupe row, tickets and
 /// general-admission claims included) and a NEW transaction records the event again and moves the order to RefundPending
 /// (C3). Either way the dedupe row commits together with the decision, so a crash in between never swallows an event.
-/// A concurrent change of the order or attempt (<c>xmin</c>) or a database deadlock re-runs the whole decision, up to
+/// Each transaction runs with <see cref="FulfilmentOptions.LockTimeout"/> (a stuck lock fails with a 5xx the provider
+/// retries). A concurrent change of the order or attempt (<c>xmin</c>) or a database deadlock re-runs the whole decision, up to
 /// <see cref="MaxConcurrencyRetries"/> times; after that the exception surfaces and nothing is committed.
 /// </summary>
 public sealed partial class FulfillOrderHandler(
@@ -48,6 +51,7 @@ public sealed partial class FulfillOrderHandler(
     IEnumerable<IInventoryStrategy> strategies,
     ITicketPurchaseLimit purchaseLimit,
     IEventSaleLock saleLock,
+    IOptions<FulfilmentOptions> options,
     TimeProvider time,
     ILogger<FulfillOrderHandler> logger)
 {
@@ -76,24 +80,34 @@ public sealed partial class FulfillOrderHandler(
     }
 
     private static bool IsConcurrencyConflict(Exception ex) =>
-        ex is DbUpdateConcurrencyException or InventoryConflictException { Reason: InventoryConflictReason.Contention };
+        ex is DbUpdateConcurrencyException or DatabaseContentionException;
 
     /// <summary>The claiming transaction, or, when the inventory is gone, a fresh transaction that decides without claiming.</summary>
     private async Task<PaymentWebhookOutcome> DecideAsync(string provider, WebhookEvent webhook, CancellationToken ct)
     {
         try
         {
-            return await db.InTransactionAsync(token => DecideInTransactionAsync(provider, webhook, unfulfillable: null, token), ct);
+            return await db.InTransactionAsync(token => DecideInTransactionAsync(provider, webhook, unfulfillable: null, token), options.Value.LockTimeout, ct);
         }
-        catch (InventoryConflictException ex) when (ex.Reason != InventoryConflictReason.Contention)
+        catch (InventoryConflictException ex) when (ex.Reason != InventoryConflictReason.Unknown)
         {
+            // Unknown is a bug (a conflict nobody explained): it propagates, nothing is committed and nothing is refunded.
             // The rollback removed everything of the first transaction, the dedupe row too: decide again from scratch.
             LogUnfulfillable(webhook.ProviderEventId, ex.Reason);
             db.ChangeTracker.Clear();
-            var reason = ex.Reason == InventoryConflictReason.EventCancelled ? RefundReasons.EventCancelled : RefundReasons.SeatsUnavailable;
-            return await db.InTransactionAsync(token => DecideInTransactionAsync(provider, webhook, reason, token), ct);
+            var reason = RefundReasonFor(ex.Reason);
+            return await db.InTransactionAsync(token => DecideInTransactionAsync(provider, webhook, reason, token), options.Value.LockTimeout, ct);
         }
     }
+
+    /// <summary>The order-level refund reason the buyer is shown (B10 maps these to copy).</summary>
+    private static string RefundReasonFor(InventoryConflictReason reason) => reason switch
+    {
+        InventoryConflictReason.PurchaseLimitExceeded => RefundReasons.PurchaseLimitExceeded,
+        InventoryConflictReason.EventCancelled => RefundReasons.EventCancelled,
+        InventoryConflictReason.EventNotOnSale => RefundReasons.EventEnded,
+        _ => RefundReasons.SeatsUnavailable,
+    };
 
     /// <param name="unfulfillable">Null: claim the inventory. Otherwise the refund reason of an order that cannot be fulfilled.</param>
     private async Task<PaymentWebhookOutcome> DecideInTransactionAsync(string provider, WebhookEvent webhook, string? unfulfillable, CancellationToken ct)
@@ -134,9 +148,10 @@ public sealed partial class FulfillOrderHandler(
             return PaymentWebhookOutcome.Ignored;
         }
 
-        if (paid is not null && paid != attempt.Amount)
+        // A provider bug must not mint tickets: no amount, another amount or another currency is a mismatch.
+        if (paid != attempt.Amount)
         {
-            return RefundSession(order, attempt, RefundReasons.AmountMismatch, paid);
+            return RefundSession(order, attempt, RefundReasons.AmountMismatch, paid ?? attempt.Amount);
         }
 
         if (order.Status is OrderStatus.AwaitingPayment or OrderStatus.PaymentFailed or OrderStatus.Expired)
@@ -151,7 +166,7 @@ public sealed partial class FulfillOrderHandler(
 
     private async Task<PaymentWebhookOutcome> FulfilAsync(Order order, PaymentAttempt attempt, DateTimeOffset now, CancellationToken ct)
     {
-        // Locks are always taken in this order: event row (share), buyer limit, GA tiers, seats.
+        // Locks are always taken in this order: event sale lock (shared advisory), buyer limit (advisory), GA tier rows, seats.
         await EnsureOnSaleAsync(order.EventId, ct);
         var tickets = order.IssueTickets();
         if (!await purchaseLimit.AllowsAsync(order.EventId, order.UserId, tickets.Count, ct))
@@ -171,7 +186,7 @@ public sealed partial class FulfillOrderHandler(
     }
 
     /// <summary>
-    /// A cancelled (or ended) event issues no tickets, whatever the payment says. The share lock orders a concurrent
+    /// A cancelled (or ended) event issues no tickets, whatever the payment says. The shared sale lock orders a concurrent
     /// cancellation after this transaction, so its Paid → RefundPending sweep cannot miss an order paid here.
     /// </summary>
     private async Task EnsureOnSaleAsync(Guid eventId, CancellationToken ct)

@@ -67,6 +67,7 @@ public static class DependencyInjection
         services.AddValidatedOptions<HoldsOptions>(HoldsOptions.SectionName);
         services.AddValidatedOptions<RateLimitsOptions>(RateLimitsOptions.SectionName);
         services.AddValidatedOptions<FrontendOptions>(FrontendOptions.SectionName);
+        services.AddValidatedOptions<FulfilmentOptions>(FulfilmentOptions.SectionName);
         services.AddValidatedOptions<OutboxOptions>(OutboxOptions.SectionName);
 
         services.AddSingleton<RedisKeys>();

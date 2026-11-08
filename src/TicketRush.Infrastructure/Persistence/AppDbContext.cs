@@ -53,19 +53,48 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataPr
 
     /// <inheritdoc />
     /// <remarks>Retries are disabled (<c>DisableRetry</c>), so today the strategy runs the work exactly once.</remarks>
-    public Task<T> InTransactionAsync<T>(Func<CancellationToken, Task<T>> work, CancellationToken ct)
+    public Task<T> InTransactionAsync<T>(Func<CancellationToken, Task<T>> work, CancellationToken ct) => RunInTransactionAsync(work, null, ct);
+
+    /// <inheritdoc />
+    public Task<T> InTransactionAsync<T>(Func<CancellationToken, Task<T>> work, TimeSpan lockTimeout, CancellationToken ct) =>
+        RunInTransactionAsync(work, lockTimeout, ct);
+
+    /// <summary>Deadlocks and serialization failures become <see cref="DatabaseContentionException"/> here, for every use case.</summary>
+    private Task<T> RunInTransactionAsync<T>(Func<CancellationToken, Task<T>> work, TimeSpan? lockTimeout, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(work);
         return Database.CreateExecutionStrategy().ExecuteAsync(
             async token =>
             {
-                // Disposing without a commit rolls back.
-                await using var transaction = await Database.BeginTransactionAsync(token);
-                var result = await work(token);
-                await transaction.CommitAsync(token);
-                return result;
+                try
+                {
+                    // Disposing without a commit rolls back.
+                    await using var transaction = await Database.BeginTransactionAsync(token);
+                    await SetLockTimeoutAsync(lockTimeout, token);
+                    var result = await work(token);
+                    await transaction.CommitAsync(token);
+                    return result;
+                }
+                catch (Exception ex) when (PostgresErrors.IsContention(ex))
+                {
+                    throw new DatabaseContentionException("The transaction collided with a concurrent one and was rolled back.", ex);
+                }
             },
             ct);
+    }
+
+    private Task SetLockTimeoutAsync(TimeSpan? lockTimeout, CancellationToken ct)
+    {
+        if (lockTimeout is not { } timeout)
+        {
+            return Task.CompletedTask;
+        }
+
+        // SET does not take parameters; the value is an integer we format ourselves.
+        var milliseconds = Math.Max(1, (long)timeout.TotalMilliseconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
+#pragma warning disable EF1002 // Not user input: a formatted integer.
+        return Database.ExecuteSqlRawAsync($"SET LOCAL lock_timeout = '{milliseconds}ms'", ct);
+#pragma warning restore EF1002
     }
 
     protected override void OnModelCreating(ModelBuilder builder)

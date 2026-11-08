@@ -40,6 +40,19 @@ public sealed class HoldsOptions
     public TimeSpan Ttl => TimeSpan.FromSeconds(TtlSeconds);
 }
 
+/// <summary>Payment fulfilment (spec 08 webhook handling).</summary>
+public sealed class FulfilmentOptions
+{
+    public const string SectionName = "Fulfilment";
+
+    /// <summary>
+    /// <c>SET LOCAL lock_timeout</c> of the fulfilment transaction: a lock held this long (a stuck cancel, a long seat wait)
+    /// fails the webhook with a 5xx the provider retries, instead of piling up connections behind it.
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:00:00.100", "00:01:00")]
+    public TimeSpan LockTimeout { get; set; } = TimeSpan.FromSeconds(5);
+}
+
 /// <summary>Rate limit budgets (spec 12).</summary>
 public sealed class RateLimitsOptions
 {

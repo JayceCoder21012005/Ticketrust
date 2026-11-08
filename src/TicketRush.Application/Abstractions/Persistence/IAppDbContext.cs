@@ -47,5 +47,30 @@ public interface IAppDbContext
     /// Goes through EF's execution strategy, so it stays correct if connection retries are ever enabled; then
     /// <paramref name="work"/> may run more than once and must start from a clean change tracker.
     /// </summary>
+    /// <exception cref="DatabaseContentionException">The transaction lost a deadlock or serialization race (it was rolled back; running it again may succeed).</exception>
     Task<T> InTransactionAsync<T>(Func<CancellationToken, Task<T>> work, CancellationToken ct);
+
+    /// <summary>
+    /// Same as <see cref="InTransactionAsync{T}(Func{CancellationToken, Task{T}}, CancellationToken)"/>, with
+    /// <c>SET LOCAL lock_timeout</c>: any lock wait longer than <paramref name="lockTimeout"/> fails the transaction.
+    /// </summary>
+    Task<T> InTransactionAsync<T>(Func<CancellationToken, Task<T>> work, TimeSpan lockTimeout, CancellationToken ct);
+}
+
+/// <summary>A transaction was chosen as a deadlock victim or failed serialization; it was rolled back and may be retried.</summary>
+public sealed class DatabaseContentionException : Exception
+{
+    public DatabaseContentionException()
+    {
+    }
+
+    public DatabaseContentionException(string message)
+        : base(message)
+    {
+    }
+
+    public DatabaseContentionException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
 }

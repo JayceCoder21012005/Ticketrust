@@ -22,17 +22,7 @@ public sealed class GeneralAdmissionInventoryStrategy(ITierInventory tiers, AppD
     {
         foreach (var tier in tickets.GroupBy(t => t.TierId).OrderBy(g => g.Key))
         {
-            bool claimed;
-            try
-            {
-                claimed = await tiers.TryClaimAsync(tier.Key, tier.Count(), ct);
-            }
-            catch (Exception ex) when (PostgresErrors.IsContention(ex))
-            {
-                throw new InventoryConflictException(InventoryConflictReason.Contention, "A concurrent claim on the tier collided.", ex);
-            }
-
-            if (!claimed)
+            if (!await tiers.TryClaimAsync(tier.Key, tier.Count(), ct))
             {
                 throw new InventoryConflictException(InventoryConflictReason.CapacityExhausted, $"Tier {tier.Key} has no capacity left for {tier.Count()} tickets.");
             }
@@ -45,8 +35,8 @@ public sealed class GeneralAdmissionInventoryStrategy(ITierInventory tiers, AppD
 /// <summary>
 /// Seats (spec 08): the tickets are inserted right away, in seat order, so the partial unique index
 /// <c>ux_tickets_event_seat</c> decides now whether a seat is still free. Its violation (and only its) becomes a
-/// <see cref="InventoryConflictReason.SeatTaken"/> conflict; a deadlock between two buyers of overlapping seats is
-/// <see cref="InventoryConflictReason.Contention"/> and the caller retries.
+/// <see cref="InventoryConflictReason.SeatTaken"/> conflict; a deadlock between two buyers of overlapping seats surfaces
+/// from the transaction as <c>DatabaseContentionException</c> and the caller retries.
 /// </summary>
 public sealed class SeatedInventoryStrategy(AppDbContext db) : IInventoryStrategy
 {
@@ -65,30 +55,28 @@ public sealed class SeatedInventoryStrategy(AppDbContext db) : IInventoryStrateg
         {
             throw new InventoryConflictException(InventoryConflictReason.SeatTaken, "A seat of the order already has a ticket.", ex);
         }
-        catch (DbUpdateException ex) when (PostgresErrors.IsContention(ex))
-        {
-            throw new InventoryConflictException(InventoryConflictReason.Contention, "A concurrent seat claim collided.", ex);
-        }
     }
 }
 
-/// <summary><c>SELECT status FROM events WHERE id = @id FOR SHARE</c> on the caller's transaction.</summary>
+/// <summary>
+/// The shared <see cref="EventSaleLocks"/> advisory lock, then a plain read of the status. The event row itself is never
+/// locked, so in-flight fulfilments do not contend on the hot tuple or block organizer edits; only a cancel/end that takes
+/// the exclusive variant waits for them (and they for it, bounded by the transaction's lock_timeout).
+/// </summary>
 public sealed class EventSaleLock(AppDbContext db) : IEventSaleLock
 {
     public async Task<EventStatus?> LockStatusAsync(Guid eventId, CancellationToken ct)
     {
-        // ToList keeps EF from wrapping the locking query in a sub-select.
-        var statuses = await db.Database
-            .SqlQuery<string>($"SELECT status AS \"Value\" FROM events WHERE id = {eventId} FOR SHARE")
-            .ToListAsync(ct);
-        return statuses.Count == 0 ? null : Enum.Parse<EventStatus>(statuses[0]);
+        await EventSaleLocks.AcquireSharedAsync(db, eventId, ct);
+        // Read after the lock: a cancel that held the exclusive lock has committed by now, and READ COMMITTED sees it.
+        return await db.Events.AsNoTracking().Where(e => e.Id == eventId).Select(e => (EventStatus?)e.Status).FirstOrDefaultAsync(ct);
     }
 }
 
 /// <summary>
 /// Spec 08 step 4 / spec 12: the buyer's non-voided tickets for the event plus the new ones must stay within the
 /// event's per-user limit. A transaction-scoped advisory lock per (event, buyer) serialises two fulfilments of the same
-/// buyer, so both cannot pass the count before either inserts. The order does not record its sale phase, so the limit
+/// buyer, so both cannot pass the count before either inserts (key namespace <c>ticket-limit:</c>, distinct from <see cref="EventSaleLocks"/>). The order does not record its sale phase, so the limit
 /// is the most generous one of the event's phases (the hold already enforced the phase's own limit in Redis); an event
 /// without phases falls back to <see cref="SalePhase.MaxTicketsPerUserLimit"/>.
 /// </summary>

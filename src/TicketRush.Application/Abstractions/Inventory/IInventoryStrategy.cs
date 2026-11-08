@@ -42,15 +42,22 @@ public interface ITicketPurchaseLimit
 public interface IEventSaleLock
 {
     /// <summary>
-    /// The event's status (null if it does not exist), with a share lock on the event row held until the caller's
-    /// transaction ends: cancelling the event waits for this fulfilment to commit, so the cancellation's refund sweep
-    /// is guaranteed to see the order Paid; a fulfilment that starts after the cancellation committed sees Cancelled.
+    /// The event's status (null if it does not exist), read AFTER taking the event's shared sale lock (a transaction-scoped
+    /// advisory lock, never a row lock) which is held until the caller's transaction ends. Ending the sale (cancel, end)
+    /// takes the exclusive variant in its own transaction, so a cancellation waits for in-flight fulfilments (its refund
+    /// sweep then sees their orders Paid), and a fulfilment that starts during a cancellation waits and then reads Cancelled.
     /// </summary>
     Task<EventStatus?> LockStatusAsync(Guid eventId, CancellationToken ct);
 }
 
 public enum InventoryConflictReason
 {
+    /// <summary>
+    /// No reason given (the default of the plain constructors). A programming error: the handler rethrows it (5xx,
+    /// nothing committed) and never refunds on it.
+    /// </summary>
+    Unknown = 0,
+
     /// <summary>A seat already has a non-voided ticket (<c>ux_tickets_event_seat</c>).</summary>
     SeatTaken,
 
@@ -65,15 +72,9 @@ public enum InventoryConflictReason
 
     /// <summary>The event is no longer on sale for another reason (ended).</summary>
     EventNotOnSale,
-
-    /// <summary>
-    /// Two fulfilments collided in the database (deadlock or serialization failure). Nothing is known to be sold out:
-    /// the caller retries the whole transaction.
-    /// </summary>
-    Contention,
 }
 
-/// <summary>The inventory a paid order needs is not available (or a concurrent claim collided, see <see cref="Reason"/>).</summary>
+/// <summary>The inventory a paid order needs is not available (see <see cref="Reason"/>; deadlocks are <c>DatabaseContentionException</c>).</summary>
 public sealed class InventoryConflictException : Exception
 {
     public InventoryConflictException()
@@ -96,5 +97,6 @@ public sealed class InventoryConflictException : Exception
         Reason = reason;
     }
 
-    public InventoryConflictReason Reason { get; }
+    /// <summary><see cref="InventoryConflictReason.Unknown"/> unless a reason was given.</summary>
+    public InventoryConflictReason Reason { get; } = InventoryConflictReason.Unknown;
 }
