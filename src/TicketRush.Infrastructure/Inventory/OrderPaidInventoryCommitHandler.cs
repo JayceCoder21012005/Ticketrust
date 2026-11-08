@@ -18,6 +18,10 @@ namespace TicketRush.Infrastructure.Inventory;
 /// and the database already holds the tickets, so the reconciler is the backstop if every retry is spent. The commit also
 /// runs for an event whose inventory was never warmed: the next warm-up recomputes GA remaining from the database.
 /// </para>
+/// <para>
+/// Registered before <c>OrderPaidLeaveQueueHandler</c>: the outbox stops at the first failing handler of a
+/// message, so the critical commit is never held up by the non-critical leave (the reverse is only a delayed leave).
+/// </para>
 /// </summary>
 public sealed partial class OrderPaidInventoryCommitHandler(IAppDbContext db, IInventoryStore store, ILogger<OrderPaidInventoryCommitHandler> logger)
     : IIntegrationEventHandler<OrderPaid>

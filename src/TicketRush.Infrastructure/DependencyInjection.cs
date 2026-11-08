@@ -101,6 +101,7 @@ public static class DependencyInjection
         services.AddSingleton<IIdempotencyStore, RedisIdempotencyStore>();
         services.AddIntegrationEventHandler<EventPublished, InventoryWarmHandler>();
         services.AddIntegrationEventHandler<EventCancelled, EventCancelledInventoryHandler>();
+        // Order matters: the outbox runs a message's handlers in this order and stops at the first failure (commit first).
         services.AddIntegrationEventHandler<OrderPaid, OrderPaidInventoryCommitHandler>();
         services.AddIntegrationEventHandler<OrderPaid, OrderPaidLeaveQueueHandler>();
 

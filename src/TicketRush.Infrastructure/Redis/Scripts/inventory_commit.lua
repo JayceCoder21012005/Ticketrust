@@ -9,7 +9,8 @@
 -- not live (expired and swept, released, or replaced by a newer hold of the user): gaheld is not touched (it belongs to
 -- whatever hold holds the GA now) and this order's GA is taken from remaining, exactly once (late payment, C3). The
 -- database's unique index (08) is what settles a seat that was re-held by someone else in the meantime: a sold seat is
--- removed from held whoever holds it, so it is never both held and sold (the other hold finds nothing to free later).
+-- removed from held whoever holds it. That narrows the held+sold overlap but does not exclude it (a reconcile can still add
+-- a sold seat that is held), so hold_release / hold_create also never announce a sold seat as freed.
 
 local function split(s)
   local out = {}

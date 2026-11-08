@@ -189,6 +189,23 @@ public sealed class HoldScriptTests(ContainersFixture containers) : IAsyncLifeti
     }
 
     [Fact]
+    public async Task Replacing_a_hold_never_announces_a_dropped_sold_seat_as_freed()
+    {
+        var user = Guid.NewGuid();
+        await _h.HoldAsync(user, 1, 2);
+        await _h.Db.SetAddAsync(_h.Keys.InvSold(_h.EventId), 1);
+        var messages = await _h.ListenAsync();
+
+        var outcome = await _h.Store.CreateHoldAsync(_h.Request(user, [2, 3], replace: true), CancellationToken.None);
+
+        outcome.Status.ShouldBe(HoldStatus.Ok);
+        await WaitUntilAsync(() => !messages.IsEmpty);
+        using var delta = JsonDocument.Parse(messages.Single());
+        delta.RootElement.GetProperty("freed").GetArrayLength().ShouldBe(0);
+        (await _h.OwnerOfAsync(1)).ShouldBeNull();
+    }
+
+    [Fact]
     public async Task Releasing_a_hold_never_announces_a_sold_seat_as_freed()
     {
         var hold = await _h.HoldAsync(Guid.NewGuid(), 5, 6);

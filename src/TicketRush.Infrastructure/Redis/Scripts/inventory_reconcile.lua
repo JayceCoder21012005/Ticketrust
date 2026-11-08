@@ -5,8 +5,12 @@
 --       6 bought counts csv, 7 delta channel, 8 commits counter read before the database ('' = no fence)
 -- Returns {soldAdded, soldRemoved, tier1, before1, after1, ...} for every GA tier that changed, or {'RETRY'} when a
 -- checkout committed after the database was read: its seats and GA are missing from ARGV, so nothing is written.
--- GA remaining = capacity - sold (database) - held (live holds). Bought counts only grow here, so a checkout commit
--- that reached Redis but not yet this read of the database is never undone.
+-- GA remaining = capacity - sold (database) - held (live holds).
+-- Bought: with a fence (ARGV[8]) it is set to EXACTLY the database count. That is safe because a Redis commit always follows
+-- its database commit: a commit already in Redis before the fence was read is in the database read, and one that landed
+-- after the fence read trips the fence ('RETRY'). It also repairs a count inflated when this script ran between an order's
+-- database commit and its (outbox) inventory_commit, which then counted the order a second time. Without a fence the count
+-- only grows, so a commit that reached Redis but not yet this read of the database is never undone.
 
 local function split(s)
   local out = {}
@@ -54,7 +58,7 @@ end
 local bought = split(ARGV[6])
 for i, count in ipairs(bought) do
   local key = KEYS[5 + #tierIds + i]
-  if tonumber(redis.call('GET', key) or '0') < tonumber(count) then redis.call('SET', key, count) end
+  if ARGV[8] ~= '' or tonumber(redis.call('GET', key) or '0') < tonumber(count) then redis.call('SET', key, count) end
 end
 
 if #added > 0 or #removed > 0 or #tiers > 0 then

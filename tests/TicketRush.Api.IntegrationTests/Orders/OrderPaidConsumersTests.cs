@@ -289,6 +289,23 @@ public sealed class OrderPaidConsumersTests(ContainersFixture containers) : IAsy
     }
 
     [Fact]
+    public async Task A_registration_for_a_phase_that_opens_after_the_payment_survives()
+    {
+        var buyer = Guid.NewGuid();
+        var phase = _event.Phases[0];
+        var window = new SaleWindow(_event.Id, phase.Id, phase.OpensAt, phase.ClosesAt, phase.QueueEnabled);
+        await _redis.SetAddAsync(_keys.QueuePre(phase.Id), buyer.ToString());
+        var room = _scope.ServiceProvider.GetRequiredService<IWaitingRoom>();
+        (await room.IsMemberAsync(window, buyer, Ct)).ShouldBeTrue();
+
+        await LeaveAsync(Paid(buyer, Guid.NewGuid(), [_seats[7]]) with { PaidAt = phase.OpensAt.AddMinutes(-1) });
+
+        (await room.IsMemberAsync(window, buyer, Ct)).ShouldBeTrue("the phase had not opened when the buyer paid, so its pre-queue place is theirs to keep");
+        await LeaveAsync(Paid(buyer, Guid.NewGuid(), [_seats[7]]) with { PaidAt = phase.OpensAt });
+        (await room.IsMemberAsync(window, buyer, Ct)).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task A_buyer_who_was_never_in_the_waiting_room_is_not_an_error()
     {
         var paid = Paid(Guid.NewGuid(), Guid.NewGuid(), [_seats[8]]);
@@ -306,7 +323,8 @@ public sealed class OrderPaidConsumersTests(ContainersFixture containers) : IAsy
             .Select(r => r.HandlerType)
             .ToList();
 
-        handlers.ShouldBe([typeof(OrderPaidInventoryCommitHandler), typeof(OrderPaidLeaveQueueHandler)], ignoreOrder: true);
+        // The outbox runs handlers in this order and stops at the first failure: the commit must not wait behind the leave.
+        handlers.ShouldBe([typeof(OrderPaidInventoryCommitHandler), typeof(OrderPaidLeaveQueueHandler)]);
         _factory.Services.GetRequiredService<DomainEventTypeRegistry>().TryResolve(nameof(OrderPaid), out _).ShouldBeTrue();
     }
 
@@ -368,6 +386,26 @@ public sealed class OrderPaidConsumersTests(ContainersFixture containers) : IAsy
         (await BoughtAsync(user)).ShouldBe(3);
         (await InAnyRoomAsync(user)).ShouldBeFalse();
         (await ReceiptsAsync(orderId)).ShouldBe([typeof(OrderPaidInventoryCommitHandler).FullName!, typeof(OrderPaidLeaveQueueHandler).FullName!], ignoreOrder: true);
+    }
+
+    [Fact]
+    public async Task A_reconcile_between_the_payment_and_the_commit_does_not_leave_the_bought_count_inflated()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        await SettleSeededOutboxAsync();
+        var seeder = _scope.ServiceProvider.GetRequiredService<InventorySeeder>();
+        var user = Guid.NewGuid();
+        var gaBefore = (await SnapshotAsync()).GaRemaining[_ga.Id];
+        var (_, session, total) = await PlaceExpiredOrderAsync(user, _seats[11], ga: 2);
+        (await PayByWebhookAsync(client, session, total)).ShouldBe("paid");
+
+        await seeder.SeedAsync(_event.Id, Ct); // the database already has the order, Redis does not yet
+        await _factory.DrainOutboxAsync(Ct); // the commit now counts the order a second time
+        await seeder.SeedAsync(_event.Id, Ct); // the next reconcile repairs it
+
+        (await BoughtAsync(user)).ShouldBe(3);
+        (await SnapshotAsync()).GaRemaining[_ga.Id].ShouldBe(gaBefore - 2);
+        (await SnapshotAsync()).Sold.ShouldBe([_seats[11]]);
     }
 
     [Fact]
