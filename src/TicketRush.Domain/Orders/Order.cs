@@ -25,7 +25,7 @@ namespace TicketRush.Domain.Orders;
 /// <see cref="IsTerminalForPayment"/> tells the handler when to skip.
 /// </para>
 /// </summary>
-public sealed class Order : AggregateRoot, IAuditable
+public sealed class Order : AggregateRoot, IAuditable, IRefundable
 {
     /// <summary>
     /// Upper bound on one line's quantity. A hold is capped at 8 seats by default (<c>Holds:MaxSeatsPerHold</c>) and
@@ -109,6 +109,9 @@ public sealed class Order : AggregateRoot, IAuditable
 
     /// <summary>One of <see cref="RefundReasons"/>; set when the order enters <see cref="OrderStatus.RefundPending"/>.</summary>
     public string? RefundReason { get; private set; }
+
+    /// <summary>The refund worker's retry state while the order is <see cref="OrderStatus.RefundPending"/>.</summary>
+    public RefundTracking Refund { get; private set; } = RefundTracking.None;
 
     public DateTimeOffset CreatedAt { get; private set; }
 
@@ -211,6 +214,21 @@ public sealed class Order : AggregateRoot, IAuditable
     {
         MoveTo(Trigger.MarkRefunded);
         Raise(new OrderRefunded(Id, UserId, Total.Amount, Total.Currency));
+    }
+
+    /// <inheritdoc />
+    public void RecordRefundDecline(string error, DateTimeOffset? retryAt) => Track(Refund.Declined(error, retryAt));
+
+    /// <inheritdoc />
+    public void ParkRefund(string error) => Track(Refund.Parked(error));
+
+    /// <inheritdoc />
+    public void ResumeRefund() => Track(Refund.Resumed());
+
+    private void Track(RefundTracking next)
+    {
+        EnsureAllowed(Trigger.MarkRefunded);
+        Refund = next;
     }
 
     /// <summary>

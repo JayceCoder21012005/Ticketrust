@@ -541,6 +541,28 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                                 .HasColumnName("buyer_phone");
                         });
 
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Refund", "TicketRush.Domain.Orders.Order.Refund#RefundTracking", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<int>("Attempts")
+                                .HasColumnType("integer")
+                                .HasColumnName("refund_attempts");
+
+                            b1.Property<string>("LastError")
+                                .HasMaxLength(500)
+                                .HasColumnType("character varying(500)")
+                                .HasColumnName("refund_last_error");
+
+                            b1.Property<bool>("NeedsAttention")
+                                .HasColumnType("boolean")
+                                .HasColumnName("refund_needs_attention");
+
+                            b1.Property<DateTimeOffset?>("NextAttemptAt")
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("refund_next_attempt_at");
+                        });
+
                     b.ComplexProperty(typeof(Dictionary<string, object>), "Total", "TicketRush.Domain.Orders.Order.Total#Money", b1 =>
                         {
                             b1.IsRequired();
@@ -570,6 +592,10 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_orders_open_hold")
                         .HasFilter("status IN ('Pending','AwaitingPayment','PaymentFailed')");
+
+                    b.HasIndex("Id")
+                        .HasDatabaseName("ix_orders_refund_pending")
+                        .HasFilter("status = 'RefundPending'");
 
                     b.HasIndex("UserId", "CreatedAt", "Id")
                         .IsDescending(false, true, true)
@@ -679,6 +705,15 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                         .HasColumnType("xid")
                         .HasColumnName("xmin");
 
+                    b.Property<long?>("_refundAmount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("refund_amount");
+
+                    b.Property<string>("_refundCurrency")
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("refund_currency");
+
                     b.ComplexProperty(typeof(Dictionary<string, object>), "Amount", "TicketRush.Domain.Orders.PaymentAttempt.Amount#Money", b1 =>
                         {
                             b1.IsRequired();
@@ -694,8 +729,34 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                                 .HasColumnName("currency");
                         });
 
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Refund", "TicketRush.Domain.Orders.PaymentAttempt.Refund#RefundTracking", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<int>("Attempts")
+                                .HasColumnType("integer")
+                                .HasColumnName("refund_attempts");
+
+                            b1.Property<string>("LastError")
+                                .HasMaxLength(500)
+                                .HasColumnType("character varying(500)")
+                                .HasColumnName("refund_last_error");
+
+                            b1.Property<bool>("NeedsAttention")
+                                .HasColumnType("boolean")
+                                .HasColumnName("refund_needs_attention");
+
+                            b1.Property<DateTimeOffset?>("NextAttemptAt")
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("refund_next_attempt_at");
+                        });
+
                     b.HasKey("Id")
                         .HasName("pk_payment_attempts");
+
+                    b.HasIndex("Id")
+                        .HasDatabaseName("ix_payment_attempts_refund_pending")
+                        .HasFilter("status = 'RefundPending'");
 
                     b.HasIndex("OrderId")
                         .HasDatabaseName("ix_payment_attempts_order_id");

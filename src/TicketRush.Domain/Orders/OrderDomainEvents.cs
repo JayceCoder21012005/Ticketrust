@@ -50,3 +50,6 @@ public sealed record PaymentRefundRequested(
 
 /// <summary>The gateway confirmed the refund: notify the buyer.</summary>
 public sealed record OrderRefunded(Guid OrderId, Guid UserId, long Amount, string Currency) : IDomainEvent;
+
+/// <summary>The gateway confirmed the refund of one payment session (<see cref="PaymentRefundRequested"/>): notify the buyer.</summary>
+public sealed record PaymentRefunded(Guid AttemptId, Guid OrderId, long Amount, string Currency) : IDomainEvent;

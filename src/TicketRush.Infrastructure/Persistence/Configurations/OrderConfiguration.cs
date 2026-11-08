@@ -11,6 +11,18 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
     /// <summary>The statuses in which the hold is still reserved for the order (<c>Order.IsOpen</c>).</summary>
     internal const string OpenStatusFilter = "status IN ('Pending','AwaitingPayment','PaymentFailed')";
 
+    /// <summary>Rows the refund worker still owes money for (orders and payment sessions alike).</summary>
+    internal const string RefundPendingFilter = "status = 'RefundPending'";
+
+    /// <summary>The refund worker's retry columns (<see cref="RefundTracking"/>), the same on <c>orders</c> and <c>payment_attempts</c>.</summary>
+    internal static void MapRefundTracking(ComplexPropertyBuilder<RefundTracking> refund)
+    {
+        refund.Property(r => r.Attempts).HasColumnName("refund_attempts");
+        refund.Property(r => r.NextAttemptAt).HasColumnName("refund_next_attempt_at");
+        refund.Property(r => r.LastError).HasColumnName("refund_last_error").HasMaxLength(RefundTracking.MaxErrorLength);
+        refund.Property(r => r.NeedsAttention).HasColumnName("refund_needs_attention");
+    }
+
     public void Configure(EntityTypeBuilder<Order> builder)
     {
         builder.ToTable("orders");
@@ -29,6 +41,7 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
             buyer.Property(b => b.Email).HasColumnName("buyer_email").HasMaxLength(320);
             buyer.Property(b => b.Phone).HasColumnName("buyer_phone").HasMaxLength(32);
         });
+        builder.ComplexProperty(o => o.Refund, MapRefundTracking);
         builder.HasMany(o => o.Items).WithOne().HasForeignKey("OrderId").OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(o => o.Items).UsePropertyAccessMode(PropertyAccessMode.Field).AutoInclude();
         builder.Ignore(o => o.IsOpen);
@@ -45,6 +58,9 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         // OrderExpiryService sweep: open orders whose hold is over.
         builder.HasIndex(o => o.ExpiresAt).HasFilter(OpenStatusFilter).HasDatabaseName("ix_orders_open_expires_at");
+
+        // RefundWorker scan: refunds still owed, oldest (v7 id) first.
+        builder.HasIndex(o => o.Id).HasFilter(RefundPendingFilter).HasDatabaseName("ix_orders_refund_pending");
     }
 }
 
@@ -84,12 +100,19 @@ internal sealed class PaymentAttemptConfiguration : IEntityTypeConfiguration<Pay
             amount.Property(m => m.Amount).HasColumnName("amount");
             amount.Property(m => m.Currency).HasColumnName("currency").HasMaxLength(3);
         });
+        builder.Property<long?>("_refundAmount").HasColumnName("refund_amount");
+        builder.Property<string?>("_refundCurrency").HasColumnName("refund_currency").HasMaxLength(3);
+        builder.Ignore(p => p.RefundAmount);
+        builder.ComplexProperty(p => p.Refund, OrderConfiguration.MapRefundTracking);
         builder.Ignore(p => p.DomainEvents);
 
         builder.HasOne<Order>().WithMany().HasForeignKey(p => p.OrderId).OnDelete(DeleteBehavior.Restrict);
 
         // Webhooks find their order through the gateway's session id.
         builder.HasIndex(p => p.ProviderSessionId).IsUnique().HasDatabaseName("ux_payment_attempts_provider_session_id");
+
+        // RefundWorker scan: session-level refunds still owed, oldest (v7 id) first.
+        builder.HasIndex(p => p.Id).HasFilter(OrderConfiguration.RefundPendingFilter).HasDatabaseName("ix_payment_attempts_refund_pending");
     }
 }
 

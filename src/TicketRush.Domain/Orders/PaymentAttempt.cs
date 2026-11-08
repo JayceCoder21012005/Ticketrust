@@ -13,12 +13,16 @@ namespace TicketRush.Domain.Orders;
 /// goes back through <see cref="RequestRefund"/>.
 /// </para>
 /// </summary>
-public sealed class PaymentAttempt : AggregateRoot, IAuditable
+public sealed class PaymentAttempt : AggregateRoot, IAuditable, IRefundable
 {
     public static readonly TimeSpan GatewayMargin = TimeSpan.FromSeconds(30);
 
     /// <summary>Column width of <see cref="RedirectUrl"/>.</summary>
     public const int MaxRedirectUrlLength = 2000;
+
+    // What RequestRefund promised to send back (the gateway may have collected less than Amount). Mapped as two columns.
+    private long? _refundAmount;
+    private string? _refundCurrency;
 
     private PaymentAttempt(
         Guid orderId,
@@ -62,6 +66,12 @@ public sealed class PaymentAttempt : AggregateRoot, IAuditable
 
     /// <summary>Order expiry minus <see cref="GatewayMargin"/>.</summary>
     public DateTimeOffset ExpiresAt { get; private set; }
+
+    /// <summary>What <see cref="RequestRefund"/> promised to send back; <c>null</c> unless a session-level refund was requested.</summary>
+    public Money? RefundAmount => _refundAmount is { } amount && _refundCurrency is { } currency ? new Money(amount, currency) : null;
+
+    /// <summary>The refund worker's retry state while the session is <see cref="PaymentAttemptStatus.RefundPending"/>.</summary>
+    public RefundTracking Refund { get; private set; } = RefundTracking.None;
 
     public DateTimeOffset CreatedAt { get; private set; }
 
@@ -120,18 +130,41 @@ public sealed class PaymentAttempt : AggregateRoot, IAuditable
 
         EnsureMoneyNotSettled(nameof(RequestRefund));
         Status = PaymentAttemptStatus.RefundPending;
+        _refundAmount = amount.Amount;
+        _refundCurrency = amount.Currency;
         Raise(new PaymentRefundRequested(Id, OrderId, Provider, ProviderSessionId, amount.Amount, amount.Currency, reason));
     }
 
-    /// <summary>RefundPending → Refunded once the gateway confirmed the refund of this session.</summary>
+    /// <summary>RefundPending → Refunded once the gateway confirmed the refund of this session. Raises <see cref="PaymentRefunded"/>.</summary>
     public void MarkRefunded()
+    {
+        EnsureRefundPending(nameof(MarkRefunded));
+        Status = PaymentAttemptStatus.Refunded;
+        var refunded = RefundAmount ?? Amount;
+        Raise(new PaymentRefunded(Id, OrderId, refunded.Amount, refunded.Currency));
+    }
+
+    /// <inheritdoc />
+    public void RecordRefundDecline(string error, DateTimeOffset? retryAt) => Track(Refund.Declined(error, retryAt), nameof(RecordRefundDecline));
+
+    /// <inheritdoc />
+    public void ParkRefund(string error) => Track(Refund.Parked(error), nameof(ParkRefund));
+
+    /// <inheritdoc />
+    public void ResumeRefund() => Track(Refund.Resumed(), nameof(ResumeRefund));
+
+    private void Track(RefundTracking next, string method)
+    {
+        EnsureRefundPending(method);
+        Refund = next;
+    }
+
+    private void EnsureRefundPending(string method)
     {
         if (Status != PaymentAttemptStatus.RefundPending)
         {
-            throw IllegalTransition(nameof(MarkRefunded));
+            throw IllegalTransition(method);
         }
-
-        Status = PaymentAttemptStatus.Refunded;
     }
 
     /// <summary>A session's money is decided once: it either pays the order (Succeeded) or goes back (RefundPending, Refunded).</summary>
