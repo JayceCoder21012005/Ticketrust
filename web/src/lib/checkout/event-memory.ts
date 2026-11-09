@@ -6,7 +6,7 @@ export type RememberedEvent = { id: string; slug: string; title: string };
 function read(): RememberedEvent[] {
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem(KEY) ?? "[]");
-    return Array.isArray(parsed) ? (parsed as RememberedEvent[]).filter((e) => typeof e?.id === "string" && typeof e.slug === "string") : [];
+    return Array.isArray(parsed) ? (parsed as RememberedEvent[]).filter((e) => typeof e?.id === "string" && typeof e.slug === "string" && typeof e.title === "string") : [];
   } catch {
     return [];
   }

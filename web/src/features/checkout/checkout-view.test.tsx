@@ -229,6 +229,52 @@ describe("CheckoutView", () => {
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/checkout/o1/result"));
   });
 
+  it("reloads the order once on order.not_payable, even when it still reads as payable", async () => {
+    orders.getOrder.mockResolvedValue(order("Pending"));
+    orders.payOrder.mockRejectedValue(new ApiError(409, { code: "order.not_payable" }));
+    const user = userEvent.setup();
+    renderView();
+    await acceptTerms(user);
+
+    await user.click(await payButton());
+    await screen.findByRole("alert");
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    expect(orders.getOrder).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not hand a gateway address with a script scheme to the browser", async () => {
+    orders.getOrder.mockResolvedValue(order());
+    orders.payOrder.mockResolvedValue({ ...redirect, redirectUrl: "javascript:alert(1)" });
+    const user = userEvent.setup();
+    renderView();
+    await acceptTerms(user);
+
+    await user.click(await payButton());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Không mở được cổng thanh toán");
+    expect(navigation.navigateTo).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Thanh toán" })).toBeEnabled();
+  });
+
+  it("frees the pay button when the page comes back from the back/forward cache", async () => {
+    orders.getOrder.mockResolvedValue(order());
+    orders.payOrder.mockResolvedValue(redirect);
+    const user = userEvent.setup();
+    renderView();
+    await acceptTerms(user);
+    await user.click(await payButton());
+    expect(await screen.findByRole("button", { name: /Đang chuyển/ })).toBeDisabled();
+
+    act(() => {
+      const event = new Event("pageshow");
+      Object.defineProperty(event, "persisted", { value: true });
+      window.dispatchEvent(event);
+    });
+
+    expect(await screen.findByRole("button", { name: "Thanh toán" })).toBeEnabled();
+  });
+
   it("offers cancelling only while the order is Pending", async () => {
     orders.getOrder.mockResolvedValue(order("AwaitingPayment"));
     renderView();

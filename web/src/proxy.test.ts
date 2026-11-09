@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { proxy, requiresLogin } from "./proxy";
 
 const request = (path: string, cookie?: string) =>
@@ -36,5 +36,26 @@ describe("proxy", () => {
 
   it("never redirects public pages", () => {
     expect(proxy(request("/events")).headers.get("location")).toBeNull();
+  });
+});
+
+describe("proxy: mock gateway", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("answers 404 for the mock gateway when it is not enabled", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ENABLE_MOCK_GATEWAY", "");
+
+    expect(proxy(request("/mock-gateway/s1")).status).toBe(404);
+  });
+
+  it("lets the mock gateway through when it is enabled, without asking for a login", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ENABLE_MOCK_GATEWAY", "1");
+
+    const response = proxy(request("/mock-gateway/s1"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
   });
 });

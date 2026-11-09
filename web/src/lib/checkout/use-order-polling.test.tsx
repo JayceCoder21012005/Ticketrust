@@ -97,6 +97,25 @@ describe("useOrderPolling", () => {
     expect(fetchOrder.mock.calls.length).toBeGreaterThan(calls);
   });
 
+  it("runs a single chain when the tab goes hidden and visible during a fetch", async () => {
+    let finish: (order: Order) => void = () => undefined;
+    const fetchOrder = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<Order>((resolve) => (finish = resolve)))
+      .mockResolvedValue(orderOf("AwaitingPayment"));
+    renderHook(() => useOrderPolling("o1", { fetchOrder }));
+    await flush(0);
+
+    setHidden(true);
+    setHidden(false);
+    await flush(0);
+    expect(fetchOrder).toHaveBeenCalledTimes(1);
+
+    finish(orderOf("AwaitingPayment"));
+    await flush(6_000);
+    expect(fetchOrder.mock.calls.length).toBeLessThanOrEqual(6);
+  });
+
   it("keeps polling through a transient failure but stops on 404", async () => {
     const fetchOrder = vi.fn().mockRejectedValueOnce(new TypeError("offline")).mockResolvedValue(orderOf("Paid"));
     const { result } = renderHook(() => useOrderPolling("o1", { fetchOrder }));

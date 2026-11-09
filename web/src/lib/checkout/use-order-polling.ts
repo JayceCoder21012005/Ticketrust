@@ -37,20 +37,43 @@ export function useOrderPolling(orderId: string, { fetchOrder = getOrder, interv
       if (active) setPhase(next);
     };
 
-    const beat = async () => {
-      if (!document.hidden) {
-        try {
-          const latest = await fetchOrder(orderId);
-          if (!active) return;
-          setOrder(latest);
-          if (isSettled(latest.status)) return settle("settled");
-        } catch (error) {
-          if (!active) return;
-          if (isGone(error)) return settle("error");
-        }
+    // One poll at a time: a tab that turns visible while a fetch is still out must not start a second chain.
+    let inFlight = false;
 
-        beats += 1;
-        if (beats >= maxBeats) return settle("timeout");
+    const poll = async (): Promise<"continue" | "stop"> => {
+      try {
+        const latest = await fetchOrder(orderId);
+        if (!active) return "stop";
+        setOrder(latest);
+        if (isSettled(latest.status)) {
+          settle("settled");
+          return "stop";
+        }
+      } catch (error) {
+        if (!active) return "stop";
+        if (isGone(error)) {
+          settle("error");
+          return "stop";
+        }
+      }
+
+      beats += 1;
+      if (beats >= maxBeats) {
+        settle("timeout");
+        return "stop";
+      }
+
+      return "continue";
+    };
+
+    const beat = async () => {
+      if (inFlight) return;
+      if (!document.hidden) {
+        inFlight = true;
+        const next = await poll().finally(() => {
+          inFlight = false;
+        });
+        if (next === "stop") return;
       }
 
       timer = setTimeout(() => void beat(), intervalMs);

@@ -74,6 +74,7 @@ const messages: Record<string, string> = {
   "order.not_payable": "Đơn hàng không thể thanh toán.",
   "order.not_found": "Không tìm thấy đơn hàng.",
   "payment.gateway_unavailable": "Cổng thanh toán tạm thời gián đoạn, thử lại sau. Ghế của bạn vẫn được giữ.",
+  "payment.invalid_redirect": "Không mở được cổng thanh toán. Vui lòng thử lại.",
   "payment.rejected": "Cổng thanh toán từ chối giao dịch. Vui lòng thử lại.",
   "idempotency.in_progress": "Yêu cầu đang được xử lý. Vui lòng chờ.",
   "idempotency.key_reused": "Yêu cầu bị trùng. Vui lòng tải lại trang.",

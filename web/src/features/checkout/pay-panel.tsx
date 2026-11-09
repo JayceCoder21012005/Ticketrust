@@ -31,14 +31,13 @@ const orderCode = (id: string) => `#${id.slice(0, 8).toUpperCase()}`;
 export function PayPanel({ order, offsetMs, event, onReload }: PayPanelProps) {
   const [ended, setEnded] = useState(false);
   const onExpire = useCallback(() => setEnded(true), []);
-  const pay = usePay(order.id);
+  // The order may have moved on (a payment started elsewhere, a webhook): look again, once per refused attempt.
+  const pay = usePay(order.id, (e) => {
+    if (e instanceof ApiError && e.code === "order.not_payable") onReload();
+  });
   const endedByApi = pay.error instanceof ApiError && END_CODES.has(pay.error.code ?? "");
   const over = ended || endedByApi;
   const seatsHref = event ? `/events/${event.slug}/seats` : null;
-
-  useEffect(() => {
-    if (pay.error instanceof ApiError && pay.error.code === "order.not_payable") onReload();
-  }, [pay.error, onReload]);
 
   return (
     <div className="flex flex-1 flex-col">
