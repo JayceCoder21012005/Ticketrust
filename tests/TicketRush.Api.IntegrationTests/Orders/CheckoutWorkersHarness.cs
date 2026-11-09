@@ -43,6 +43,7 @@ internal sealed class CheckoutWorkersHarness : IAsyncDisposable
         {
             s.AddSingleton<TimeProvider>(time);
             s.AddSingleton<IPaymentGatewayResolver>(sp => new SpyResolver(ActivatorUtilities.CreateInstance<PaymentGatewayResolver>(sp), spy));
+            s.AddScoped<IWebhookInbox>(sp => new FaultyInbox(ActivatorUtilities.CreateInstance<WebhookInbox>(sp), spy));
         }));
         Metrics = new PaymentWorkerMetrics(Host.Services.GetRequiredService<IMeterFactory>());
     }
@@ -187,6 +188,21 @@ internal sealed class CheckoutWorkersHarness : IAsyncDisposable
         return await scope.ServiceProvider.GetRequiredService<FulfillOrderHandler>().HandleAsync(Provider, webhook, Ct);
     }
 
+    /// <summary>A signed webhook posted to the api's real endpoint, signed at the fake clock's time.</summary>
+    public async Task<string> PostWebhookAsync(Placed placed, long? amount, string? currency = null)
+    {
+        var body = new MockWebhookPayload($"evt_mock_{Guid.NewGuid():N}", MockWebhookPayload.SucceededType, placed.SessionId, amount, currency ?? "VND", Time.GetUtcNow()).ToJson();
+        using var client = Host.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/webhooks/payments/mock") { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") };
+        request.Headers.TryAddWithoutValidation(WebhookHeaders.SignatureHeader, WebhookSignature.Sign(TestSettingsSecret, body, Time.GetUtcNow()));
+        using var response = await client.SendAsync(request, Ct);
+        var text = await response.Content.ReadAsStringAsync(Ct);
+        response.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK, text);
+        return System.Text.Json.JsonDocument.Parse(text).RootElement.GetProperty("outcome").GetString()!;
+    }
+
+    private const string TestSettingsSecret = "test-mock-webhook-secret-0123456789";
+
     public Task ChangeOrderAsync(Guid orderId, Action<Order> change) => WithDbAsync(async db =>
     {
         change(await db.Orders.SingleAsync(o => o.Id == orderId, Ct));
@@ -202,7 +218,7 @@ internal sealed class CheckoutWorkersHarness : IAsyncDisposable
     public Task<State> StateAsync(Guid orderId) => WithDbAsync(async db =>
     {
         var order = await db.Orders.AsNoTracking().SingleAsync(o => o.Id == orderId, Ct);
-        var attempts = await db.PaymentAttempts.AsNoTracking().Where(a => a.OrderId == orderId).OrderBy(a => a.CreatedAt).ToListAsync(Ct);
+        var attempts = await db.PaymentAttempts.AsNoTracking().Where(a => a.OrderId == orderId).OrderBy(a => a.CreatedAt).ThenBy(a => a.Id).ToListAsync(Ct);
         var ids = attempts.Select(a => (Guid?)a.Id).Append(orderId).ToList();
         var outbox = await db.OutboxMessages.AsNoTracking().Where(m => ids.Contains(m.AggregateId))
             .OrderBy(m => m.OccurredAt).Select(m => m.Type).ToArrayAsync(Ct);
@@ -284,6 +300,12 @@ internal sealed class CheckoutWorkersHarness : IAsyncDisposable
         /// <summary>Runs after the gateway answered a status read, before the caller sees the answer.</summary>
         public Func<string, PaymentStatus, Task>? AfterStatus { get; set; }
 
+        /// <summary>Runs before a refund call reaches the gateway, with its idempotency key (it may throw: an adapter failure).</summary>
+        public Func<string, Task>? BeforeRefund { get; set; }
+
+        /// <summary>Makes the fulfil path's dedupe insert throw for this provider event id (after earlier ones committed).</summary>
+        public string? FailInboxFor { get; set; }
+
         /// <summary>Runs after the gateway answered a refund, before the caller sees the answer (it may throw: a crash).</summary>
         public Func<RefundResult, Task>? AfterRefund { get; set; }
 
@@ -299,6 +321,21 @@ internal sealed class CheckoutWorkersHarness : IAsyncDisposable
             {
                 RefundKeys.Add(key);
             }
+        }
+    }
+
+    /// <summary>The real dedupe inbox, except that it throws once for <see cref="GatewaySpy.FailInboxFor"/>.</summary>
+    private sealed class FaultyInbox(IWebhookInbox inner, GatewaySpy spy) : IWebhookInbox
+    {
+        public Task<bool> TryRecordAsync(string provider, string providerEventId, DateTimeOffset processedAt, CancellationToken ct)
+        {
+            if (spy.FailInboxFor is { } failing && failing == providerEventId)
+            {
+                spy.FailInboxFor = null;
+                throw new InvalidOperationException("simulated failure of the second fulfilment");
+            }
+
+            return inner.TryRecordAsync(provider, providerEventId, processedAt, ct);
         }
     }
 
@@ -331,6 +368,11 @@ internal sealed class CheckoutWorkersHarness : IAsyncDisposable
         public async Task<RefundResult> RefundAsync(string sessionId, Money amount, string idempotencyKey, CancellationToken ct)
         {
             spy.CountRefund(idempotencyKey);
+            if (spy.BeforeRefund is { } before)
+            {
+                await before(idempotencyKey);
+            }
+
             var result = await inner.RefundAsync(sessionId, amount, idempotencyKey, ct);
             if (spy.AfterRefund is { } hook)
             {

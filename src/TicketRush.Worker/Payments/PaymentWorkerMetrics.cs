@@ -13,6 +13,7 @@ public sealed class PaymentWorkerMetrics
 
     private readonly Counter<long> _expiry;
     private readonly Counter<long> _refunds;
+    private readonly Counter<long> _sessions;
     private long _parked;
 
     public PaymentWorkerMetrics(IMeterFactory meterFactory)
@@ -20,6 +21,7 @@ public sealed class PaymentWorkerMetrics
         ArgumentNullException.ThrowIfNull(meterFactory);
         var meter = meterFactory.Create(MeterName);
         _expiry = meter.CreateCounter<long>("ticketrush.orders.expiry", description: "Orders the expiry sweep looked at, by outcome.");
+        _sessions = meter.CreateCounter<long>("ticketrush.payments.sessions_reconciled", description: "Stale Pending sessions of closed orders asked again, by outcome.");
         _refunds = meter.CreateCounter<long>("ticketrush.payments.refunds", description: "Refund tries, by target (order|session) and outcome.");
         meter.CreateObservableGauge(
             "ticketrush.payments.refunds_parked",
@@ -31,6 +33,11 @@ public sealed class PaymentWorkerMetrics
     public void Expiry(OrderExpiryOutcome outcome) => _expiry.Add(1, Tag("outcome", ExpiryTag(outcome)));
 
     public void ExpiryFailed() => _expiry.Add(1, Tag("outcome", "error"));
+
+    /// <summary>Tag values: closed, still_pending, fulfilled_late, refund_late, skipped_outage, unchanged.</summary>
+    public void Session(OrderExpiryOutcome outcome) => _sessions.Add(1, Tag("outcome", ExpiryTag(outcome)));
+
+    public void SessionFailed() => _sessions.Add(1, Tag("outcome", "error"));
 
     /// <summary>Tag values: refunded, declined, parked, skipped_outage, unchanged.</summary>
     public void Refund(RefundTarget target, RefundOutcome outcome) =>
@@ -50,6 +57,8 @@ public sealed class PaymentWorkerMetrics
         OrderExpiryOutcome.FulfilledLate => "fulfilled_late",
         OrderExpiryOutcome.RefundLate => "refund_late",
         OrderExpiryOutcome.SkippedOutage => "skipped_outage",
+        OrderExpiryOutcome.Closed => "closed",
+        OrderExpiryOutcome.StillPending => "still_pending",
         _ => "unchanged",
     };
 

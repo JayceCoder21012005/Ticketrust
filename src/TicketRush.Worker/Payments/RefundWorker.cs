@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using TicketRush.Application.Abstractions.Locking;
 using TicketRush.Application.Features.Orders;
 using TicketRush.Worker.Common;
@@ -35,10 +36,18 @@ public sealed partial class RefundWorker(
 
     protected override async Task ExecuteAsLeaderAsync(CancellationToken ct)
     {
-        while (!ct.IsCancellationRequested)
+        try
         {
-            await RunOnceAsync(ct);
-            await Task.Delay(Interval, _clock, ct);
+            while (!ct.IsCancellationRequested)
+            {
+                await RunOnceAsync(ct);
+                await Task.Delay(Interval, _clock, ct);
+            }
+        }
+        finally
+        {
+            // Only the leader counts parked refunds: a node that stops leading must not keep reporting a stale number.
+            metrics.SetParked(0);
         }
     }
 
@@ -76,12 +85,35 @@ public sealed partial class RefundWorker(
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
-            // Nothing was committed for this refund; it is still RefundPending and comes back on the next pass.
-            LogRefundFailed(_logger, item.Target, item.Id, ex);
+            // Nothing was committed for this refund; it is still RefundPending. Only the exception type is logged and stored:
+            // an adapter's message may carry provider data.
+            var type = ex.GetType().Name;
+            LogRefundFailed(_logger, item.Target, item.Id, type);
             metrics.RefundFailed(item.Target);
+            if (ex is not DbUpdateConcurrencyException)
+            {
+                await BackOffAsync(item, type, ct);
+            }
         }
     }
 
-    [LoggerMessage(EventId = 8216, Level = LogLevel.Error, Message = "Refund of {Target} {Id} failed; retried on the next pass")]
-    private static partial void LogRefundFailed(ILogger logger, RefundTarget target, Guid id, Exception exception);
+    /// <summary>An unexpected failure backs off like a decline (and parks after too many), so it cannot starve newer refunds.</summary>
+    private async Task BackOffAsync(RefundWorkItem item, string exceptionType, CancellationToken ct)
+    {
+        try
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<ProcessRefundHandler>().RecordFailureAsync(item, exceptionType, ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            LogBackOffFailed(_logger, item.Target, item.Id, ex.GetType().Name);
+        }
+    }
+
+    [LoggerMessage(EventId = 8216, Level = LogLevel.Error, Message = "Refund of {Target} {Id} failed with {ExceptionType}; backed off like a decline")]
+    private static partial void LogRefundFailed(ILogger logger, RefundTarget target, Guid id, string exceptionType);
+
+    [LoggerMessage(EventId = 8217, Level = LogLevel.Error, Message = "Refund of {Target} {Id}: recording the failure ({ExceptionType}) failed too; retried on the next pass")]
+    private static partial void LogBackOffFailed(ILogger logger, RefundTarget target, Guid id, string exceptionType);
 }

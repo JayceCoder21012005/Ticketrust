@@ -8,6 +8,18 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
     /// <inheritdoc />
     public partial class AddRefundTracking : Migration
     {
+        /// <summary>
+        /// Session refunds requested before this migration only recorded their amount on the outbox event: copy it over, so
+        /// the refund worker sends back exactly what was promised (rows it cannot fill are parked by the worker).
+        /// </summary>
+        public const string BackfillRefundAmountsSql = """
+            UPDATE payment_attempts pa
+            SET refund_amount = (m.payload ->> 'amount')::bigint, refund_currency = m.payload ->> 'currency'
+            FROM outbox_messages m
+            WHERE pa.status = 'RefundPending' AND pa.refund_amount IS NULL
+              AND m.type = 'PaymentRefundRequested' AND (m.payload ->> 'attemptId')::uuid = pa.id
+            """;
+
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -78,15 +90,7 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                 type: "timestamp with time zone",
                 nullable: true);
 
-            // Session refunds requested before this migration only recorded their amount on the outbox event: copy it over,
-            // so the refund worker sends back exactly what was promised (rows it cannot fill are parked by the worker).
-            migrationBuilder.Sql("""
-                UPDATE payment_attempts pa
-                SET refund_amount = (m.payload ->> 'amount')::bigint, refund_currency = m.payload ->> 'currency'
-                FROM outbox_messages m
-                WHERE pa.status = 'RefundPending' AND pa.refund_amount IS NULL
-                  AND m.type = 'PaymentRefundRequested' AND (m.payload ->> 'attemptId')::uuid = pa.id
-                """);
+            migrationBuilder.Sql(BackfillRefundAmountsSql);
 
             migrationBuilder.CreateIndex(
                 name: "ix_payment_attempts_refund_pending",

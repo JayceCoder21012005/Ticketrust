@@ -140,6 +140,7 @@ public sealed partial class PaymentWebhookReceiver(
         PaymentWebhookOutcome.Failed => "failed",
         PaymentWebhookOutcome.Duplicate => "duplicate",
         PaymentWebhookOutcome.UnknownSession => "unknown_session",
+        PaymentWebhookOutcome.AmountMismatchAfterStatus => "amount_mismatch_after_status",
         _ => "ignored",
     };
 

@@ -25,6 +25,13 @@ public interface IPaymentGateway
     Task<PaymentStatus> GetStatusAsync(string sessionId, CancellationToken ct);
 
     /// <summary>Refunds (part of) a succeeded payment. Idempotent per <paramref name="idempotencyKey"/>.</summary>
+    /// <remarks>
+    /// The refund worker retries a DECLINED refund with the SAME key (the order id, or <c>attempt:{id}</c>). That assumes the
+    /// gateway only replays a stored SUCCESS for a key and evaluates a declined request afresh, as the mock does. Providers
+    /// that store and replay the first response for a key, failures included (Stripe-style idempotency), would decline
+    /// forever: such an adapter must derive a fresh provider key per retry (e.g. key + attempt number) while still asking
+    /// the provider whether an earlier try for this refund succeeded, so a success is never repeated.
+    /// </remarks>
     Task<RefundResult> RefundAsync(string sessionId, Money amount, string idempotencyKey, CancellationToken ct);
 
     /// <summary>

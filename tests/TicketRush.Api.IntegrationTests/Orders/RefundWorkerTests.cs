@@ -4,6 +4,7 @@ using TicketRush.Application.Abstractions.Payments;
 using TicketRush.Application.Features.Orders;
 using TicketRush.Domain.Orders;
 using TicketRush.Infrastructure.Payments;
+using TicketRush.Infrastructure.Persistence.Migrations;
 
 namespace TicketRush.Api.IntegrationTests.Orders;
 
@@ -117,11 +118,15 @@ public sealed class RefundWorkerTests(ContainersFixture containers) : IAsyncLife
         };
         using var metrics = _h.RecordMetrics();
 
+        var start = _h.Time.GetUtcNow();
         await TickAsync();
 
-        (await _h.StateAsync(placed.OrderId)).Status.ShouldBe(OrderStatus.RefundPending);
+        var crashed = await _h.StateAsync(placed.OrderId);
+        crashed.Status.ShouldBe(OrderStatus.RefundPending);
+        crashed.Refund.ShouldBe(new RefundTracking(1, start + BaseDelay, "error: InvalidOperationException", false), "an unexpected failure backs off like a decline");
         (await _h.RefundedOnGatewayAsync(placed.SessionId)).ShouldBe(placed.Total.Amount);
 
+        _h.Time.Advance(BaseDelay);
         await TickAsync();
 
         (await _h.StateAsync(placed.OrderId)).Status.ShouldBe(OrderStatus.Refunded);
@@ -257,6 +262,110 @@ public sealed class RefundWorkerTests(ContainersFixture containers) : IAsyncLife
         attempt.Status.ShouldBe(PaymentAttemptStatus.RefundPending);
         attempt.Refund.ShouldBe(new RefundTracking(0, null, "missing_refund_amount", true));
         _h.Spy.RefundCalls.ShouldBe(0);
+    }
+
+    // ================================================================ B8 fix round 1
+
+    public static TheoryData<string> AdapterFailures() => ["InvalidOperationException", "ArgumentException"];
+
+    [Theory]
+    [MemberData(nameof(AdapterFailures))]
+    public async Task An_adapter_that_throws_for_one_refund_does_not_block_the_next_and_the_failing_one_backs_off_then_parks(string failure)
+    {
+        var failing = await OrderOwedRefundAsync();
+        var healthy = await OrderOwedRefundAsync();
+        _h.Spy.BeforeRefund = key => key == failing.OrderId.ToString()
+            ? throw (failure == "ArgumentException" ? new ArgumentException("bad adapter input") : new InvalidOperationException("adapter bug"))
+            : Task.CompletedTask;
+        var start = _h.Time.GetUtcNow();
+
+        (await TickAsync()).ShouldBe(2);
+
+        (await _h.StateAsync(healthy.OrderId)).Status.ShouldBe(OrderStatus.Refunded);
+        (await _h.StateAsync(failing.OrderId)).Refund.ShouldBe(new RefundTracking(1, start + BaseDelay, $"error: {failure}", false));
+        (await TickAsync()).ShouldBe(0, "backing off, not retried at full speed");
+
+        _h.Time.Advance(BaseDelay);
+        await TickAsync();
+        _h.Time.Advance(MaxDelay);
+        await TickAsync();
+
+        var parked = await _h.StateAsync(failing.OrderId);
+        parked.Status.ShouldBe(OrderStatus.RefundPending);
+        parked.Refund.ShouldBe(new RefundTracking(3, null, $"error: {failure}", true));
+    }
+
+    [Fact]
+    public async Task A_thrown_gateway_rejection_counts_as_a_decline()
+    {
+        var placed = await OrderOwedRefundAsync();
+        _h.Spy.BeforeRefund = _ => throw new PaymentRejectedException("refund refused");
+        var start = _h.Time.GetUtcNow();
+
+        await TickAsync();
+
+        (await _h.StateAsync(placed.OrderId)).Refund.ShouldBe(new RefundTracking(1, start + BaseDelay, "rejected: refund refused", false));
+    }
+
+    [Fact]
+    public async Task A_refund_through_a_provider_nobody_registered_is_parked()
+    {
+        var placed = await OrderOwedRefundAsync();
+        await _h.WithDbAsync(db => db.Database.ExecuteSqlAsync($"UPDATE payment_attempts SET provider = 'ghost' WHERE id = {placed.AttemptId}", Ct));
+
+        await TickAsync();
+
+        (await _h.StateAsync(placed.OrderId)).Refund.ShouldBe(new RefundTracking(0, null, "unknown_provider", true));
+        _h.Spy.RefundCalls.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task An_order_with_two_succeeded_sessions_is_parked_rather_than_refunding_a_guess()
+    {
+        var placed = await OrderOwedRefundAsync();
+        var extra = await _h.AddSessionAsync(placed.OrderId);
+        await _h.WithDbAsync(db => db.Database.ExecuteSqlAsync($"UPDATE payment_attempts SET status = 'Succeeded' WHERE id = {extra.AttemptId}", Ct));
+
+        await TickAsync();
+
+        (await _h.StateAsync(placed.OrderId)).Refund.ShouldBe(new RefundTracking(0, null, "several_succeeded_sessions", true));
+        _h.Spy.RefundCalls.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task The_parked_gauge_is_reset_when_the_worker_stops_leading()
+    {
+        var placed = await OrderOwedRefundAsync();
+        await _h.ChangeOrderAsync(placed.OrderId, o => o.ParkRefund("test"));
+        using var metrics = _h.RecordMetrics();
+        using var worker = _h.Refunds(TimeProvider.System);
+
+        await worker.StartAsync(Ct);
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (worker.TickCount == 0 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(50, Ct);
+        }
+
+        metrics.Gauge("ticketrush.payments.refunds_parked").ShouldBe(1);
+        await worker.StopAsync(CancellationToken.None);
+
+        metrics.Gauge("ticketrush.payments.refunds_parked").ShouldBe(0, "a node that no longer leads must not keep reporting a stale count");
+    }
+
+    [Fact]
+    public async Task The_migration_backfill_copies_a_pending_session_refund_amount_from_its_outbox_event()
+    {
+        var (_, second) = await DuplicatePaymentAsync();
+        await _h.WithDbAsync(db => db.Database.ExecuteSqlAsync(
+            $"UPDATE payment_attempts SET refund_amount = NULL, refund_currency = NULL WHERE id = {second.AttemptId}", Ct));
+
+        await _h.WithDbAsync(db => db.Database.ExecuteSqlRawAsync(AddRefundTracking.BackfillRefundAmountsSql, Ct));
+
+        var attempt = await _h.AttemptAsync(second.AttemptId);
+        attempt.RefundAmount.ShouldBe(second.Total);
+        (await TickAsync()).ShouldBe(1);
+        (await _h.AttemptAsync(second.AttemptId)).Status.ShouldBe(PaymentAttemptStatus.Refunded);
     }
 
     [Fact]

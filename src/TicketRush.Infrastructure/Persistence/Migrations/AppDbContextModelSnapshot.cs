@@ -754,6 +754,10 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_payment_attempts");
 
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_payment_attempts_pending_expires_at")
+                        .HasFilter("status = 'Pending'");
+
                     b.HasIndex("Id")
                         .HasDatabaseName("ix_payment_attempts_refund_pending")
                         .HasFilter("status = 'RefundPending'");

@@ -20,6 +20,9 @@ public sealed class OrderExpiryServiceTests(ContainersFixture containers) : IAsy
 {
     private static readonly TimeSpan PastExpiry = TimeSpan.FromMinutes(9);
 
+    /// <summary>Default <c>Payments:Expiry:AttemptGrace</c>: how long a session of a closed order may stay Pending before it is asked again.</summary>
+    private static readonly TimeSpan Grace = TimeSpan.FromMinutes(10);
+
     private CheckoutWorkersHarness _h = null!;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -34,7 +37,7 @@ public sealed class OrderExpiryServiceTests(ContainersFixture containers) : IAsy
     [InlineData("pending")]
     [InlineData("failed")]
     [InlineData("expired")]
-    public async Task An_order_whose_session_took_no_money_expires_with_its_pending_session(string gatewayState)
+    public async Task An_order_whose_session_took_no_money_expires_and_the_session_is_closed_after_the_grace(string gatewayState)
     {
         var placed = gatewayState switch
         {
@@ -50,10 +53,22 @@ public sealed class OrderExpiryServiceTests(ContainersFixture containers) : IAsy
 
         var state = await _h.StateAsync(placed.OrderId);
         state.Status.ShouldBe(OrderStatus.Expired);
-        state.Attempts.ShouldBe([PaymentAttemptStatus.Expired]);
+        state.Attempts.ShouldBe([PaymentAttemptStatus.Pending], "only the order expires; the session is reconciled on its own");
         state.Tickets.ShouldBe(0);
         state.Outbox.ShouldBe([nameof(OrderExpired)]);
         _h.Spy.StatusCalls.ShouldBe(1);
+
+        _h.Time.Advance(TimeSpan.FromMinutes(1));
+        await SweepAsync();
+        (await _h.StateAsync(placed.OrderId)).Attempts.ShouldBe([PaymentAttemptStatus.Pending], "still inside the grace");
+
+        _h.Time.Advance(Grace);
+        using var metrics = _h.RecordMetrics();
+        await SweepAsync();
+
+        (await _h.StateAsync(placed.OrderId)).Attempts.ShouldBe([gatewayState == "failed" ? PaymentAttemptStatus.Failed : PaymentAttemptStatus.Expired]);
+        _h.Spy.StatusCalls.ShouldBe(2);
+        metrics.Counted("ticketrush.payments.sessions_reconciled").ShouldBe(["outcome=closed"]);
     }
 
     [Fact]
@@ -247,6 +262,225 @@ public sealed class OrderExpiryServiceTests(ContainersFixture containers) : IAsy
         (await SweepAsync()).ShouldBe(ids.Count);
 
         (await _h.WithDbAsync(db => db.Orders.CountAsync(o => ids.Contains(o.Id) && o.Status == OrderStatus.Expired, Ct))).ShouldBe(ids.Count);
+    }
+
+    // ================================================================ several sessions, the session reconcile (B8 fix round 1)
+
+    [Fact]
+    public async Task Two_succeeded_sessions_pay_the_order_once_and_refund_the_second_as_a_duplicate()
+    {
+        var first = await _h.PlaceAsync([_h.Seat(_h.Seats[11])], MockOutcome.SucceededDelayed);
+        var second = await _h.AddSessionAsync(first.OrderId);
+        (await _h.Control.CompleteAsync(second.SessionId, MockOutcome.SucceededDelayed, Ct)).IsSuccess.ShouldBeTrue();
+        _h.Time.Advance(PastExpiry);
+
+        await SweepAsync();
+
+        var state = await _h.StateAsync(first.OrderId);
+        state.Status.ShouldBe(OrderStatus.Paid);
+        state.Tickets.ShouldBe(1);
+        state.Attempts.ShouldBe([PaymentAttemptStatus.Succeeded, PaymentAttemptStatus.RefundPending]);
+        (await _h.Refunds().RunOnceAsync(Ct)).ShouldBe(1);
+        (await _h.AttemptAsync(second.AttemptId)).Status.ShouldBe(PaymentAttemptStatus.Refunded);
+        (await _h.RefundedOnGatewayAsync(second.SessionId)).ShouldBe(second.Total.Amount);
+        (await _h.RefundedOnGatewayAsync(first.SessionId)).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_pending_session_of_an_order_paid_by_another_one_is_closed_after_the_grace()
+    {
+        var paid = await _h.PlaceAsync([_h.Seat(_h.Seats[12])], MockOutcome.SucceededDelayed);
+        var open = await _h.AddSessionAsync(paid.OrderId);
+        _h.Time.Advance(PastExpiry);
+
+        await SweepAsync();
+        (await _h.StateAsync(paid.OrderId)).Attempts.ShouldBe([PaymentAttemptStatus.Succeeded, PaymentAttemptStatus.Pending]);
+
+        _h.Time.Advance(Grace);
+        await SweepAsync();
+
+        var state = await _h.StateAsync(paid.OrderId);
+        state.Status.ShouldBe(OrderStatus.Paid);
+        state.Attempts.ShouldBe([PaymentAttemptStatus.Succeeded, PaymentAttemptStatus.Expired]);
+        (await _h.AttemptAsync(open.AttemptId)).Status.ShouldBe(PaymentAttemptStatus.Expired);
+    }
+
+    [Fact]
+    public async Task A_second_fulfilment_that_throws_after_the_first_committed_is_finished_by_the_session_reconcile()
+    {
+        var first = await _h.PlaceAsync([_h.Seat(_h.Seats[13])], MockOutcome.SucceededDelayed);
+        var second = await _h.AddSessionAsync(first.OrderId);
+        (await _h.Control.CompleteAsync(second.SessionId, MockOutcome.SucceededDelayed, Ct)).IsSuccess.ShouldBeTrue();
+        _h.Spy.FailInboxFor = ExpireOrderHandler.StatusEventId(second.SessionId);
+        _h.Time.Advance(PastExpiry);
+        using var metrics = _h.RecordMetrics();
+
+        await SweepAsync();
+
+        (await _h.StateAsync(first.OrderId)).Attempts.ShouldBe([PaymentAttemptStatus.Succeeded, PaymentAttemptStatus.Pending]);
+        metrics.Counted("ticketrush.orders.expiry").ShouldBe(["outcome=error"]);
+
+        _h.Time.Advance(Grace);
+        await SweepAsync();
+
+        var state = await _h.StateAsync(first.OrderId);
+        state.Status.ShouldBe(OrderStatus.Paid);
+        state.Tickets.ShouldBe(1);
+        state.Attempts.ShouldBe([PaymentAttemptStatus.Succeeded, PaymentAttemptStatus.RefundPending], "the second payment goes back as a duplicate");
+        metrics.Counted("ticketrush.payments.sessions_reconciled").ShouldBe(["outcome=refund_late"]);
+    }
+
+    [Fact]
+    public async Task A_payment_completed_after_the_sweeps_pending_read_whose_webhook_never_arrives_is_found_later()
+    {
+        // The provider exhausted its webhook retries; only the session reconcile can find this money.
+        var placed = await _h.PlaceAsync([_h.Seat(_h.Seats[14])], sessionOutlivesOrder: TimeSpan.FromMinutes(5));
+        _h.Time.Advance(PastExpiry);
+        await SweepAsync();
+        (await _h.StateAsync(placed.OrderId)).Status.ShouldBe(OrderStatus.Expired);
+        (await _h.Control.CompleteAsync(placed.SessionId, MockOutcome.SucceededDelayed, Ct)).IsSuccess.ShouldBeTrue();
+
+        _h.Time.Advance(Grace);
+        await SweepAsync();
+
+        var state = await _h.StateAsync(placed.OrderId);
+        state.Status.ShouldBe(OrderStatus.Paid);
+        state.Attempts.ShouldBe([PaymentAttemptStatus.Succeeded]);
+        state.Tickets.ShouldBe(1);
+        state.Outbox.ShouldBe([nameof(OrderExpired), nameof(OrderPaid)]);
+    }
+
+    [Fact]
+    public async Task Money_on_a_session_of_an_order_that_was_cancelled_meanwhile_is_sent_back()
+    {
+        // Safety net for B9: whatever closes an order, a session that took money is found and refunded.
+        var placed = await _h.PlaceAsync([_h.Seat(_h.Seats[15])], MockOutcome.SucceededDelayed);
+        await _h.WithDbAsync(db => db.Database.ExecuteSqlAsync($"UPDATE orders SET status = 'Cancelled' WHERE id = {placed.OrderId}", Ct));
+        _h.Time.Advance(PastExpiry + Grace);
+
+        await SweepAsync();
+
+        var state = await _h.StateAsync(placed.OrderId);
+        state.Status.ShouldBe(OrderStatus.Cancelled);
+        state.Attempts.ShouldBe([PaymentAttemptStatus.RefundPending]);
+        await _h.Refunds().RunOnceAsync(Ct);
+        (await _h.RefundedOnGatewayAsync(placed.SessionId)).ShouldBe(placed.Total.Amount);
+    }
+
+    [Fact]
+    public async Task A_gateway_outage_during_the_session_reconcile_marks_nothing()
+    {
+        var paid = await _h.PlaceAsync([_h.Seat(_h.Seats[16])], MockOutcome.SucceededDelayed);
+        var open = await _h.AddSessionAsync(paid.OrderId);
+        _h.Time.Advance(PastExpiry);
+        await SweepAsync();
+        _h.Time.Advance(Grace);
+        _h.Gateway.SimulateOutage = true;
+
+        await SweepAsync();
+
+        (await _h.AttemptAsync(open.AttemptId)).Status.ShouldBe(PaymentAttemptStatus.Pending);
+        _h.Gateway.SimulateOutage = false;
+        await SweepAsync();
+        (await _h.AttemptAsync(open.AttemptId)).Status.ShouldBe(PaymentAttemptStatus.Expired);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task A_real_webhook_after_the_sweep_expired_the_order_is_paid_or_refunded_end_to_end(bool seatsFree)
+    {
+        var seat = _h.Seats[17];
+        var late = await _h.PlaceAsync([_h.Seat(seat)], sessionOutlivesOrder: TimeSpan.FromMinutes(5));
+        _h.Time.Advance(PastExpiry);
+        await SweepAsync();
+        (await _h.StateAsync(late.OrderId)).Attempts.ShouldBe([PaymentAttemptStatus.Pending]);
+        if (!seatsFree)
+        {
+            var resold = await _h.PlaceAsync([_h.Seat(seat)]);
+            (await _h.DeliverSucceededAsync(resold)).ShouldBe(PaymentWebhookOutcome.Paid);
+        }
+
+        (await _h.Control.CompleteAsync(late.SessionId, MockOutcome.Succeeded, Ct)).IsSuccess.ShouldBeTrue();
+        (await _h.PostWebhookAsync(late, late.Total.Amount)).ShouldBe(seatsFree ? "paid" : "refund_pending");
+
+        if (seatsFree)
+        {
+            (await _h.StateAsync(late.OrderId)).Tickets.ShouldBe(1);
+            return;
+        }
+
+        (await _h.StateAsync(late.OrderId)).Status.ShouldBe(OrderStatus.RefundPending);
+        await _h.Refunds().RunOnceAsync(Ct);
+        (await _h.StateAsync(late.OrderId)).Status.ShouldBe(OrderStatus.Refunded);
+        (await _h.RefundedOnGatewayAsync(late.SessionId)).ShouldBe(late.Total.Amount);
+    }
+
+    [Fact]
+    public async Task A_real_webhook_reporting_another_amount_than_the_status_decision_assumed_is_flagged_not_silently_ignored()
+    {
+        // Status reads carry no captured amount: the sweep pays with the session amount; the real webhook says otherwise.
+        var placed = await _h.PlaceAsync([_h.GaUnits(2)], MockOutcome.SucceededDelayed);
+        _h.Time.Advance(PastExpiry);
+        await SweepAsync();
+        var before = await _h.StateAsync(placed.OrderId);
+        before.Status.ShouldBe(OrderStatus.Paid);
+
+        (await _h.PostWebhookAsync(placed, placed.Total.Amount - 1_000)).ShouldBe("amount_mismatch_after_status");
+        (await _h.PostWebhookAsync(placed, placed.Total.Amount, "USD")).ShouldBe("amount_mismatch_after_status");
+        (await _h.PostWebhookAsync(placed, placed.Total.Amount)).ShouldBe("ignored", "the same amount confirms the decision");
+
+        var after = await _h.StateAsync(placed.OrderId);
+        after.Status.ShouldBe(before.Status);
+        after.Tickets.ShouldBe(before.Tickets);
+        after.Attempts.ShouldBe(before.Attempts);
+    }
+
+    [Fact]
+    public async Task A_second_webhook_with_another_amount_after_a_real_webhook_decided_is_still_just_ignored()
+    {
+        var placed = await _h.PlaceAsync([_h.GaUnits(1)], MockOutcome.Succeeded);
+        (await _h.PostWebhookAsync(placed, placed.Total.Amount)).ShouldBe("paid");
+
+        (await _h.PostWebhookAsync(placed, placed.Total.Amount - 1_000)).ShouldBe("ignored");
+    }
+
+    [Fact]
+    public async Task An_attempt_of_an_unknown_provider_never_expires_its_order_and_is_counted_as_an_error()
+    {
+        var placed = await _h.PlaceAsync([_h.Seat(_h.Seats[18])]);
+        await _h.WithDbAsync(db => db.Database.ExecuteSqlAsync($"UPDATE payment_attempts SET provider = 'ghost' WHERE id = {placed.AttemptId}", Ct));
+        _h.Time.Advance(PastExpiry);
+        using var metrics = _h.RecordMetrics();
+
+        await SweepAsync();
+
+        (await _h.StateAsync(placed.OrderId)).Status.ShouldBe(OrderStatus.AwaitingPayment);
+        metrics.Counted("ticketrush.orders.expiry").ShouldBe(["outcome=error"]);
+    }
+
+    [Fact]
+    public async Task Two_sweepers_expiring_the_same_order_at_once_expire_it_once()
+    {
+        var placed = await _h.PlaceAsync([_h.Seat(_h.Seats[19])], sessionOutlivesOrder: TimeSpan.FromMinutes(5));
+        _h.Time.Advance(PastExpiry);
+        var arrived = 0;
+        var both = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _h.Spy.AfterStatus = async (_, _) =>
+        {
+            if (Interlocked.Increment(ref arrived) == 2)
+            {
+                both.SetResult();
+            }
+
+            await both.Task.WaitAsync(TimeSpan.FromSeconds(20), Ct);
+        };
+        using var metrics = _h.RecordMetrics();
+
+        await Task.WhenAll(_h.Sweeper().RunOnceAsync(Ct), _h.Sweeper().RunOnceAsync(Ct));
+
+        (await _h.StateAsync(placed.OrderId)).Outbox.ShouldBe([nameof(OrderExpired)]);
+        metrics.Counted("ticketrush.orders.expiry").ShouldBe(["outcome=expired", "outcome=unchanged"], ignoreOrder: true);
     }
 
     [Fact]

@@ -53,6 +53,20 @@ public sealed class FulfilmentOptions
     public TimeSpan LockTimeout { get; set; } = TimeSpan.FromSeconds(5);
 }
 
+/// <summary>Order expiry sweep (spec 08).</summary>
+public sealed class OrderExpiryOptions
+{
+    public const string SectionName = "Payments:Expiry";
+
+    /// <summary>
+    /// How long past its own expiry a payment session of an order that is no longer open may stay Pending before the sweep asks
+    /// the gateway about it again (money that reached it late, a second session, a lost webhook). Long enough for the
+    /// provider's own webhook to arrive first in the normal case.
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:01:00", "1.00:00:00")]
+    public TimeSpan AttemptGrace { get; set; } = TimeSpan.FromMinutes(10);
+}
+
 /// <summary>
 /// Refund worker (spec 08): how a refund the gateway DECLINES is retried before a person has to look at it. A gateway
 /// outage is not a decline: it is simply tried again on the next pass and never parks anything.

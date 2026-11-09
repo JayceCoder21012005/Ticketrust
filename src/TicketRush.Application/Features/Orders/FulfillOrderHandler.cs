@@ -32,6 +32,12 @@ public enum PaymentWebhookOutcome
 
     /// <summary>No payment attempt has this session id. Nothing is written.</summary>
     UnknownSession,
+
+    /// <summary>
+    /// Recorded, nothing changed, but flagged for a person: the session was decided from a status read (which carries no
+    /// captured amount) and the provider's real webhook now reports another amount or currency than the session's.
+    /// </summary>
+    AmountMismatchAfterStatus,
 }
 
 /// <summary>
@@ -56,6 +62,12 @@ public sealed partial class FulfillOrderHandler(
     ILogger<FulfillOrderHandler> logger)
 {
     public const int MaxConcurrencyRetries = 3;
+
+    /// <summary>Prefix of the synthetic provider event ids the expiry sweep decides under (status reads, not webhooks).</summary>
+    public const string StatusEventPrefix = "status:";
+
+    /// <summary>The provider event id a decision taken from a status read of <paramref name="sessionId"/> is recorded under.</summary>
+    public static string StatusEventId(string sessionId) => StatusEventPrefix + sessionId;
 
     private readonly IInventoryStrategy[] _strategies = [.. strategies.OrderBy(s => s.Order)];
 
@@ -130,7 +142,7 @@ public sealed partial class FulfillOrderHandler(
         var order = await db.Orders.SingleAsync(o => o.Id == attempt.OrderId, ct);
         var outcome = webhook.Type switch
         {
-            WebhookEventType.Succeeded => await SucceededAsync(order, attempt, webhook.Amount, unfulfillable, now, ct),
+            WebhookEventType.Succeeded => await SucceededAsync(order, attempt, webhook, unfulfillable, now, ct),
             WebhookEventType.Failed => await FailedAsync(order, attempt, now, ct),
             // Refund confirmations: the refund worker settles refunds from the gateway's synchronous answer.
             _ => PaymentWebhookOutcome.Ignored,
@@ -140,12 +152,13 @@ public sealed partial class FulfillOrderHandler(
     }
 
     private async Task<PaymentWebhookOutcome> SucceededAsync(
-        Order order, PaymentAttempt attempt, Money? paid, string? unfulfillable, DateTimeOffset now, CancellationToken ct)
+        Order order, PaymentAttempt attempt, WebhookEvent webhook, string? unfulfillable, DateTimeOffset now, CancellationToken ct)
     {
+        var paid = webhook.Amount;
         if (attempt.Status is PaymentAttemptStatus.Succeeded or PaymentAttemptStatus.RefundPending or PaymentAttemptStatus.Refunded)
         {
             // This session's money was already decided on (another event id for the same payment): never twice.
-            return PaymentWebhookOutcome.Ignored;
+            return await AlreadyDecidedAsync(attempt, webhook, ct);
         }
 
         // A provider bug must not mint tickets: no amount, another amount or another currency is a mismatch.
@@ -162,6 +175,29 @@ public sealed partial class FulfillOrderHandler(
         // Paid, RefundPending, Refunded: another session's money already settled the order. Pending, Cancelled: it takes none.
         var reason = order.Status is OrderStatus.Pending or OrderStatus.Cancelled ? RefundReasons.OrderClosed : RefundReasons.DuplicatePayment;
         return RefundSession(order, attempt, reason, attempt.Amount);
+    }
+
+    /// <summary>
+    /// Nothing changes for a session already decided. But a decision taken from a status read assumed the session's own
+    /// amount (status reads carry none): a real webhook that now reports another amount or currency means the order may hold
+    /// tickets for money that was not captured, and a person must look at it.
+    /// </summary>
+    private async Task<PaymentWebhookOutcome> AlreadyDecidedAsync(PaymentAttempt attempt, WebhookEvent webhook, CancellationToken ct)
+    {
+        if (webhook.Amount == attempt.Amount || webhook.ProviderEventId.StartsWith(StatusEventPrefix, StringComparison.Ordinal))
+        {
+            return PaymentWebhookOutcome.Ignored;
+        }
+
+        var statusEventId = StatusEventId(attempt.ProviderSessionId);
+        if (!await db.ProcessedWebhooks.AnyAsync(w => w.Provider == attempt.Provider && w.ProviderEventId == statusEventId, ct))
+        {
+            return PaymentWebhookOutcome.Ignored;
+        }
+
+        LogAmountMismatchAfterStatus(attempt.OrderId, attempt.Id, webhook.ProviderEventId, attempt.Amount.Amount, attempt.Amount.Currency,
+            webhook.Amount?.Amount, webhook.Amount?.Currency);
+        return PaymentWebhookOutcome.AmountMismatchAfterStatus;
     }
 
     private async Task<PaymentWebhookOutcome> FulfilAsync(Order order, PaymentAttempt attempt, DateTimeOffset now, CancellationToken ct)
@@ -271,6 +307,9 @@ public sealed partial class FulfillOrderHandler(
 
     [LoggerMessage(EventId = 8104, Level = LogLevel.Warning, Message = "Payment webhook {ProviderEventId} collided with a concurrent change (retry {Retry}).")]
     private partial void LogRetry(string providerEventId, int retry, Exception exception);
+
+    [LoggerMessage(EventId = 8106, Level = LogLevel.Error, Message = "Order {OrderId}, attempt {AttemptId}: decided from a status read as {Amount} {Currency}, but webhook {ProviderEventId} reports {ReportedAmount} {ReportedCurrency}. Nothing changed; NEEDS ATTENTION.")]
+    private partial void LogAmountMismatchAfterStatus(Guid orderId, Guid attemptId, string providerEventId, long amount, string currency, long? reportedAmount, string? reportedCurrency);
 
     [LoggerMessage(EventId = 8105, Level = LogLevel.Error, Message = "Payment webhook {ProviderEventId} from {Provider} names a session no payment attempt has; answered 200 without changes.")]
     private partial void LogUnknownSession(string provider, string providerEventId);

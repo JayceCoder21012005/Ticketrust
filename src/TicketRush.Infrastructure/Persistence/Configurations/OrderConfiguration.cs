@@ -113,6 +113,9 @@ internal sealed class PaymentAttemptConfiguration : IEntityTypeConfiguration<Pay
 
         // RefundWorker scan: session-level refunds still owed, oldest (v7 id) first.
         builder.HasIndex(p => p.Id).HasFilter(OrderConfiguration.RefundPendingFilter).HasDatabaseName("ix_payment_attempts_refund_pending");
+
+        // OrderExpiryService session reconcile: Pending sessions long past their expiry, oldest first.
+        builder.HasIndex(p => p.ExpiresAt).HasFilter("status = 'Pending'").HasDatabaseName("ix_payment_attempts_pending_expires_at");
     }
 }
 

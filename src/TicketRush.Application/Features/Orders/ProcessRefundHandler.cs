@@ -109,6 +109,22 @@ public sealed partial class ProcessRefundHandler(
         }
     }
 
+    /// <summary>
+    /// A try failed with something unexpected (an adapter bug, a bad response): record it like a decline, so the refund
+    /// backs off, counts toward parking, and cannot hold the head of every batch. Only the exception TYPE is stored
+    /// (messages may carry provider data); the caller uses a fresh scope.
+    /// </summary>
+    public async Task<RefundOutcome> RecordFailureAsync(RefundWorkItem item, string exceptionType, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        IRefundable? target = item.Target == RefundTarget.Order
+            ? await db.Orders.SingleOrDefaultAsync(o => o.Id == item.Id && o.Status == OrderStatus.RefundPending, ct)
+            : await db.PaymentAttempts.SingleOrDefaultAsync(a => a.Id == item.Id && a.Status == PaymentAttemptStatus.RefundPending, ct);
+        return target is null
+            ? RefundOutcome.Unchanged
+            : await DeclineAsync(item.Target, target, $"error: {exceptionType}", time.GetUtcNow(), ct);
+    }
+
     private async Task<RefundOutcome> RefundOrderAsync(Guid orderId, ISet<string> unavailable, CancellationToken ct)
     {
         var now = time.GetUtcNow();
