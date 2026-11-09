@@ -37,7 +37,8 @@ export default defineConfig({
     {
       command: `npx next start -p ${port}`,
       url: `http://localhost:${port}`,
-      env: { API_URL: `http://localhost:${mockApiPort}` },
+      // The mock gateway page is dev/demo only (404 in a production build); e2e opts in like a demo deployment.
+      env: { API_URL: `http://localhost:${mockApiPort}`, ENABLE_MOCK_GATEWAY: "1" },
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
     },
