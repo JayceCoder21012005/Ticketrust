@@ -14,6 +14,7 @@ public sealed class PaymentWorkerMetrics
     private readonly Counter<long> _expiry;
     private readonly Counter<long> _refunds;
     private readonly Counter<long> _sessions;
+    private readonly Counter<long> _cancelledEvents;
     private long _parked;
 
     public PaymentWorkerMetrics(IMeterFactory meterFactory)
@@ -22,6 +23,7 @@ public sealed class PaymentWorkerMetrics
         var meter = meterFactory.Create(MeterName);
         _expiry = meter.CreateCounter<long>("ticketrush.orders.expiry", description: "Orders the expiry sweep looked at, by outcome.");
         _sessions = meter.CreateCounter<long>("ticketrush.payments.sessions_reconciled", description: "Stale Pending sessions of closed orders asked again, by outcome.");
+        _cancelledEvents = meter.CreateCounter<long>("ticketrush.orders.cancelled_event_sweep", description: "Cancelled events the backstop pass settled, by outcome (settled|unchanged|error).");
         _refunds = meter.CreateCounter<long>("ticketrush.payments.refunds", description: "Refund tries, by target (order|session) and outcome.");
         meter.CreateObservableGauge(
             "ticketrush.payments.refunds_parked",
@@ -44,6 +46,9 @@ public sealed class PaymentWorkerMetrics
         _refunds.Add(1, Tag("target", TargetTag(target)), Tag("outcome", RefundTag(outcome)));
 
     public void RefundFailed(RefundTarget target) => _refunds.Add(1, Tag("target", TargetTag(target)), Tag("outcome", "error"));
+
+    /// <summary>Tag values: settled (the outbox message had not done it), unchanged, error.</summary>
+    public void CancelledEventSweep(string outcome) => _cancelledEvents.Add(1, Tag("outcome", outcome));
 
     public void SetParked(long count) => Interlocked.Exchange(ref _parked, count);
 

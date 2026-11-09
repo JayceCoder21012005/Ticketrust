@@ -54,7 +54,29 @@ public interface IAppDbContext
     /// Same as <see cref="InTransactionAsync{T}(Func{CancellationToken, Task{T}}, CancellationToken)"/>, with
     /// <c>SET LOCAL lock_timeout</c>: any lock wait longer than <paramref name="lockTimeout"/> fails the transaction.
     /// </summary>
+    /// <exception cref="DatabaseLockTimeoutException">A lock wait went over <paramref name="lockTimeout"/> (rolled back).</exception>
     Task<T> InTransactionAsync<T>(Func<CancellationToken, Task<T>> work, TimeSpan lockTimeout, CancellationToken ct);
+}
+
+/// <summary>
+/// A lock wait of a transaction run with a lock timeout went over it (Postgres <c>55P03</c>); the transaction was rolled back
+/// and nothing it wrote is kept. Running it again later may succeed.
+/// </summary>
+public sealed class DatabaseLockTimeoutException : Exception
+{
+    public DatabaseLockTimeoutException()
+    {
+    }
+
+    public DatabaseLockTimeoutException(string message)
+        : base(message)
+    {
+    }
+
+    public DatabaseLockTimeoutException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
 }
 
 /// <summary>A transaction was chosen as a deadlock victim or failed serialization; it was rolled back and may be retried.</summary>

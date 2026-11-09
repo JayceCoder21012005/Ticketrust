@@ -91,13 +91,24 @@ public sealed class PublishEventHandler(IAppDbContext db, ICatalogCacheInvalidat
 /// (<see cref="IEventSaleLock.AcquireExclusiveAsync"/>, bounded by <see cref="FulfilmentOptions.LockTimeout"/>): a
 /// fulfilment in flight holds the shared lock, so it commits its order Paid before the cancel does (and the settlement then
 /// sends it to refund); one that starts later waits for the cancel and reads Cancelled (refund <c>event_cancelled</c>, no
-/// tickets). Ownership is checked before the lock, so nobody else's request can make the event's buyers wait.
+/// tickets). Ownership is checked before the lock, so nobody else's request can make the event's buyers wait. A wait longer
+/// than the lock timeout rolls back and answers 409 <c>event.cancel_busy</c> (try again), not a 5xx.
 /// </summary>
 public sealed class CancelEventHandler(IAppDbContext db, IEventSaleLock saleLock, ICatalogCacheInvalidator cache, IOptions<FulfilmentOptions> options)
 {
     public async Task<Result<OrganizerEvent>> HandleAsync(Guid eventId, Guid organizerId, CancellationToken ct)
     {
-        var evt = await db.InTransactionAsync(token => CancelLockedAsync(eventId, organizerId, token), options.Value.LockTimeout, ct);
+        Event? evt;
+        try
+        {
+            evt = await db.InTransactionAsync(token => CancelLockedAsync(eventId, organizerId, token), options.Value.LockTimeout, ct);
+        }
+        catch (DatabaseLockTimeoutException)
+        {
+            // Payments of this event were being confirmed for longer than the lock timeout: nothing changed, try again.
+            return EventErrors.CancelBusy;
+        }
+
         if (evt is null)
         {
             return EventErrors.NotFound;

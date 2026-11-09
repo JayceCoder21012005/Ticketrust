@@ -27,7 +27,6 @@ public sealed class EventCancellationMetrics
     {
         ArgumentNullException.ThrowIfNull(batch);
         Add(_orders, batch.Cancelled, "outcome", "cancelled");
-        Add(_orders, batch.Expired, "outcome", "expired");
         Add(_orders, batch.RefundPending, "outcome", "refund_pending");
         Add(_tickets, batch.TicketsVoided, "reason", "event_cancelled");
     }

@@ -53,6 +53,23 @@ public sealed class FulfilmentOptions
     public TimeSpan LockTimeout { get; set; } = TimeSpan.FromSeconds(5);
 }
 
+/// <summary>
+/// Backstop for cancelled events whose <c>EventCancelled</c> message never settled the orders (spec 08, B9): e.g. it was
+/// dead-lettered after a long outage. Leader-elected worker pass.
+/// </summary>
+public sealed class CancelledEventSettlementOptions
+{
+    public const string SectionName = "Payments:CancelledEvents";
+
+    /// <summary>Time between passes. Normally the outbox settles a cancellation within seconds; this only catches leftovers.</summary>
+    [Range(typeof(TimeSpan), "00:00:01", "01:00:00")]
+    public TimeSpan Interval { get; set; } = TimeSpan.FromMinutes(1);
+
+    /// <summary>Cancelled events listed per query (index <c>ix_orders_event_id</c> answers the "orders left?" check).</summary>
+    [Range(1, 500)]
+    public int EventsPerPage { get; set; } = 20;
+}
+
 /// <summary>Order expiry sweep (spec 08).</summary>
 public sealed class OrderExpiryOptions
 {

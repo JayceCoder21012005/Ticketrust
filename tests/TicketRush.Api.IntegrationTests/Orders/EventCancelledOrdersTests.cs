@@ -5,6 +5,7 @@ using TicketRush.Api.IntegrationTests.Infrastructure;
 using TicketRush.Application.Abstractions.Inventory;
 using TicketRush.Application.Abstractions.Messaging;
 using TicketRush.Application.Features.Orders;
+using TicketRush.Application.Features.Organizer;
 using TicketRush.Application.Features.Organizer.Events;
 using TicketRush.Domain.Events;
 using TicketRush.Domain.Orders;
@@ -275,7 +276,7 @@ public sealed class EventCancelledOrdersTests(ContainersFixture containers) : IA
         var total = await scope.ServiceProvider.GetRequiredService<CancelEventOrdersHandler>().HandleAsync(_h.EventId, batches.Add, Ct);
 
         batches.Select(b => b.Orders).ShouldBe([500, 500, 200]);
-        total.ShouldBe(new EventOrderSettlement(0, 0, 1200, 1200));
+        total.ShouldBe(new EventOrderSettlement(0, 1200, 1200));
     }
 
     [Fact]
@@ -335,12 +336,12 @@ public sealed class EventCancelledOrdersTests(ContainersFixture containers) : IA
     // ================================================================ open orders
 
     [Fact]
-    public async Task Open_orders_end_cancelled_only_without_a_payment_session_and_captured_money_is_refunded_by_the_session_reconcile()
+    public async Task Pending_orders_are_cancelled_and_orders_that_may_hold_money_stay_open_for_the_expiry_sweep()
     {
         var pending = await _h.PlacePendingAsync([_h.GaUnits(2)]);
         var captured = await _h.PlaceAsync([_h.Seat(_h.Seats[0])], MockOutcome.SucceededDelayed); // paid at the gateway, webhook lost
         var failed = await _h.PlaceAsync([_h.GaUnits(1)]);
-        await _h.ChangeOrderAsync(failed.OrderId, o => o.MarkPaymentFailed());
+        (await _h.DeliverFailedAsync(failed)).ShouldBe(PaymentWebhookOutcome.Failed); // the real Failed-webhook path
         var unpaid = await _h.PlaceAsync([_h.GaUnits(1)]);
         using var metrics = _h.RecordMetrics();
 
@@ -348,19 +349,16 @@ public sealed class EventCancelledOrdersTests(ContainersFixture containers) : IA
         await DeliverEventCancelledAsync();
 
         (await _h.StateAsync(pending)).Status.ShouldBe(OrderStatus.Cancelled);
-        foreach (var placed in new[] { captured, failed, unpaid })
-        {
-            var state = await _h.StateAsync(placed.OrderId);
-            state.Status.ShouldBe(OrderStatus.Expired, "an order that may hold money is never Cancelled");
-            state.Attempts.ShouldBe([PaymentAttemptStatus.Pending]);
-        }
-
+        (await _h.StateAsync(captured.OrderId)).Status.ShouldBe(OrderStatus.AwaitingPayment);
+        (await _h.StateAsync(unpaid.OrderId)).Status.ShouldBe(OrderStatus.AwaitingPayment);
+        var failedState = await _h.StateAsync(failed.OrderId);
+        failedState.Status.ShouldBe(OrderStatus.PaymentFailed);
+        failedState.Attempts.ShouldBe([PaymentAttemptStatus.Failed]);
         metrics.Total("ticketrush.orders.event_cancelled", "outcome=cancelled").ShouldBe(1);
-        metrics.Total("ticketrush.orders.event_cancelled", "outcome=expired").ShouldBe(3);
         metrics.Total("ticketrush.orders.event_cancelled", "outcome=refund_pending").ShouldBe(0);
 
-        // The session reconcile (B8) asks the gateway once the grace is over: the captured money is sent back.
-        _h.Time.Advance(TimeSpan.FromMinutes(30));
+        // The normal expiry sweep (B8) asks every session at ExpiresAt: the captured money is sent back, the rest expire.
+        _h.Time.Advance(TimeSpan.FromMinutes(10));
         await _h.Sweeper().RunOnceAsync(Ct);
 
         var refund = await _h.StateAsync(captured.OrderId);
@@ -369,6 +367,7 @@ public sealed class EventCancelledOrdersTests(ContainersFixture containers) : IA
         refund.Tickets.ShouldBe(0);
         refund.Attempts.ShouldBe([PaymentAttemptStatus.Succeeded]);
         (await _h.StateAsync(unpaid.OrderId)).Status.ShouldBe(OrderStatus.Expired);
+        (await _h.StateAsync(failed.OrderId)).Status.ShouldBe(OrderStatus.Expired);
 
         (await _h.Refunds().RunOnceAsync(Ct)).ShouldBe(1);
         (await _h.StateAsync(captured.OrderId)).Status.ShouldBe(OrderStatus.Refunded);
@@ -378,12 +377,34 @@ public sealed class EventCancelledOrdersTests(ContainersFixture containers) : IA
     }
 
     [Fact]
+    public async Task A_session_reported_failed_that_then_captured_money_is_found_and_refunded_by_the_normal_expiry_sweep()
+    {
+        // Out-of-order provider: the session captured the money, but a Failed event was delivered and the success webhook is lost.
+        var placed = await _h.PlaceAsync([_h.GaUnits(2)], MockOutcome.SucceededDelayed);
+        (await _h.DeliverFailedAsync(placed)).ShouldBe(PaymentWebhookOutcome.Failed);
+        await CancelEventAsync();
+        await DeliverEventCancelledAsync();
+        (await _h.StateAsync(placed.OrderId)).Status.ShouldBe(OrderStatus.PaymentFailed);
+
+        _h.Time.Advance(TimeSpan.FromMinutes(10));
+        await _h.Sweeper().RunOnceAsync(Ct);
+
+        var state = await _h.StateAsync(placed.OrderId);
+        state.Status.ShouldBe(OrderStatus.RefundPending);
+        state.RefundReason.ShouldBe(RefundReasons.EventCancelled);
+        state.Tickets.ShouldBe(0);
+        (await _h.Refunds().RunOnceAsync(Ct)).ShouldBe(1);
+        (await _h.StateAsync(placed.OrderId)).Status.ShouldBe(OrderStatus.Refunded);
+        (await _h.RefundedOnGatewayAsync(placed.SessionId)).ShouldBe(placed.Total.Amount);
+    }
+
+    [Fact]
     public async Task A_webhook_arriving_after_the_sweep_is_refunded_as_event_cancelled_and_issues_nothing()
     {
         var late = await _h.PlaceAsync([_h.GaUnits(2)], MockOutcome.SucceededDelayed);
         await CancelEventAsync();
         await DeliverEventCancelledAsync();
-        (await _h.StateAsync(late.OrderId)).Status.ShouldBe(OrderStatus.Expired);
+        (await _h.StateAsync(late.OrderId)).Status.ShouldBe(OrderStatus.AwaitingPayment);
 
         (await _h.DeliverSucceededAsync(late)).ShouldBe(PaymentWebhookOutcome.RefundPending);
 
@@ -496,7 +517,7 @@ public sealed class EventCancelledOrdersTests(ContainersFixture containers) : IA
     // ================================================================ delivery
 
     [Fact]
-    public async Task A_room_that_cannot_be_closed_stops_the_order_work_until_a_retry_closes_it()
+    public async Task A_room_that_cannot_be_closed_does_not_stop_the_order_settlement_and_the_retry_closes_it()
     {
         var paid = await PaidAsync(_h.GaUnits(1));
         var pending = await _h.PlacePendingAsync([_h.GaUnits(1)]);
@@ -507,17 +528,22 @@ public sealed class EventCancelledOrdersTests(ContainersFixture containers) : IA
         await redis.StringSetAsync(keys.QueueState(phase), "not-a-hash"); // the status script fails with WRONGTYPE
         await CancelEventAsync();
 
-        await Should.ThrowAsync<AggregateException>(DeliverEventCancelledAsync);
+        // Settling needs only the database and the sale lock: done now, while the room failure is still reported for the retry.
+        var failure = await Should.ThrowAsync<AggregateException>(DeliverEventCancelledAsync);
 
-        (await _h.StateAsync(paid.OrderId)).Status.ShouldBe(OrderStatus.Paid);
-        (await _h.StateAsync(pending)).Status.ShouldBe(OrderStatus.Pending);
-
-        await redis.KeyDeleteAsync(keys.QueueState(phase));
-        await DeliverEventCancelledAsync();
-
+        failure.InnerExceptions.ShouldNotBeEmpty();
+        failure.InnerExceptions.ShouldAllBe(e => e is RedisException || e is TimeoutException);
         (await _h.StateAsync(paid.OrderId)).Status.ShouldBe(OrderStatus.RefundPending);
         (await _h.StateAsync(pending)).Status.ShouldBe(OrderStatus.Cancelled);
         (await SoldCountAsync()).ShouldBe(0);
+
+        await redis.KeyDeleteAsync(keys.QueueState(phase));
+        await redis.HashSetAsync(keys.QueueState(phase), "status", "Open"); // the outage is over, the room still open
+        await DeliverEventCancelledAsync();
+
+        ((string?)await redis.HashGetAsync(keys.QueueState(phase), "status")).ShouldBe("Closed");
+        (await _h.StateAsync(paid.OrderId)).Status.ShouldBe(OrderStatus.RefundPending);
+        (await _h.OutboxCountAsync(nameof(RefundRequested))).ShouldBe(1);
     }
 
     [Fact]
@@ -547,6 +573,75 @@ public sealed class EventCancelledOrdersTests(ContainersFixture containers) : IA
 
         (await _h.StateAsync(paid.OrderId)).Status.ShouldBe(OrderStatus.Paid);
         (await SoldCountAsync()).ShouldBe(1);
+    }
+
+    // ================================================================ backstop sweep (dead-lettered message)
+
+    [Fact]
+    public async Task A_cancelled_event_whose_message_never_ran_is_settled_by_the_backstop_sweep_once()
+    {
+        var paid = await PaidAsync(_h.Seat(_h.Seats[0]), _h.GaUnits(2));
+        var pending = await _h.PlacePendingAsync([_h.GaUnits(1)]);
+        await CancelEventAsync(); // its EventCancelled message is never delivered (dead-lettered)
+        var violations = WatchRefundsForLiveTickets();
+        using var metrics = _h.RecordMetrics();
+
+        (await _h.CancelledEvents().RunOnceAsync(Ct)).ShouldBe(1);
+
+        (await _h.StateAsync(paid.OrderId)).Status.ShouldBe(OrderStatus.RefundPending);
+        (await TicketsAsync(paid.OrderId)).ShouldAllBe(s => s == TicketStatus.Voided);
+        (await _h.StateAsync(pending)).Status.ShouldBe(OrderStatus.Cancelled);
+        (await SoldCountAsync()).ShouldBe(0);
+        await AssertInventoryInvariantsAsync();
+        metrics.Total("ticketrush.orders.cancelled_event_sweep", "outcome=settled").ShouldBe(1);
+        metrics.Total("ticketrush.orders.event_cancelled", "outcome=refund_pending").ShouldBe(1);
+
+        (await _h.CancelledEvents().RunOnceAsync(Ct)).ShouldBe(0);
+        (await _h.OutboxCountAsync(nameof(RefundRequested))).ShouldBe(1);
+        (await _h.Refunds().RunOnceAsync(Ct)).ShouldBe(1);
+        (await _h.StateAsync(paid.OrderId)).Status.ShouldBe(OrderStatus.Refunded);
+        violations.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task The_backstop_sweep_costs_one_query_when_no_cancelled_event_has_orders_left_to_settle()
+    {
+        var paid = await PaidAsync(_h.GaUnits(1)); // a Published event's order; the seed also has cancelled events without orders
+        _h.Queries.Reset();
+
+        (await _h.CancelledEvents().RunOnceAsync(Ct)).ShouldBe(0);
+
+        _h.Queries.Matching(_ => true).Count.ShouldBe(1);
+        (await _h.StateAsync(paid.OrderId)).Status.ShouldBe(OrderStatus.Paid);
+    }
+
+    // ================================================================ organizer cancel under contention
+
+    [Fact]
+    public async Task An_organizer_cancel_that_waits_past_the_lock_timeout_is_a_409_try_again_and_changes_nothing()
+    {
+        var placed = await _h.PlaceAsync([_h.GaUnits(1)], MockOutcome.SucceededDelayed);
+        var cancelledBefore = await _h.OutboxCountAsync(nameof(EventCancelled));
+        var (holding, release) = PauseFirst(exclusive: false);
+        var fulfil = Task.Run(() => _h.DeliverSucceededAsync(placed), Ct);
+        await holding.Task.WaitAsync(LockWait, Ct);
+
+        Result<OrganizerEvent> result;
+        await using (var scope = _h.Host.Services.CreateAsyncScope())
+        {
+            result = await scope.ServiceProvider.GetRequiredService<CancelEventHandler>().HandleAsync(_h.EventId, await OrganizerAsync(), Ct);
+        }
+
+        release.SetResult();
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe(EventErrors.CancelBusy.Code);
+        result.Error.Type.ShouldBe(ErrorType.Conflict);
+        (await EventStatusAsync()).ShouldBe(EventStatus.Published);
+        (await fulfil).ShouldBe(PaymentWebhookOutcome.Paid);
+        (await _h.OutboxCountAsync(nameof(EventCancelled))).ShouldBe(cancelledBefore);
+
+        await CancelEventAsync(); // the organizer's retry
+        (await EventStatusAsync()).ShouldBe(EventStatus.Cancelled);
     }
 
     /// <summary>The real tier inventory, except that its <c>failOnCall</c>-th release throws (a crash mid-run).</summary>

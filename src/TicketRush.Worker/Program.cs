@@ -29,6 +29,7 @@ builder.Services.AddHostedService<QueueRoomStatusService>();
 builder.Services.AddSingleton<PaymentWorkerMetrics>();
 builder.Services.AddHostedService<OrderExpiryService>();
 builder.Services.AddHostedService<RefundWorker>();
+builder.Services.AddHostedService<CancelledEventSettlementService>();
 
 // Dev/demo only: delivers the mock payment gateway's signed webhooks (spec 08). Off unless Payments:Mock:Enabled.
 if (builder.Configuration.GetValue<bool>($"{MockGatewayOptions.SectionName}:Enabled"))

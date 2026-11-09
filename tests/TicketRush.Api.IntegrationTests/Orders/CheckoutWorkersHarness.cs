@@ -6,12 +6,14 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using TicketRush.Api.IntegrationTests.Infrastructure;
 using TicketRush.Application.Abstractions.Inventory;
 using TicketRush.Application.Abstractions.Locking;
 using TicketRush.Application.Abstractions.Payments;
 using TicketRush.Application.Features.Orders;
+using TicketRush.Application.Options;
 using TicketRush.Domain.Events;
 using TicketRush.Domain.Orders;
 using TicketRush.Domain.Primitives;
@@ -126,6 +128,15 @@ internal sealed class CheckoutWorkersHarness : IAsyncDisposable
         Host.Services.GetRequiredService<IServiceScopeFactory>(), Metrics, Host.Services.GetRequiredService<IDistributedLock>(),
         clock ?? Time, NullLogger<OrderExpiryService>.Instance);
 
+    /// <summary>The worker's backstop for cancelled events whose EventCancelled message never settled their orders.</summary>
+    public CancelledEventSettlementService CancelledEvents(TimeProvider? clock = null) => new(
+        Host.Services.GetRequiredService<IServiceScopeFactory>(), Metrics, Host.Services.GetRequiredService<EventCancellationMetrics>(),
+        Host.Services.GetRequiredService<IDistributedLock>(), Host.Services.GetRequiredService<IOptions<CancelledEventSettlementOptions>>(),
+        clock ?? Time, NullLogger<CancelledEventSettlementService>.Instance);
+
+    /// <summary>Every SQL reader command of this host (inherited from the base factory).</summary>
+    public QueryCounter Queries => _factory.Queries;
+
     public RefundWorker Refunds(TimeProvider? clock = null) => new(
         Host.Services.GetRequiredService<IServiceScopeFactory>(), Metrics, Host.Services.GetRequiredService<IDistributedLock>(),
         clock ?? Time, NullLogger<RefundWorker>.Instance);
@@ -192,6 +203,14 @@ internal sealed class CheckoutWorkersHarness : IAsyncDisposable
     {
         await using var scope = Host.Services.CreateAsyncScope();
         var webhook = new WebhookEvent($"evt_mock_{Guid.NewGuid():N}", placed.SessionId, WebhookEventType.Succeeded, amount ?? placed.Total, Time.GetUtcNow());
+        return await scope.ServiceProvider.GetRequiredService<FulfillOrderHandler>().HandleAsync(Provider, webhook, Ct);
+    }
+
+    /// <summary>A verified Failed webhook for the session, decided by the real fulfil path.</summary>
+    public async Task<PaymentWebhookOutcome> DeliverFailedAsync(Placed placed)
+    {
+        await using var scope = Host.Services.CreateAsyncScope();
+        var webhook = new WebhookEvent($"evt_mock_{Guid.NewGuid():N}", placed.SessionId, WebhookEventType.Failed, null, Time.GetUtcNow());
         return await scope.ServiceProvider.GetRequiredService<FulfillOrderHandler>().HandleAsync(Provider, webhook, Ct);
     }
 

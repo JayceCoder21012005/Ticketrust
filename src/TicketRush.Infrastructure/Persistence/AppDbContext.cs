@@ -79,6 +79,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataPr
                 {
                     throw new DatabaseContentionException("The transaction collided with a concurrent one and was rolled back.", ex);
                 }
+                catch (Exception ex) when (PostgresErrors.IsLockTimeout(ex))
+                {
+                    throw new DatabaseLockTimeoutException("A lock wait went over the transaction's lock timeout; it was rolled back.", ex);
+                }
             },
             ct);
     }

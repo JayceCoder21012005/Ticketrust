@@ -71,6 +71,7 @@ public static class DependencyInjection
         services.AddValidatedOptions<FulfilmentOptions>(FulfilmentOptions.SectionName);
         services.AddValidatedOptions<RefundOptions>(RefundOptions.SectionName);
         services.AddValidatedOptions<OrderExpiryOptions>(OrderExpiryOptions.SectionName);
+        services.AddValidatedOptions<CancelledEventSettlementOptions>(CancelledEventSettlementOptions.SectionName);
         services.AddValidatedOptions<OutboxOptions>(OutboxOptions.SectionName);
 
         services.AddSingleton<RedisKeys>();
