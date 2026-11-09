@@ -5,7 +5,8 @@ namespace TicketRush.Domain.Tickets;
 
 /// <summary>
 /// One admission, issued when an order is paid (spec 08; the ticket UI is spec 10).
-/// Transitions: <c>Valid → CheckedIn</c>, <c>Valid ↔ Listed</c>, <c>Valid/Listed → Voided</c> (event cancelled).
+/// Transitions: <c>Valid → CheckedIn</c>, <c>Valid ↔ Listed</c>, <c>Valid/Listed → Voided</c>, and
+/// <c>Valid/Listed/CheckedIn → Voided</c> when the event is cancelled (<see cref="VoidForCancelledEvent"/>).
 /// The DB's partial unique index on <c>(event_id, seat_index)</c> is the final guard against double-selling a seat.
 /// </summary>
 public sealed class Ticket : AggregateRoot, IAuditable
@@ -81,6 +82,13 @@ public sealed class Ticket : AggregateRoot, IAuditable
 
     /// <summary>Valid or Listed → Voided, e.g. the event was cancelled. A checked-in or already voided ticket can't be voided.</summary>
     public void Void() => Move(TicketStatus.Voided, nameof(Void), TicketStatus.Valid, TicketStatus.Listed);
+
+    /// <summary>
+    /// Valid, Listed or CheckedIn → Voided because the organizer cancelled the event (spec 08): the whole order is refunded,
+    /// so no ticket of it may stay usable, a checked-in one included. An already voided ticket is refused like everywhere else.
+    /// </summary>
+    public void VoidForCancelledEvent() =>
+        Move(TicketStatus.Voided, nameof(VoidForCancelledEvent), TicketStatus.Valid, TicketStatus.Listed, TicketStatus.CheckedIn);
 
     private void Move(TicketStatus to, string method, params TicketStatus[] from)
     {

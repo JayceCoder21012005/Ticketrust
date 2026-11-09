@@ -16,6 +16,7 @@ public sealed class TicketTests
         [nameof(Ticket.List)] = t => t.List(),
         [nameof(Ticket.Unlist)] = t => t.Unlist(),
         [nameof(Ticket.Void)] = t => t.Void(),
+        [nameof(Ticket.VoidForCancelledEvent)] = t => t.VoidForCancelledEvent(),
     };
 
     private static readonly Dictionary<string, Dictionary<TicketStatus, TicketStatus>> Legal = new()
@@ -27,6 +28,14 @@ public sealed class TicketTests
         {
             [TicketStatus.Valid] = TicketStatus.Voided,
             [TicketStatus.Listed] = TicketStatus.Voided,
+        },
+
+        // A cancelled event voids every ticket, a checked-in one too (the whole order is refunded).
+        [nameof(Ticket.VoidForCancelledEvent)] = new()
+        {
+            [TicketStatus.Valid] = TicketStatus.Voided,
+            [TicketStatus.Listed] = TicketStatus.Voided,
+            [TicketStatus.CheckedIn] = TicketStatus.Voided,
         },
     };
 
