@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using TicketRush.Api.IntegrationTests.Infrastructure;
+using TicketRush.Application.Abstractions.Inventory;
 using TicketRush.Application.Abstractions.Locking;
 using TicketRush.Application.Abstractions.Payments;
 using TicketRush.Application.Features.Orders;
@@ -15,6 +16,7 @@ using TicketRush.Domain.Events;
 using TicketRush.Domain.Orders;
 using TicketRush.Domain.Primitives;
 using TicketRush.Domain.Tickets;
+using TicketRush.Infrastructure.Inventory;
 using TicketRush.Infrastructure.Payments;
 using TicketRush.Infrastructure.Persistence;
 using TicketRush.Infrastructure.Persistence.Seed;
@@ -39,9 +41,11 @@ internal sealed class CheckoutWorkersHarness : IAsyncDisposable
         _factory = factory;
         Time = time;
         Spy = spy;
+        var gate = SaleLocks;
         Host = factory.WithWebHostBuilder(b => b.ConfigureTestServices(s =>
         {
             s.AddSingleton<TimeProvider>(time);
+            s.AddScoped<IEventSaleLock>(sp => new GatedSaleLock(ActivatorUtilities.CreateInstance<EventSaleLock>(sp), gate));
             s.AddSingleton<IPaymentGatewayResolver>(sp => new SpyResolver(ActivatorUtilities.CreateInstance<PaymentGatewayResolver>(sp), spy));
             s.AddScoped<IWebhookInbox>(sp => new FaultyInbox(ActivatorUtilities.CreateInstance<WebhookInbox>(sp), spy));
         }));
@@ -57,6 +61,9 @@ internal sealed class CheckoutWorkersHarness : IAsyncDisposable
     public FakeTimeProvider Time { get; }
 
     public GatewaySpy Spy { get; }
+
+    /// <summary>Lets a test pause a transaction right after it was granted the event's sale lock.</summary>
+    public SaleLockGate SaleLocks { get; } = new();
 
     public WebApplicationFactory<Program> Host { get; }
 
@@ -277,6 +284,9 @@ internal sealed class CheckoutWorkersHarness : IAsyncDisposable
         public IReadOnlyList<string> Counted(string name) =>
             [.. _measurements.Where(m => m.Key.StartsWith(name + "|", StringComparison.Ordinal)).Select(m => m.Key[(name.Length + 1)..])];
 
+        /// <summary>The sum of the increments of <paramref name="name"/> with exactly these tags (<c>key=value,...</c>).</summary>
+        public long Total(string name, string tags) => _measurements.Where(m => m.Key == $"{name}|{tags}").Sum(m => m.Value);
+
         /// <summary>The current value of an observable gauge.</summary>
         public long Gauge(string name)
         {
@@ -320,6 +330,37 @@ internal sealed class CheckoutWorkersHarness : IAsyncDisposable
             lock (RefundKeys)
             {
                 RefundKeys.Add(key);
+            }
+        }
+    }
+
+    /// <summary>Hooks into the event sale lock (<see cref="IEventSaleLock"/>).</summary>
+    internal sealed class SaleLockGate
+    {
+        /// <summary>Runs right after a sale lock was granted (true = exclusive), inside the transaction that holds it.</summary>
+        public Func<bool, Task>? AfterAcquire { get; set; }
+    }
+
+    /// <summary>The real sale lock, then the gate's hook.</summary>
+    private sealed class GatedSaleLock(IEventSaleLock inner, SaleLockGate gate) : IEventSaleLock
+    {
+        public async Task<EventStatus?> LockStatusAsync(Guid eventId, CancellationToken ct)
+        {
+            var status = await inner.LockStatusAsync(eventId, ct);
+            if (gate.AfterAcquire is { } hook)
+            {
+                await hook(false);
+            }
+
+            return status;
+        }
+
+        public async Task AcquireExclusiveAsync(Guid eventId, CancellationToken ct)
+        {
+            await inner.AcquireExclusiveAsync(eventId, ct);
+            if (gate.AfterAcquire is { } hook)
+            {
+                await hook(true);
             }
         }
     }

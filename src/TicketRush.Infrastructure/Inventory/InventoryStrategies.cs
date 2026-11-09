@@ -71,6 +71,17 @@ public sealed class EventSaleLock(AppDbContext db) : IEventSaleLock
         // Read after the lock: a cancel that held the exclusive lock has committed by now, and READ COMMITTED sees it.
         return await db.Events.AsNoTracking().Where(e => e.Id == eventId).Select(e => (EventStatus?)e.Status).FirstOrDefaultAsync(ct);
     }
+
+    public Task AcquireExclusiveAsync(Guid eventId, CancellationToken ct)
+    {
+        if (db.Database.CurrentTransaction is null)
+        {
+            // A transaction-scoped advisory lock outside a transaction would be released at once: a silent no-op.
+            throw new InvalidOperationException("The exclusive sale lock needs an open transaction.");
+        }
+
+        return EventSaleLocks.AcquireExclusiveAsync(db, eventId, ct);
+    }
 }
 
 /// <summary>

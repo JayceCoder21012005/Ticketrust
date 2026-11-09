@@ -7,7 +7,9 @@ namespace TicketRush.Infrastructure.Inventory;
 /// row lock on <c>events</c>, so in-flight fulfilments never touch the hot event tuple and organizer edits are not blocked.
 /// Fulfilments take it <b>shared</b> (they never wait on each other); whatever ends the sale (cancel, mark ended) takes it
 /// <b>exclusive</b> in the same transaction that changes the status, so a fulfilment either commits before the change is
-/// made or reads the new status after it committed. B9's EventCancelled handler must call <see cref="AcquireExclusiveAsync"/>.
+/// made or reads the new status after it committed. The organizer's cancel (<c>CancelEventHandler</c>) and each batch of the
+/// cancelled event's order settlement (<c>CancelEventOrdersHandler</c>) take it exclusively, through
+/// <c>IEventSaleLock.AcquireExclusiveAsync</c>. (<c>Event.MarkEnded</c> has no use case yet; the one that adds it must too.)
 /// <para>
 /// Key derivation: <c>hashtextextended('event-sale:' || &lt;event id as 32 hex digits&gt;, 0)</c> (64-bit). The per-buyer
 /// purchase-limit lock uses the namespace <c>ticket-limit:</c>, so the two never share a key by construction other than a

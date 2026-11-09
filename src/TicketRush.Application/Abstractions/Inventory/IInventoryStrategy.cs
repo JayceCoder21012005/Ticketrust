@@ -48,6 +48,15 @@ public interface IEventSaleLock
     /// sweep then sees their orders Paid), and a fulfilment that starts during a cancellation waits and then reads Cancelled.
     /// </summary>
     Task<EventStatus?> LockStatusAsync(Guid eventId, CancellationToken ct);
+
+    /// <summary>
+    /// Takes the event's sale lock <b>exclusively</b> until the caller's transaction ends (it needs an open transaction).
+    /// Whatever ends the sale calls it before it changes anything: the organizer's cancel before the status update, and the
+    /// cancelled event's order settlement before it reads orders. It waits for every fulfilment holding the shared lock, so
+    /// their orders are committed (Paid) before; fulfilments that ask afterwards wait and then read the new status. Lock
+    /// order everywhere: event sale lock → buyer limit lock → GA tier rows → seats.
+    /// </summary>
+    Task AcquireExclusiveAsync(Guid eventId, CancellationToken ct);
 }
 
 public enum InventoryConflictReason

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using StackExchange.Redis;
 using TicketRush.Api.IntegrationTests.Infrastructure;
 using TicketRush.Application.Abstractions.Inventory;
@@ -7,10 +8,12 @@ using TicketRush.Application.Abstractions.Messaging;
 using TicketRush.Application.Abstractions.Persistence;
 using TicketRush.Application.Abstractions.Queue;
 using TicketRush.Domain.Events;
+using TicketRush.Domain.Orders;
 using TicketRush.Infrastructure.Inventory;
 using TicketRush.Infrastructure.Persistence;
 using TicketRush.Infrastructure.Persistence.Seed;
 using TicketRush.Infrastructure.Redis;
+using Order = TicketRush.Domain.Orders.Order;
 
 namespace TicketRush.Api.IntegrationTests.Holds;
 
@@ -53,7 +56,10 @@ public sealed class EventCancelledInventoryHandlerTests(ContainersFixture contai
         _scope.ServiceProvider.GetRequiredService<IAppDbContext>(),
         store,
         _scope.ServiceProvider.GetRequiredService<IConnectionMultiplexer>(),
-        _keys);
+        _keys,
+        _scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>(),
+        _scope.ServiceProvider.GetRequiredService<EventCancellationMetrics>(),
+        NullLogger<EventCancelledInventoryHandler>.Instance);
 
     private Task HandleAsync(IInventoryStore store) =>
         Handler(store).HandleAsync(new EventCancelled(_event.Id, _event.OrganizerId), new IntegrationEventContext(Guid.NewGuid(), DateTimeOffset.UtcNow, 1), Ct);
@@ -137,6 +143,31 @@ public sealed class EventCancelledInventoryHandlerTests(ContainersFixture contai
 
         (await _store.GetSnapshotAsync(_event.Id, [], Ct)).Held.ShouldBeEmpty();
         await HandleAsync(_store);
+    }
+
+    [Fact]
+    public async Task A_failed_hold_release_still_settles_the_orders_and_reports_the_failure_for_the_retry()
+    {
+        await HoldSeatAsync(5);
+        await HoldSeatAsync(6);
+        var db = _scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var now = DateTimeOffset.UtcNow;
+        var tier = await db.Events.Where(e => e.Id == _event.Id).SelectMany(e => e.Tiers).FirstAsync(t => t.Kind == TicketKind.GeneralAdmission, Ct);
+        var order = Order.Create(Guid.CreateVersion7(), _event.Id, Guid.CreateVersion7(), [new OrderItem(tier.Id, null, tier.Price, 1)], tier.Price,
+            new BuyerInfo("Nguyễn Văn An", "an@example.com", null), now.AddMinutes(8), now);
+        db.Orders.Add(order);
+        (await db.Events.SingleAsync(e => e.Id == _event.Id, Ct)).Cancel();
+        await db.SaveChangesAsync(Ct);
+
+        var failure = await Should.ThrowAsync<AggregateException>(() => HandleAsync(new SpyStore(_store, failOnRelease: 1)));
+
+        failure.InnerExceptions.ShouldHaveSingleItem().ShouldBeOfType<InventoryUnavailableException>();
+        (await db.Orders.AsNoTracking().SingleAsync(o => o.Id == order.Id, Ct)).Status.ShouldBe(OrderStatus.Cancelled);
+        (await _store.GetSnapshotAsync(_event.Id, [], Ct)).Held.Count.ShouldBe(2);
+
+        await HandleAsync(_store);
+
+        (await _store.GetSnapshotAsync(_event.Id, [], Ct)).Held.ShouldBeEmpty();
     }
 
     [Fact]

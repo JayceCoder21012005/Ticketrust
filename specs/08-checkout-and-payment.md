@@ -84,7 +84,7 @@ Error codes: `order.hold_invalid`, `order.hold_expired`, `order.not_payable`, `o
 
 - **OrderExpiryService** (5 s): for open orders past `ExpiresAt`, first ask `GetStatusAsync`. If succeeded → run the fulfil path. Otherwise `Expire()`.
 - **RefundWorker**: processes `RefundRequested` with `RefundAsync(idempotencyKey = orderId)` → `Refunded` + notification.
-- **EventCancelled handler**: moves every `Paid` order of the event to `RefundPending` in batches of 500 and voids its tickets.
+- **EventCancelled handler**: moves every `Paid` order of the event to `RefundPending` in batches of 500 and voids its tickets. Each batch is one transaction under the exclusive event sale lock: status change, ticket void (checked-in tickets too) and GA `sold_count` release commit together, so the RefundWorker never refunds an order with live tickets. Open orders: `Pending` → `Cancelled`; `AwaitingPayment`/`PaymentFailed` → `Expired` (a session may have taken money; a late success then goes to `RefundPending` `event_cancelled`). The organizer's cancel takes the same lock exclusively before the status update, so an in-flight fulfilment commits first and a later one reads `Cancelled`.
 
 ## Frontend
 
