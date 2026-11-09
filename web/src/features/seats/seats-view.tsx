@@ -62,7 +62,7 @@ export function SeatsView({ event }: { event: SeatPageEvent }) {
     });
 
   const panel = hold ? (
-    <HoldSummary hold={hold} offsetMs={page.offsetMs} onExpire={onExpire} onRelease={() => void page.release()} />
+    <HoldSummary hold={hold} offsetMs={page.offsetMs} checkoutHref={`/events/${event.slug}/checkout`} onExpire={onExpire} onRelease={() => void page.release()} />
   ) : (
     <SelectionPanel
       map={map}

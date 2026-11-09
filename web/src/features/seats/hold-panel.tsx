@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertDialog } from "radix-ui";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatCountdown, remainingMs } from "@/lib/clock";
@@ -9,8 +10,10 @@ import { t } from "@/lib/i18n";
 import { seatPlace } from "@/lib/seats/format";
 import type { Hold } from "@/lib/seats/types";
 
-/** Counts down from `expiresAt` on server time (C10) and calls `onExpire` once at zero. */
-export function HoldCountdown({ expiresAt, offsetMs, onExpire }: { expiresAt: string; offsetMs: number; onExpire: () => void }) {
+type CountdownProps = { expiresAt: string; offsetMs: number; onExpire: () => void; label?: string; lowLabel?: string };
+
+/** Counts down from `expiresAt` on server time (C10) and calls `onExpire` once at zero. The checkout reuses it with its own wording. */
+export function HoldCountdown({ expiresAt, offsetMs, onExpire, label = t("seats.summary.heldFor"), lowLabel = t("seats.summary.lowTime") }: CountdownProps) {
   const [now, setNow] = useState<number | null>(null);
   const left = now === null ? null : remainingMs(expiresAt, now, offsetMs);
 
@@ -33,18 +36,30 @@ export function HoldCountdown({ expiresAt, offsetMs, onExpire }: { expiresAt: st
   return (
     <>
       <p className="flex items-baseline justify-between rounded-lg bg-muted px-3 py-2 text-sm" role="timer" aria-live="off">
-        <span>{t("seats.summary.heldFor")}</span>
+        <span>{label}</span>
         <span className="font-semibold tabular-nums">{left === null ? "--:--" : formatCountdown(left)}</span>
       </p>
       <span role="status" className="sr-only">
-        {low ? t("seats.summary.lowTime") : ""}
+        {low ? lowLabel : ""}
       </span>
     </>
   );
 }
 
 /** The buyer's hold: what they hold, the countdown, release, and checkout (spec 08) once it exists. */
-export function HoldSummary({ hold, offsetMs, onExpire, onRelease }: { hold: Hold; offsetMs: number; onExpire: () => void; onRelease: () => void }) {
+export function HoldSummary({
+  hold,
+  offsetMs,
+  checkoutHref,
+  onExpire,
+  onRelease,
+}: {
+  hold: Hold;
+  offsetMs: number;
+  checkoutHref: string;
+  onExpire: () => void;
+  onRelease: () => void;
+}) {
   const count = hold.seats.length + hold.ga.reduce((sum, g) => sum + g.quantity, 0);
   return (
     <div className="flex flex-col gap-3">
@@ -70,7 +85,9 @@ export function HoldSummary({ hold, offsetMs, onExpire, onRelease }: { hold: Hol
         <span>{t("seats.summary.total")}</span>
         <span className="tabular-nums">{formatVnd(hold.total)}</span>
       </p>
-      <Button disabled>{t("seats.summary.checkoutSoon")}</Button>
+      <Button asChild>
+        <Link href={checkoutHref}>{t("seats.summary.checkout")}</Link>
+      </Button>
       <Button variant="outline" onClick={onRelease}>
         {t("seats.summary.release")}
       </Button>

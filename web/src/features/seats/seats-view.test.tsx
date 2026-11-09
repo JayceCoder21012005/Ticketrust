@@ -108,6 +108,16 @@ describe("SeatsView", () => {
     expect(screen.getByRole("button", { name: /ghế 1,.*bạn đang giữ/ })).toBeInTheDocument();
   });
 
+  it("leads a held buyer on to the buyer step of this event's checkout", async () => {
+    arrange({ myHold: hold([0, 1]) });
+    render(<SeatsView event={event} />);
+
+    const checkout = await screen.findByRole("link", { name: "Tiếp tục thanh toán" });
+
+    expect(checkout).toHaveAttribute("href", "/events/su-kien/checkout");
+    expect(screen.queryByText(/sắp ra mắt/)).not.toBeInTheDocument();
+  });
+
   it("keeps the other seats after a conflict and says how many were taken", async () => {
     arrange();
     holds.createHold.mockRejectedValue(new ApiError(409, { code: "hold.seats_unavailable", unavailable: [2] }));

@@ -6,12 +6,12 @@ const request = (path: string, cookie?: string) =>
   new NextRequest(new URL(path, "http://localhost:3000"), { headers: cookie ? { cookie } : {} });
 
 describe("requiresLogin", () => {
-  it.each(["/account", "/account/tickets", "/my-tickets", "/checkout/123", "/queue/abc", "/events/ha-anh-tuan/queue", "/events/ha-anh-tuan/seats", "/organizer", "/organizer/events", "/admin", "/gate/scan"])(
+  it.each(["/account", "/account/tickets", "/my-tickets", "/checkout/123", "/queue/abc", "/events/ha-anh-tuan/queue", "/events/ha-anh-tuan/seats", "/events/ha-anh-tuan/checkout", "/organizer", "/organizer/events", "/admin", "/gate/scan"])(
     "guards %s",
     (path) => expect(requiresLogin(path)).toBe(true),
   );
 
-  it.each(["/", "/events", "/events/abc", "/events/abc/queue-info", "/events/abc/seats-info", "/login", "/register", "/design", "/administrator-info", "/gateway"])(
+  it.each(["/", "/events", "/events/abc", "/events/abc/queue-info", "/events/abc/seats-info", "/events/abc/checkout-info", "/login", "/register", "/design", "/administrator-info", "/gateway"])(
     "leaves %s public",
     (path) => expect(requiresLogin(path)).toBe(false),
   );

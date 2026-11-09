@@ -1,0 +1,81 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { ApiError } from "@/lib/errors";
+import { isSettled } from "./order-state";
+import { getOrder } from "./orders-api";
+import type { Order } from "./types";
+
+export const POLL_INTERVAL_MS = 1_500;
+export const POLL_WINDOW_MS = 90_000;
+
+export type PollPhase = "polling" | "settled" | "timeout" | "error";
+
+type Options = { fetchOrder?: (id: string) => Promise<Order>; intervalMs?: number; windowMs?: number };
+
+/** A missing or foreign order will not appear by waiting. */
+const isGone = (error: unknown) => error instanceof ApiError && (error.status === 404 || error.status === 403);
+
+/**
+ * Follows an order until it settles (spec 08 result page): `GET /orders/{id}` every 1.5 s for at most 90 s. A hidden tab
+ * neither fetches nor uses up the window (it resumes on return); a failed poll is tried again on the next beat.
+ * `refresh` starts a new window, for the "still processing" state.
+ */
+export function useOrderPolling(orderId: string, { fetchOrder = getOrder, intervalMs = POLL_INTERVAL_MS, windowMs = POLL_WINDOW_MS }: Options = {}) {
+  const [order, setOrder] = useState<Order | null>(null);
+  const [phase, setPhase] = useState<PollPhase>("polling");
+  const [round, setRound] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let beats = 0;
+    // The first poll is at 0 s, the last at 90 s: that one still gets its answer before giving up.
+    const maxBeats = Math.ceil(windowMs / intervalMs) + 1;
+
+    const settle = (next: PollPhase) => {
+      if (active) setPhase(next);
+    };
+
+    const beat = async () => {
+      if (!document.hidden) {
+        try {
+          const latest = await fetchOrder(orderId);
+          if (!active) return;
+          setOrder(latest);
+          if (isSettled(latest.status)) return settle("settled");
+        } catch (error) {
+          if (!active) return;
+          if (isGone(error)) return settle("error");
+        }
+
+        beats += 1;
+        if (beats >= maxBeats) return settle("timeout");
+      }
+
+      timer = setTimeout(() => void beat(), intervalMs);
+    };
+
+    const onVisible = () => {
+      if (!document.hidden && active) {
+        clearTimeout(timer);
+        void beat();
+      }
+    };
+
+    void beat();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [orderId, fetchOrder, intervalMs, windowMs, round]);
+
+  const refresh = useCallback(() => {
+    setPhase("polling");
+    setRound((n) => n + 1);
+  }, []);
+
+  return { order, phase, refresh };
+}
