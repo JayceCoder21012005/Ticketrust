@@ -7,8 +7,14 @@ namespace TicketRush.Domain.Orders;
 /// </summary>
 public sealed class ProcessedWebhook(string providerEventId, string provider, DateTimeOffset processedAt)
 {
-    /// <summary>Column width of <see cref="ProviderEventId"/>; a longer id is refused as an invalid payload.</summary>
+    /// <summary>The longest event id a provider may send; a longer one is refused as an invalid payload.</summary>
     public const int MaxProviderEventIdLength = 200;
+
+    /// <summary>
+    /// Column width of <see cref="ProviderEventId"/>: room for a provider's own id plus the <c>status:</c> prefix of the
+    /// receipt a status read is recorded under (<c>provider_session_id</c> is 200 wide, so such a receipt can be 207).
+    /// </summary>
+    public const int ColumnWidth = 256;
 
     public string ProviderEventId { get; private set; } = providerEventId;
 

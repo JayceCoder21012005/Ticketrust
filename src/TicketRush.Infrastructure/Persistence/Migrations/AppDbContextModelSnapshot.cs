@@ -780,8 +780,8 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                         .HasColumnName("provider");
 
                     b.Property<string>("ProviderEventId")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
                         .HasColumnName("provider_event_id");
 
                     b.Property<DateTimeOffset>("ProcessedAt")

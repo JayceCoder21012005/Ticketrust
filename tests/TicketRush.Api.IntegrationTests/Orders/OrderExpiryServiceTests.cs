@@ -6,6 +6,7 @@ using TicketRush.Api.IntegrationTests.Infrastructure;
 using TicketRush.Application.Abstractions.Payments;
 using TicketRush.Application.Features.Orders;
 using TicketRush.Domain.Orders;
+using TicketRush.Domain.Primitives;
 using TicketRush.Infrastructure.Payments;
 using WorkerAssembly::TicketRush.Worker.Payments;
 
@@ -69,6 +70,33 @@ public sealed class OrderExpiryServiceTests(ContainersFixture containers) : IAsy
         (await _h.StateAsync(placed.OrderId)).Attempts.ShouldBe([gatewayState == "failed" ? PaymentAttemptStatus.Failed : PaymentAttemptStatus.Expired]);
         _h.Spy.StatusCalls.ShouldBe(2);
         metrics.Counted("ticketrush.payments.sessions_reconciled").ShouldBe(["outcome=closed"]);
+    }
+
+    [Fact]
+    public async Task A_status_driven_decision_is_recorded_for_the_longest_session_id_a_payment_attempt_may_hold()
+    {
+        // provider_session_id is 200 wide; the status-read receipt id adds "status:", so processed_webhooks must hold more.
+        var sessionId = new string('s', 200);
+        var now = _h.Time.GetUtcNow();
+        var total = new Money(_h.Ga.Price);
+        var orderId = await _h.WithDbAsync(async db =>
+        {
+            var order = Order.Create(Guid.CreateVersion7(), _h.EventId, Guid.CreateVersion7(), [_h.GaUnits(1)], total,
+                new BuyerInfo("Nguyễn Văn An", "an@example.com", null), now + TimeSpan.FromMinutes(8), now);
+            order.StartPayment(now);
+            db.Orders.Add(order);
+            db.PaymentAttempts.Add(PaymentAttempt.Create(order.Id, CheckoutWorkersHarness.Provider, sessionId, "http://localhost:3000/pay", total, order.ExpiresAt, now));
+            await db.SaveChangesAsync(Ct);
+            return order.Id;
+        });
+        var webhook = new WebhookEvent(ExpireOrderHandler.StatusEventId(sessionId), sessionId, WebhookEventType.Succeeded, total, now);
+
+        await using var scope = _h.Host.Services.CreateAsyncScope();
+        var outcome = await scope.ServiceProvider.GetRequiredService<FulfillOrderHandler>().HandleAsync(CheckoutWorkersHarness.Provider, webhook, Ct);
+
+        outcome.ShouldBe(PaymentWebhookOutcome.Paid);
+        (await _h.StateAsync(orderId)).Status.ShouldBe(OrderStatus.Paid);
+        (await _h.ProcessedWebhooksAsync(webhook.ProviderEventId)).ShouldBe(1);
     }
 
     [Fact]
