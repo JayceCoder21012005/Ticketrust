@@ -391,6 +391,80 @@
       "title": "Payment result"
     }
   },
+  "orders": {
+    "title": "My orders",
+    "description": "Follow the status of the orders you have placed.",
+    "loading": "Loading orders…",
+    "loadFailed": "Could not load your orders.",
+    "accountLink": "My orders",
+    "empty": {
+      "title": "You have no orders yet",
+      "description": "When you book tickets, your orders will appear here.",
+      "action": "Browse events"
+    },
+    "eventFallback": "Event",
+    "code": "Order {code}",
+    "items": "{count} tickets",
+    "placedAt": "Placed {time}",
+    "continuePay": "Continue to payment",
+    "loadMore": "Show more",
+    "loadingMore": "Loading…",
+    "loadMoreFailed": "Could not load more orders. Please try again.",
+    "loadedMore": "Loaded {count} more orders, showing {total}.",
+    "status": {
+      "Pending": "Awaiting payment",
+      "AwaitingPayment": "Paying",
+      "PaymentFailed": "Payment failed",
+      "Paid": "Paid",
+      "Cancelled": "Cancelled",
+      "Expired": "Expired",
+      "RefundPending": "Refund in progress",
+      "Refunded": "Refunded"
+    },
+    "detail": {
+      "back": "All orders",
+      "loading": "Loading order…",
+      "loadFailed": "Could not load the order.",
+      "notFound": {
+        "title": "Order not found",
+        "body": "The order does not exist or does not belong to this account.",
+        "action": "Back to my orders"
+      },
+      "viewEvent": "View event",
+      "timeline": "Order status",
+      "buyer": "Buyer",
+      "pastDeadline": "The payment deadline has passed; the order will be updated shortly.",
+      "tickets": "You have {count} tickets.",
+      "viewTickets": "View tickets",
+      "ticketsSoon": "The tickets page is coming soon."
+    },
+    "timeline": {
+      "label": "Order steps",
+      "steps": {
+        "created": "Booked",
+        "awaiting": "Awaiting payment",
+        "paid": "Paid",
+        "failed": "Payment failed",
+        "cancelled": "Cancelled",
+        "expired": "Expired",
+        "refunding": "Refund in progress",
+        "refunded": "Refunded"
+      },
+      "state": {
+        "done": "completed",
+        "current": "current step",
+        "upcoming": "upcoming"
+      },
+      "notes": {
+        "created": "The order is created and holding your seats. No payment yet.",
+        "awaiting": "Complete the payment before the seat hold runs out.",
+        "failed": "The transaction did not complete. You can try again until the payment deadline.",
+        "cancelled": "The seats have been released.",
+        "expired": "The payment time ran out and the seats were released.",
+        "refunded": "We have refunded this order."
+      }
+    }
+  },
   "mockGateway": {
     "title": "Mock payment gateway",
     "notice": "For development and demos only. No real money.",

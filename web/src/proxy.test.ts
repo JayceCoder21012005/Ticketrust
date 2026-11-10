@@ -6,7 +6,7 @@ const request = (path: string, cookie?: string) =>
   new NextRequest(new URL(path, "http://localhost:3000"), { headers: cookie ? { cookie } : {} });
 
 describe("requiresLogin", () => {
-  it.each(["/account", "/account/tickets", "/my-tickets", "/checkout/123", "/queue/abc", "/events/ha-anh-tuan/queue", "/events/ha-anh-tuan/seats", "/events/ha-anh-tuan/checkout", "/organizer", "/organizer/events", "/admin", "/gate/scan"])(
+  it.each(["/account", "/account/tickets", "/account/orders", "/account/orders/0f3a9c1e-aaaa", "/my-tickets", "/checkout/123", "/queue/abc", "/events/ha-anh-tuan/queue", "/events/ha-anh-tuan/seats", "/events/ha-anh-tuan/checkout", "/organizer", "/organizer/events", "/admin", "/gate/scan"])(
     "guards %s",
     (path) => expect(requiresLogin(path)).toBe(true),
   );
@@ -19,6 +19,9 @@ describe("requiresLogin", () => {
 
 describe("proxy", () => {
   it("redirects a guarded page to login with the path and query as returnUrl when the session hint is missing", () => {
+    const orders = proxy(request("/account/orders/abc?from=list"));
+    expect(new URL(orders.headers.get("location")!).searchParams.get("returnUrl")).toBe("/account/orders/abc?from=list");
+
     const response = proxy(request("/account?tab=profile"));
 
     expect(response.status).toBe(307);

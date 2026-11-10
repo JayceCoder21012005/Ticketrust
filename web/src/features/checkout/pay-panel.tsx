@@ -8,7 +8,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { FormAlert } from "@/features/auth/form-alert";
 import { HoldCountdown } from "@/features/seats/hold-panel";
 import { Button } from "@/components/ui/button";
-import { isCancellable } from "@/lib/checkout/order-state";
+import { isCancellable, orderCode } from "@/lib/checkout/order-state";
 import { cancelOrder } from "@/lib/checkout/orders-api";
 import type { RememberedEvent } from "@/lib/checkout/event-memory";
 import type { Order } from "@/lib/checkout/types";
@@ -20,9 +20,6 @@ import { usePay } from "./use-pay";
 type PayPanelProps = { order: Order; offsetMs: number; event: RememberedEvent | null; onReload: () => void };
 
 const END_CODES = new Set(["order.expired", "order.hold_expired"]);
-
-/** Short, stable reference the buyer can quote: the start of the order id. */
-const orderCode = (id: string) => `#${id.slice(0, 8).toUpperCase()}`;
 
 /**
  * The payable order: countdown pinned under the header, what is being bought, who is buying, the terms, "Thanh toán"

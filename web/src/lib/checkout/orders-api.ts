@@ -1,7 +1,7 @@
 import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { ApiError, type ProblemDetails } from "@/lib/errors";
-import type { CreateOrderBody, MockOutcome, MockSession, Order, PayResult } from "./types";
+import type { CreateOrderBody, MockOutcome, MockSession, Order, OrderPage, PayResult } from "./types";
 
 type RawOrder = components["schemas"]["OrderResponse"];
 type RawSession = components["schemas"]["MockSessionView"];
@@ -16,6 +16,19 @@ export function normaliseOrder(raw: RawOrder): Order {
     seats: raw.seats.map((s) => ({ ...s, index: Number(s.index), price: Number(s.price) })),
     ga: raw.ga.map((g) => ({ ...g, quantity: Number(g.quantity), price: Number(g.price) })),
     ticketCount: raw.ticketCount === null ? null : Number(raw.ticketCount),
+  };
+}
+
+/** `GET /me/orders`: newest first; pass the previous page's `nextCursor` to continue. */
+export async function listMyOrders(cursor?: string, limit?: number, signal?: AbortSignal): Promise<OrderPage> {
+  const result = await api.GET("/api/v1/me/orders", { params: { query: { cursor, limit } }, signal, cache: "no-store" });
+  if (result.data === undefined) {
+    throw fail(result.response.status, result.error);
+  }
+
+  return {
+    nextCursor: result.data.nextCursor,
+    items: result.data.items.map((item) => ({ ...item, total: Number(item.total), itemCount: Number(item.itemCount) })),
   };
 }
 

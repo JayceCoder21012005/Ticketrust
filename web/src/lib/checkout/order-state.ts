@@ -20,6 +20,9 @@ export const resultKindOf = (status: OrderStatus): ResultKind => KIND[status];
 /** Polling stops here: nothing the buyer waits for can still change the outcome (a refund still lands later). */
 export const isSettled = (status: OrderStatus): boolean => KIND[status] !== "confirming";
 
+/** Short, stable reference the buyer can quote: the start of the order id. */
+export const orderCode = (id: string): string => `#${id.slice(0, 8).toUpperCase()}`;
+
 /** A buyer can pay (or retry paying) while the order is open. */
 export const isPayable = (status: OrderStatus): boolean => status === "Pending" || status === "AwaitingPayment" || status === "PaymentFailed";
 

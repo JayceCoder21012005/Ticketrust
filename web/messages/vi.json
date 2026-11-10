@@ -391,6 +391,80 @@
       "title": "Kết quả thanh toán"
     }
   },
+  "orders": {
+    "title": "Đơn hàng của tôi",
+    "description": "Theo dõi trạng thái các đơn hàng bạn đã đặt.",
+    "loading": "Đang tải đơn hàng…",
+    "loadFailed": "Không tải được danh sách đơn hàng.",
+    "accountLink": "Đơn hàng của tôi",
+    "empty": {
+      "title": "Bạn chưa có đơn hàng nào",
+      "description": "Khi bạn đặt vé, đơn hàng sẽ xuất hiện ở đây.",
+      "action": "Khám phá sự kiện"
+    },
+    "eventFallback": "Sự kiện",
+    "code": "Đơn {code}",
+    "items": "{count} vé",
+    "placedAt": "Đặt lúc {time}",
+    "continuePay": "Tiếp tục thanh toán",
+    "loadMore": "Xem thêm",
+    "loadingMore": "Đang tải…",
+    "loadMoreFailed": "Không tải thêm được đơn hàng. Vui lòng thử lại.",
+    "loadedMore": "Đã tải thêm {count} đơn hàng, đang hiển thị {total}.",
+    "status": {
+      "Pending": "Chờ thanh toán",
+      "AwaitingPayment": "Đang thanh toán",
+      "PaymentFailed": "Thanh toán thất bại",
+      "Paid": "Đã thanh toán",
+      "Cancelled": "Đã huỷ",
+      "Expired": "Hết hạn",
+      "RefundPending": "Đang hoàn tiền",
+      "Refunded": "Đã hoàn tiền"
+    },
+    "detail": {
+      "back": "Tất cả đơn hàng",
+      "loading": "Đang tải đơn hàng…",
+      "loadFailed": "Không tải được đơn hàng.",
+      "notFound": {
+        "title": "Không tìm thấy đơn hàng",
+        "body": "Đơn hàng không tồn tại hoặc không thuộc tài khoản này.",
+        "action": "Về đơn hàng của tôi"
+      },
+      "viewEvent": "Xem sự kiện",
+      "timeline": "Trạng thái đơn hàng",
+      "buyer": "Người mua",
+      "pastDeadline": "Đã quá hạn thanh toán, đơn hàng sẽ sớm được cập nhật.",
+      "tickets": "Bạn có {count} vé.",
+      "viewTickets": "Xem vé",
+      "ticketsSoon": "Trang xem vé sẽ có trong thời gian tới."
+    },
+    "timeline": {
+      "label": "Các bước của đơn hàng",
+      "steps": {
+        "created": "Đặt chỗ",
+        "awaiting": "Chờ thanh toán",
+        "paid": "Đã thanh toán",
+        "failed": "Thanh toán thất bại",
+        "cancelled": "Đã huỷ",
+        "expired": "Hết hạn",
+        "refunding": "Đang hoàn tiền",
+        "refunded": "Đã hoàn tiền"
+      },
+      "state": {
+        "done": "đã qua",
+        "current": "bước hiện tại",
+        "upcoming": "sắp tới"
+      },
+      "notes": {
+        "created": "Đơn hàng đã được tạo và đang giữ ghế cho bạn. Chưa có khoản thanh toán nào.",
+        "awaiting": "Hoàn tất thanh toán trước khi hết giờ giữ ghế.",
+        "failed": "Giao dịch chưa hoàn tất. Bạn có thể thử lại cho đến hết giờ thanh toán.",
+        "cancelled": "Ghế đã được trả lại.",
+        "expired": "Thời gian thanh toán đã hết và ghế đã được trả lại.",
+        "refunded": "Chúng tôi đã hoàn tiền cho đơn hàng này."
+      }
+    }
+  },
   "mockGateway": {
     "title": "Cổng thanh toán giả lập",
     "notice": "Chỉ dùng khi phát triển và demo. Không có tiền thật.",

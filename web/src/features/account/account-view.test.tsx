@@ -70,6 +70,12 @@ describe("AccountView", () => {
     expect(callsTo("GET", "/api/v1/me")[0].headers.get("Authorization")).toBe("Bearer jwt");
   });
 
+  it("links to the order history", async () => {
+    renderAccount();
+
+    expect(await screen.findByRole("link", { name: "Đơn hàng của tôi" })).toHaveAttribute("href", "/account/orders");
+  });
+
   it("saves the profile and updates the signed-in user", async () => {
     routes.set("PUT /api/v1/me", async (request) => json({ ...me, ...(await request.json()) }));
     renderAccount();

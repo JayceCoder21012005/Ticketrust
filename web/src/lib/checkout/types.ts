@@ -43,3 +43,20 @@ export type MockSession = {
   expiresAt: string;
   serverNow: string;
 };
+
+/** One row of `GET /me/orders`: the event is named here (title, slug, start), unlike a single order. */
+export type OrderSummary = {
+  id: string;
+  eventId: string;
+  eventTitle: string;
+  eventSlug: string;
+  eventStartsAt: string;
+  status: OrderStatus;
+  total: number;
+  itemCount: number;
+  createdAt: string;
+  paidAt: string | null;
+};
+
+/** Keyset page: `nextCursor` is opaque and null on the last page. */
+export type OrderPage = { items: OrderSummary[]; nextCursor: string | null };
