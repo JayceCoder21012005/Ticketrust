@@ -46,3 +46,8 @@ This is the same as calling `Order.ResumeRefund()` / `PaymentAttempt.ResumeRefun
 ## If the money was refunded by hand at the provider
 
 Do NOT resume. A resumed refund would ask the gateway again under the same idempotency key. If the manual refund used another key, the money would go out twice. Record the outcome with the team that owns payments. A status-change admin action is part of spec 15.
+
+## Known limits (accepted)
+
+- **Failed or Expired sessions of an already Expired order are not asked again.** If a provider closes a session as Failed or Expired and later captures money on it, and every success webhook is lost, the money is stranded: nothing refunds it. Real sessions close at expiry (before the order's expiry sweep gives up), so the risk is small and accepted. If it happens, the money shows at the provider with no matching paid order: refund it there by hand.
+- **A missing gateway registration for an order's provider makes the expiry sweep skip that order forever**, logging an Error every 5 seconds (the sweep cannot ask a provider it does not know). It is loud on purpose. Fix it by registering the provider (its gateway adapter) in the api and worker; the next sweep then handles the order.

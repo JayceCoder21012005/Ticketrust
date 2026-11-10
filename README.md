@@ -245,6 +245,14 @@ SignalR (`/hubs/*`) đi thẳng từ Caddy tới `api:8080`, không qua Next (b�
 và upstream), mở kết nối SignalR chỉ dùng WebSocket qua Caddy tới api chạy trên Kestrel, rồi nhận một `SeatDelta`.
 Cần Docker: `dotnet test --project tests/TicketRush.Api.IntegrationTests --filter-class "*CaddyWebSocketTests"`.
 
+### Thanh toán ở production
+
+- ⚠️ **Production chưa nhận được tiền thật.** Cổng thanh toán duy nhất hiện có là cổng giả lập, và nó **tắt mặc định** ở production (`Payments:Mock:Enabled` bị từ chối khi chạy ngoài Development, trừ khi đặt thêm `Payments:Mock:AllowInProduction=true` cho một bản demo công khai). Muốn bán vé thật cần viết adapter cho một cổng thật (spec 08, `IPaymentGateway`) và đăng ký nó.
+- `docker-compose.prod.yml` đặt `Payments__Mock__WebBaseUrl` thành `https://${PUBLIC_HOST}`, để khi bật cổng giả lập cho demo, `redirectUrl` trỏ đúng tên miền công khai thay vì `http://localhost:3000`.
+- Webhook của cổng thanh toán đi vào qua **rewrite `/api/:path*` của Next**: Caddy chuyển mọi đường dẫn trừ `/hubs/*` tới `web`, nên `/api/v1/webhooks/payments/...` hiện đi `Caddy → web → api`. Proxy này phải chuyển thân request **nguyên từng byte** và giữ header `X-Signature`, nếu không chữ ký HMAC sẽ sai. Điều này **chưa được kiểm chứng** ở đây (cổng giả lập gọi thẳng `api:8080`, không qua Next). Hãy kiểm chứng trước khi bật một provider thật, và cân nhắc cho Caddy chuyển `/api/v1/webhooks/*` thẳng tới `api:8080` như `/hubs/*`.
+- Huỷ sự kiện hoàn tiền cho người mua **không cần** key ring Data Protection: việc xử lý đơn của sự kiện bị huỷ không đọc bí mật QR của vé.
+- Giới hạn đã biết của việc hết hạn đơn và hoàn tiền: xem [docs/runbooks/parked-refunds.md](docs/runbooks/parked-refunds.md#known-limits-accepted).
+
 ### Độ bền của Redis
 
 Ghế đang giữ và tập ghế đã bán nằm trong Redis (spec 07), nên Redis production chạy với
