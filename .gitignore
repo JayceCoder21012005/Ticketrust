@@ -31,3 +31,6 @@ Thumbs.db
 
 # Local storage provider uploads (spec 03)
 App_Data/
+
+# Agent working files (SDD ledger, briefs, reports): local only
+.superpowers/
