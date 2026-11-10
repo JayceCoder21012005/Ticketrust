@@ -50,11 +50,13 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
     if (status === "anonymous") router.replace(loginRedirectUrl(`${ORDERS_HREF}/${orderId}`));
   }, [status, orderId, router]);
 
+  // A loaded order stays on screen when a later background refetch fails: the error only matters when there is nothing to show.
+  if (query.data) return <OrderDetail order={query.data} />;
   if (query.isError) {
     return query.error instanceof ApiError && query.error.status === 404 ? <NotFound /> : <LoadFailed onRetry={() => void query.refetch()} />;
   }
 
-  return query.data ? <OrderDetail order={query.data} /> : <OrderDetailSkeleton />;
+  return <OrderDetailSkeleton />;
 }
 
 function OrderDetail({ order }: { order: Order }) {
@@ -125,8 +127,13 @@ function Actions({ order }: { order: Order }) {
     return (
       <div className="flex flex-col items-start gap-2 text-sm">
         {order.ticketCount ? <p className="font-medium">{t("orders.detail.tickets", "vi", { count: order.ticketCount })}</p> : null}
-        <Button disabled>{t("orders.detail.viewTickets")}</Button>
-        <p className="text-muted-foreground">{t("orders.detail.ticketsSoon")}</p>
+        {/* aria-disabled, not disabled: it stays in the tab order so its reason is found; activating it does nothing. */}
+        <Button aria-disabled="true" aria-describedby="tickets-soon" onClick={(event) => event.preventDefault()} className="cursor-not-allowed opacity-60">
+          {t("orders.detail.viewTickets")}
+        </Button>
+        <p id="tickets-soon" className="text-muted-foreground">
+          {t("orders.detail.ticketsSoon")}
+        </p>
       </div>
     );
   }
@@ -151,9 +158,11 @@ function NotFound() {
 }
 
 function LoadFailed({ onRetry }: { onRetry: () => void }) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => heading.current?.focus(), []);
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10">
-      <ErrorState title={t("orders.detail.loadFailed")} onRetry={onRetry} />
+      <ErrorState title={t("orders.detail.loadFailed")} onRetry={onRetry} headingRef={heading} />
     </div>
   );
 }

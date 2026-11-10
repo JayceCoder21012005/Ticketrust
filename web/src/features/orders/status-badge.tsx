@@ -17,7 +17,7 @@ const ICON: Record<OrderStatus, LucideIcon> = {
 };
 
 /** The colour sits on the icon only; the label stays in the foreground colour, so a status never reads by colour alone. */
-export const TONE: Record<StatusTone, string> = {
+const TONE: Record<StatusTone, string> = {
   success: "text-success",
   warning: "text-warning",
   danger: "text-danger",

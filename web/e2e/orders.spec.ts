@@ -149,7 +149,7 @@ test.describe("order detail", () => {
     await expect(steps.nth(2)).toHaveAttribute("aria-current", "step");
     await expect(steps.nth(2)).toContainText("10:02 03/11/2026");
     await expect(page.getByText("Bạn có 2 vé.")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Xem vé" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Xem vé" })).toHaveAttribute("aria-disabled", "true");
     await expect(page.getByText("Nguyễn An")).toBeVisible();
     await expect(page.getByText("4.500.000")).toBeVisible();
   });
@@ -166,6 +166,19 @@ test.describe("order detail", () => {
     await expect(steps.nth(3)).toContainText("Thời gian tiền về tuỳ thuộc vào ngân hàng của bạn");
     await expect(steps.nth(4)).toContainText("Đã hoàn tiền");
     await expect(page.getByRole("link", { name: "Tiếp tục thanh toán" })).toHaveCount(0);
+  });
+
+  test("a late payment that is being refunded was never Paid: it shows 'Đã nhận thanh toán' and no Paid or Expired step", async ({ context, page, baseURL }) => {
+    await arrange(context, baseURL!, twoPages, [{ ...detailOf(3, "RefundPending", "seats_unavailable"), paidAt: null }]);
+    await page.goto(`/account/orders/${id(3)}`);
+
+    const steps = page.getByRole("list", { name: "Các bước của đơn hàng" }).getByRole("listitem");
+    await expect(steps).toHaveCount(4);
+    await expect(steps.nth(1)).toContainText("Đã nhận thanh toán");
+    await expect(steps.nth(2)).toHaveAttribute("aria-current", "step");
+    await expect(steps.nth(2)).toContainText("Thanh toán đến sau khi thời gian giữ ghế đã hết và ghế đã có người khác mua.");
+    await expect(steps.filter({ hasText: "Đã thanh toán" })).toHaveCount(0);
+    await expect(steps.filter({ hasText: "Hết hạn" })).toHaveCount(0);
   });
 
   test("an open order can go back to paying", async ({ context, page, baseURL }) => {
@@ -191,6 +204,7 @@ const scenarios: Scenario[] = [
   { name: "empty list", pages: { first: { items: [], nextCursor: null } }, open: async (page) => { await page.goto("/account/orders"); await expect(page.getByText("Bạn chưa có đơn hàng nào")).toBeVisible(); } },
   { name: "paid order", orders: [detailOf(3, "Paid")], open: async (page) => { await page.goto(`/account/orders/${id(3)}`); await expect(page.getByRole("list", { name: "Các bước của đơn hàng" })).toBeVisible(); } },
   { name: "refunding order", orders: [detailOf(3, "RefundPending", "seats_unavailable")], open: async (page) => { await page.goto(`/account/orders/${id(3)}`); await expect(page.getByText("Đang hoàn tiền").first()).toBeVisible(); } },
+  { name: "late payment being refunded", orders: [{ ...detailOf(3, "RefundPending", "seats_unavailable"), paidAt: null }], open: async (page) => { await page.goto(`/account/orders/${id(3)}`); await expect(page.getByText("Đã nhận thanh toán").first()).toBeVisible(); } },
   { name: "failed payment", orders: [detailOf(3, "PaymentFailed")], open: async (page) => { await page.goto(`/account/orders/${id(3)}`); await expect(page.getByText("Thanh toán thất bại").first()).toBeVisible(); } },
   { name: "expired order", orders: [detailOf(3, "Expired")], open: async (page) => { await page.goto(`/account/orders/${id(3)}`); await expect(page.getByText("Hết hạn").first()).toBeVisible(); } },
 ];

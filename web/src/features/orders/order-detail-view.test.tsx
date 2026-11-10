@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Order, OrderStatus } from "@/lib/checkout/types";
@@ -120,7 +120,7 @@ describe("OrderDetailView", () => {
     });
 
     it.each<[OrderStatus, string[], string]>([
-      ["Pending", ["Đặt chỗ", "Chờ thanh toán", "Đã thanh toán"], "Đặt chỗ"],
+      ["Pending", ["Đặt chỗ", "Chờ thanh toán", "Đã thanh toán"], "Chờ thanh toán"],
       ["PaymentFailed", ["Đặt chỗ", "Chờ thanh toán", "Thanh toán thất bại", "Đã thanh toán"], "Thanh toán thất bại"],
       ["Paid", ["Đặt chỗ", "Chờ thanh toán", "Đã thanh toán"], "Đã thanh toán"],
       ["Cancelled", ["Đặt chỗ", "Đã huỷ"], "Đã huỷ"],
@@ -158,9 +158,35 @@ describe("OrderDetailView", () => {
       expect(refunding).not.toHaveTextContent(/\d+ ngày/);
     });
 
-    it.each(["event_cancelled", "event_ended", "purchase_limit_exceeded"])("covers the refund reason %s", async (reason) => {
-      await show("Refunded", { refundReason: reason });
-      expect(timeline().getAllByRole("listitem")[3]).not.toHaveTextContent("checkout.result");
+    it.each([
+      ["seats_unavailable", "Thanh toán đến sau khi thời gian giữ ghế đã hết và ghế đã có người khác mua."],
+      ["purchase_limit_exceeded", "Số vé này sẽ vượt quá số vé tối đa mỗi người được mua cho sự kiện."],
+      ["event_cancelled", "Nhà tổ chức đã huỷ sự kiện này."],
+      ["event_ended", "Thanh toán đến sau khi sự kiện đã kết thúc."],
+    ])("gives the refund reason %s its own sentence", async (reason, sentence) => {
+      await show("RefundPending", { refundReason: reason });
+
+      const refunding = timeline().getAllByRole("listitem")[3]!;
+      expect(refunding).toHaveTextContent(sentence);
+      const text = refunding.textContent ?? "";
+      const all = ["Thanh toán đến sau khi thời gian giữ ghế đã hết", "Số vé này sẽ vượt quá số vé tối đa", "Nhà tổ chức đã huỷ sự kiện này.", "Thanh toán đến sau khi sự kiện đã kết thúc."];
+      expect(all.filter((part) => text.includes(part))).toHaveLength(1);
+    });
+
+    it("a late payment (no paidAt) shows 'Đã nhận thanh toán' and never a Paid step", async () => {
+      await show("RefundPending", { paidAt: null, refundReason: "seats_unavailable" });
+
+      expect(stepLabels()).toEqual(["Đặt chỗ", "Đã nhận thanh toán", "Đang hoàn tiền", "Đã hoàn tiền"]);
+      expect(timeline().queryByText("Đã thanh toán")).not.toBeInTheDocument();
+      expect(timeline().queryByText("Hết hạn")).not.toBeInTheDocument();
+      const items = timeline().getAllByRole("listitem");
+      expect(items[1]).not.toHaveTextContent(/d{2}:d{2}/);
+      expect(items[2]).toHaveTextContent("Thanh toán đến sau khi thời gian giữ ghế đã hết và ghế đã có người khác mua.");
+    });
+
+    it("labels an expired order's time as the deadline, not as when it expired", async () => {
+      await show("Expired", { expiresAt: "2026-12-01T03:10:00Z" });
+      expect(timeline().getAllByRole("listitem")[1]).toHaveTextContent("Hạn giữ chỗ: 10:10 01/12/2026");
     });
 
     it("keeps an unknown (future) refund reason on the general sentence", async () => {
@@ -178,7 +204,7 @@ describe("OrderDetailView", () => {
     it("cannot pay once the deadline has passed on server time, and says the order will be updated", async () => {
       await show("AwaitingPayment", { expiresAt: new Date(NOW - 1_000).toISOString() });
       expect(screen.queryByRole("link", { name: "Tiếp tục thanh toán" })).not.toBeInTheDocument();
-      expect(screen.getByText("Đã quá hạn thanh toán, đơn hàng sẽ sớm được cập nhật.")).toBeInTheDocument();
+      expect(screen.getByText("Đã quá hạn thanh toán. Tải lại trang để xem trạng thái mới nhất.")).toBeInTheDocument();
     });
 
     it.each<OrderStatus>(["Cancelled", "Expired", "RefundPending", "Refunded"])("%s has no pay link", async (status) => {
@@ -190,8 +216,24 @@ describe("OrderDetailView", () => {
       await show("Paid");
 
       expect(screen.getByText("Bạn có 4 vé.")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Xem vé" })).toBeDisabled();
-      expect(screen.getByText("Trang xem vé sẽ có trong thời gian tới.")).toBeInTheDocument();
+      const view = screen.getByRole("button", { name: "Xem vé" });
+      expect(view).toHaveAttribute("aria-disabled", "true");
+      expect(view).not.toBeDisabled();
+      expect(view).toHaveAccessibleDescription("Trang xem vé sẽ có trong thời gian tới.");
+    });
+
+    it("keeps 'Xem vé' focusable but does nothing when activated", async () => {
+      const user = userEvent.setup();
+      await show("Paid");
+
+      const view = screen.getByRole("button", { name: "Xem vé" });
+      await user.tab();
+      view.focus();
+      expect(view).toHaveFocus();
+      await user.click(view);
+      await user.keyboard("{Enter}");
+      expect(router.push).not.toHaveBeenCalled();
+      expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
     });
 
     it("links back to all orders", async () => {
@@ -214,6 +256,35 @@ describe("OrderDetailView", () => {
       const heading = await screen.findByRole("heading", { name: "Không tìm thấy đơn hàng" });
       await waitFor(() => expect(heading).toHaveFocus());
       expect(screen.getByRole("link", { name: "Về đơn hàng của tôi" })).toHaveAttribute("href", "/account/orders");
+    });
+
+    it("keeps a loaded order on screen when a background refetch fails", async () => {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      api.getOrder.mockResolvedValueOnce(order("AwaitingPayment")).mockRejectedValueOnce(new ApiError(500, {}));
+      renderView(client);
+      await screen.findByRole("heading", { level: 1, name: /Đơn hàng #/ });
+
+      await act(async () => {
+        await client.refetchQueries({ queryKey: ["account-order", "0f3a9c1e-aaaa-bbbb-cccc-dddddddddddd"] });
+      });
+
+      expect(api.getOrder).toHaveBeenCalledTimes(2);
+      // The query now holds both the old order and the error; let react-query notify the view.
+      await waitFor(() => expect(client.getQueryState(["account-order", "0f3a9c1e-aaaa-bbbb-cccc-dddddddddddd"])?.status).toBe("error"));
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+      expect(screen.getByRole("heading", { level: 1, name: /Đơn hàng #/ })).toBeInTheDocument();
+      expect(screen.queryByText("Không tải được đơn hàng.")).not.toBeInTheDocument();
+      expect(timeline().getAllByRole("listitem")).toHaveLength(3);
+    });
+
+    it("moves focus to the failure heading when loading fails, like the not-found state", async () => {
+      api.getOrder.mockRejectedValue(new ApiError(500, {}));
+      renderView();
+
+      const heading = await screen.findByRole("heading", { name: "Không tải được đơn hàng." });
+      await waitFor(() => expect(heading).toHaveFocus());
     });
 
     it("offers a retry when loading fails", async () => {

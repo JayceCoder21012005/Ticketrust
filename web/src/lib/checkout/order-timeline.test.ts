@@ -16,19 +16,36 @@ const order = (status: OrderStatus, extra: Partial<Order> = {}): Pick<Order, "st
 });
 
 const shape = (o: ReturnType<typeof order>) => buildTimeline(o).map((s) => `${s.key}:${s.state}`);
+/** A refund after a payment the api recorded (`paidAt` set). */
+const refund = (status: OrderStatus, extra: Partial<Order> = {}) => order(status, { paidAt: PAID, ...extra });
 
 describe("buildTimeline", () => {
   it.each<[OrderStatus, string[]]>([
-    ["Pending", ["created:current", "awaiting:upcoming", "paid:upcoming"]],
+    ["Pending", ["created:done", "awaiting:current", "paid:upcoming"]],
     ["AwaitingPayment", ["created:done", "awaiting:current", "paid:upcoming"]],
     ["PaymentFailed", ["created:done", "awaiting:done", "failed:current", "paid:upcoming"]],
     ["Paid", ["created:done", "awaiting:done", "paid:current"]],
     ["Cancelled", ["created:done", "cancelled:current"]],
     ["Expired", ["created:done", "expired:current"]],
-    ["RefundPending", ["created:done", "awaiting:done", "paid:done", "refunding:current", "refunded:upcoming"]],
-    ["Refunded", ["created:done", "awaiting:done", "paid:done", "refunding:done", "refunded:current"]],
   ])("%s", (status, expected) => {
     expect(shape(order(status))).toEqual(expected);
+  });
+
+  it.each<[OrderStatus, string[]]>([
+    ["RefundPending", ["created:done", "awaiting:done", "paid:done", "refunding:current", "refunded:upcoming"]],
+    ["Refunded", ["created:done", "awaiting:done", "paid:done", "refunding:done", "refunded:current"]],
+  ])("%s after a recorded payment keeps the whole path", (status, expected) => {
+    expect(shape(refund(status))).toEqual(expected);
+  });
+
+  it.each<[OrderStatus, string[]]>([
+    ["RefundPending", ["created:done", "received:done", "refunding:current", "refunded:upcoming"]],
+    ["Refunded", ["created:done", "received:done", "refunding:done", "refunded:current"]],
+  ])("%s without a recorded payment (a late payment) never claims a Paid, awaiting or Expired step", (status, expected) => {
+    const keys = shape(order(status));
+    expect(keys).toEqual(expected);
+    expect(keys.join()).not.toMatch(/paid|awaiting|expired/);
+    expect(buildTimeline(order(status)).find((s) => s.key === "received")?.at).toBeNull();
   });
 
   it("has exactly one current step for every status", () => {
@@ -43,7 +60,7 @@ describe("buildTimeline", () => {
     expect(paid.map((s) => s.at)).toEqual([CREATED, null, PAID]);
 
     expect(buildTimeline(order("Expired")).map((s) => s.at)).toEqual([CREATED, EXPIRES]);
-    expect(buildTimeline(order("Refunded", { paidAt: PAID })).map((s) => s.at)).toEqual([CREATED, null, PAID, null, null]);
+    expect(buildTimeline(refund("Refunded")).map((s) => s.at)).toEqual([CREATED, null, PAID, null, null]);
     expect(buildTimeline(order("Cancelled")).map((s) => s.at)).toEqual([CREATED, null]);
   });
 
@@ -57,7 +74,7 @@ describe("buildTimeline", () => {
   });
 
   it("explains a refund with the api's reason, and an unknown one with the general sentence", () => {
-    const refunding = (reason: string | null) => buildTimeline(order("RefundPending", { refundReason: reason })).find((s) => s.key === "refunding");
+    const refunding = (reason: string | null) => buildTimeline(refund("RefundPending", { refundReason: reason })).find((s) => s.key === "refunding");
     expect(refunding("event_cancelled")?.notes[0]).toBe("checkout.result.refunding.reasons.event_cancelled");
     expect(refunding("seats_unavailable")?.notes[0]).toBe("checkout.result.refunding.reasons.seats_unavailable");
     expect(refunding("something_new")?.notes[0]).toBe("checkout.result.refunding.reasons.other");
@@ -67,19 +84,27 @@ describe("buildTimeline", () => {
   });
 
   it("keeps the refund reason visible once the refund is done, without the 'still to come' sentence", () => {
-    const done = buildTimeline(order("Refunded", { refundReason: "event_ended" })).find((s) => s.key === "refunding");
+    const done = buildTimeline(refund("Refunded", { refundReason: "event_ended" })).find((s) => s.key === "refunding");
     expect(done?.notes).toEqual(["checkout.result.refunding.reasons.event_ended"]);
   });
 
   it("adds a sentence to the step the order is on, never to the steps behind or ahead", () => {
     const notes = (status: OrderStatus) => buildTimeline(order(status)).map((s) => s.notes.length);
-    expect(notes("Pending")).toEqual([1, 0, 0]);
+    expect(notes("Pending")).toEqual([0, 1, 0]);
     expect(notes("AwaitingPayment")).toEqual([0, 1, 0]);
     expect(notes("PaymentFailed")).toEqual([0, 0, 1, 0]);
     expect(notes("Cancelled")).toEqual([0, 1]);
     expect(notes("Expired")).toEqual([0, 1]);
     expect(notes("Paid")).toEqual([0, 0, 0]);
     expect(buildTimeline(order("Expired"))[1]?.notes).toEqual(["orders.timeline.notes.expired"]);
+  });
+});
+
+describe("the expired step's time", () => {
+  it("is flagged as a deadline, not as when the order expired", () => {
+    const expired = buildTimeline(order("Expired")).find((s) => s.key === "expired");
+    expect(expired).toMatchObject({ at: EXPIRES, atIsDeadline: true });
+    expect(buildTimeline(order("Paid", { paidAt: PAID })).some((s) => s.atIsDeadline)).toBe(false);
   });
 });
 

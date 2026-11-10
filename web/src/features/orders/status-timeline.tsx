@@ -22,11 +22,12 @@ function Step({ step }: { step: TimelineStep }) {
       <div className="flex min-w-0 flex-col gap-0.5">
         <p className={cn("text-sm", current ? "font-semibold" : step.state === "upcoming" ? "text-muted-foreground" : "font-medium")}>
           <span data-step-title>{t(`orders.timeline.steps.${step.key}`)}</span>
-          <span className="sr-only">{` (${t(`orders.timeline.state.${step.state}`)})`}</span>
+          {" "}
+          <span className="sr-only">{`(${t(`orders.timeline.state.${step.state}`)})`}</span>
         </p>
         {step.at ? (
           <time dateTime={step.at} className="text-xs text-muted-foreground">
-            {formatDateTime(step.at)}
+            {step.atIsDeadline ? t("orders.timeline.deadline", "vi", { time: formatDateTime(step.at) }) : formatDateTime(step.at)}
           </time>
         ) : null}
         {step.notes.map((note) => (

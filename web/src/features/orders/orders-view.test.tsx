@@ -56,7 +56,7 @@ describe("OrdersView", () => {
     const first = within(rows[0]!);
     const link = first.getByRole("link", { name: /Đêm nhạc 2/ });
     expect(link).toHaveAttribute("href", "/account/orders/00000002-aaaa-bbbb-cccc-dddddddddddd");
-    expect(first.getByText(/#00000002/)).toBeInTheDocument();
+    expect(first.getByText(/^#00000002 ·/)).toBeInTheDocument();
     expect(first.getByText(/01\/12\/2026/)).toBeInTheDocument();
     expect(first.getByText(/2 vé/)).toBeInTheDocument();
     expect(first.getByText(/6\.000\.000/)).toBeInTheDocument();
@@ -86,6 +86,35 @@ describe("OrdersView", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Đã tải thêm 1 đơn hàng, đang hiển thị 3.");
     // The button is gone, so focus moves to the first new row instead of falling back to the page.
     await waitFor(() => expect(within(screen.getAllByRole("listitem")[2]!).getByRole("link", { name: /Đêm nhạc 1/ })).toHaveFocus());
+  });
+
+  it("tells apart two orders of the same event by the order code in the link name", async () => {
+    api.listMyOrders.mockResolvedValue(page([summary(2, "Paid", { eventTitle: "Đêm nhạc" }), summary(1, "Paid", { eventTitle: "Đêm nhạc" })]));
+    renderView();
+
+    expect(await screen.findByRole("link", { name: "Đêm nhạc Đơn #00000002" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Đêm nhạc Đơn #00000001" })).toBeInTheDocument();
+  });
+
+  it("shows an order once even when a page repeats it", async () => {
+    const user = userEvent.setup();
+    api.listMyOrders.mockResolvedValueOnce(page([summary(3), summary(2)], "c2")).mockResolvedValueOnce(page([summary(2), summary(1)], null));
+    renderView();
+
+    await user.click(await screen.findByRole("button", { name: "Xem thêm" }));
+
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(3));
+    expect(screen.getAllByRole("link", { name: /Đêm nhạc 2/ })).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Đã tải thêm 1 đơn hàng, đang hiển thị 3.");
+  });
+
+  it("labels both open statuses the way the timeline names its current step", async () => {
+    api.listMyOrders.mockResolvedValue(page([summary(2, "AwaitingPayment"), summary(1, "Pending")]));
+    renderView();
+
+    const rows = await screen.findAllByRole("listitem");
+    expect(within(rows[0]!).getByText("Chờ thanh toán")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("Chờ thanh toán")).toBeInTheDocument();
   });
 
   it("offers no 'load more' on a single page", async () => {

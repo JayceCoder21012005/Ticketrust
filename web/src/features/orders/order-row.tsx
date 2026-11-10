@@ -21,6 +21,8 @@ export function OrderRow({ order }: { order: OrderSummary }) {
         <h2 className="text-base font-semibold">
           <Link id={orderLinkId(order.id)} href={`/account/orders/${order.id}`} className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2">
             {order.eventTitle || t("orders.eventFallback")}
+            {" "}
+            <span className="sr-only">{t("orders.code", "vi", { code })}</span>
           </Link>
         </h2>
         <p className="text-sm text-muted-foreground">
@@ -34,7 +36,8 @@ export function OrderRow({ order }: { order: OrderSummary }) {
           <Button asChild size="sm">
             <Link href={`/checkout/${order.id}`}>
               {t("orders.continuePay")}
-              <span className="sr-only">{` ${t("orders.code", "vi", { code })}`}</span>
+              {" "}
+              <span className="sr-only">{t("orders.code", "vi", { code })}</span>
             </Link>
           </Button>
         ) : null}

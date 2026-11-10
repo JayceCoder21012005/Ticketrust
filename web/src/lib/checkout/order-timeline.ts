@@ -1,7 +1,7 @@
 import { refundReasonKey } from "./order-state";
 import type { Order, OrderStatus } from "./types";
 
-export type StepKey = "created" | "awaiting" | "paid" | "failed" | "cancelled" | "expired" | "refunding" | "refunded";
+export type StepKey = "created" | "awaiting" | "paid" | "received" | "failed" | "cancelled" | "expired" | "refunding" | "refunded";
 
 /** `done` happened, `current` is where the order is now, `upcoming` is still ahead. */
 export type StepState = "done" | "current" | "upcoming";
@@ -11,6 +11,8 @@ export type TimelineStep = {
   state: StepState;
   /** The api's own timestamp for this step, or null when it does not record one (nothing is invented). */
   at: string | null;
+  /** `at` is the order's payment deadline (an expired order), not the moment something happened. */
+  atIsDeadline: boolean;
   /** The step went wrong (failed, cancelled, expired): shown with a different icon, never by colour alone. */
   problem: boolean;
   /** i18n keys of the sentences that explain the step (the refund's reason), if any. */
@@ -24,7 +26,7 @@ type Facts = Pick<Order, "status" | "createdAt" | "paidAt" | "expiresAt" | "refu
  * done. An open order lists the steps still ahead, a refund path lists the payment it reverses.
  */
 const PATH: Record<OrderStatus, { steps: StepKey[]; current: StepKey }> = {
-  Pending: { steps: ["created", "awaiting", "paid"], current: "created" },
+  Pending: { steps: ["created", "awaiting", "paid"], current: "awaiting" },
   AwaitingPayment: { steps: ["created", "awaiting", "paid"], current: "awaiting" },
   PaymentFailed: { steps: ["created", "awaiting", "failed", "paid"], current: "failed" },
   Paid: { steps: ["created", "awaiting", "paid"], current: "paid" },
@@ -50,7 +52,7 @@ function timeOf(key: StepKey, facts: Facts): string | null {
   }
 }
 
-const CURRENT_NOTES = new Set<StepKey>(["created", "awaiting", "failed", "cancelled", "expired", "refunded"]);
+const CURRENT_NOTES = new Set<StepKey>(["awaiting", "failed", "cancelled", "expired", "refunded"]);
 
 /** A sentence for the step the order is on; a refund also keeps its reason once it is done. */
 function notesOf(key: StepKey, current: boolean, facts: Facts): string[] {
@@ -61,14 +63,29 @@ function notesOf(key: StepKey, current: boolean, facts: Facts): string[] {
   return current && CURRENT_NOTES.has(key) ? [`orders.timeline.notes.${key}`] : [];
 }
 
+/**
+ * A refund normally follows a payment the api recorded (`paidAt`). A late payment (after the order closed or the seats
+ * went) is refunded without the order ever being Paid: the client cannot know whether it had expired first, so that
+ * path says only that a payment was received.
+ */
+function pathOf(facts: Facts) {
+  const refund = facts.status === "RefundPending" || facts.status === "Refunded";
+  if (refund && facts.paidAt === null) {
+    return { steps: ["created", "received", "refunding", "refunded"] as StepKey[], current: PATH[facts.status].current };
+  }
+
+  return PATH[facts.status];
+}
+
 /** The status timeline of one order, derived from its status and the timestamps the api returns. */
 export function buildTimeline(facts: Facts): TimelineStep[] {
-  const { steps, current } = PATH[facts.status];
+  const { steps, current } = pathOf(facts);
   const at = steps.indexOf(current);
   return steps.map((key, index) => ({
     key,
     state: index < at ? "done" : index === at ? "current" : "upcoming",
     at: timeOf(key, facts),
+    atIsDeadline: key === "expired",
     problem: PROBLEMS.has(key),
     notes: notesOf(key, index === at, facts),
   }));

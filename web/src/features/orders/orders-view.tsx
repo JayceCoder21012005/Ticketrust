@@ -12,10 +12,16 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { loginRedirectUrl } from "@/lib/api/session";
 import { listMyOrders } from "@/lib/checkout/orders-api";
+import type { OrderPage, OrderSummary } from "@/lib/checkout/types";
 import { t } from "@/lib/i18n";
 import { OrderRow, orderLinkId } from "./order-row";
 
 export const ORDERS_HREF = "/account/orders";
+
+/** The pages in order, each order once: a refetch of all pages can see an order on two of them. */
+function flatten(pages: OrderPage[] | undefined): OrderSummary[] {
+  return [...new Map((pages ?? []).flatMap((p) => p.items).map((o) => [o.id, o])).values()];
+}
 
 /**
  * `/account/orders` (spec 08): the buyer's orders, newest first, a page at a time (keyset: the `nextCursor` of the
@@ -36,7 +42,7 @@ export function OrdersView() {
     enabled: status === "authenticated",
     staleTime: 0,
   });
-  const rows = query.data?.pages.flatMap((p) => p.items) ?? [];
+  const rows = flatten(query.data?.pages);
   const settled = query.isSuccess || query.isError;
 
   useEffect(() => {
@@ -60,7 +66,7 @@ export function OrdersView() {
   async function loadMore() {
     const before = rows.length;
     const result = await query.fetchNextPage();
-    const next = result.data?.pages.flatMap((p) => p.items) ?? [];
+    const next = flatten(result.data?.pages);
     if (result.isError || next.length <= before) return;
     setAnnouncement(t("orders.loadedMore", "vi", { count: next.length - before, total: next.length }));
     setFocusId(next[before]!.id);

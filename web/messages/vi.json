@@ -413,7 +413,7 @@
     "loadedMore": "Đã tải thêm {count} đơn hàng, đang hiển thị {total}.",
     "status": {
       "Pending": "Chờ thanh toán",
-      "AwaitingPayment": "Đang thanh toán",
+      "AwaitingPayment": "Chờ thanh toán",
       "PaymentFailed": "Thanh toán thất bại",
       "Paid": "Đã thanh toán",
       "Cancelled": "Đã huỷ",
@@ -433,7 +433,7 @@
       "viewEvent": "Xem sự kiện",
       "timeline": "Trạng thái đơn hàng",
       "buyer": "Người mua",
-      "pastDeadline": "Đã quá hạn thanh toán, đơn hàng sẽ sớm được cập nhật.",
+      "pastDeadline": "Đã quá hạn thanh toán. Tải lại trang để xem trạng thái mới nhất.",
       "tickets": "Bạn có {count} vé.",
       "viewTickets": "Xem vé",
       "ticketsSoon": "Trang xem vé sẽ có trong thời gian tới."
@@ -448,7 +448,8 @@
         "cancelled": "Đã huỷ",
         "expired": "Hết hạn",
         "refunding": "Đang hoàn tiền",
-        "refunded": "Đã hoàn tiền"
+        "refunded": "Đã hoàn tiền",
+        "received": "Đã nhận thanh toán"
       },
       "state": {
         "done": "đã qua",
@@ -456,13 +457,13 @@
         "upcoming": "sắp tới"
       },
       "notes": {
-        "created": "Đơn hàng đã được tạo và đang giữ ghế cho bạn. Chưa có khoản thanh toán nào.",
         "awaiting": "Hoàn tất thanh toán trước khi hết giờ giữ ghế.",
         "failed": "Giao dịch chưa hoàn tất. Bạn có thể thử lại cho đến hết giờ thanh toán.",
         "cancelled": "Ghế đã được trả lại.",
         "expired": "Thời gian thanh toán đã hết và ghế đã được trả lại.",
         "refunded": "Chúng tôi đã hoàn tiền cho đơn hàng này."
-      }
+      },
+      "deadline": "Hạn giữ chỗ: {time}"
     }
   },
   "mockGateway": {

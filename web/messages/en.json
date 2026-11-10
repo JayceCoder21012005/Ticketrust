@@ -413,7 +413,7 @@
     "loadedMore": "Loaded {count} more orders, showing {total}.",
     "status": {
       "Pending": "Awaiting payment",
-      "AwaitingPayment": "Paying",
+      "AwaitingPayment": "Awaiting payment",
       "PaymentFailed": "Payment failed",
       "Paid": "Paid",
       "Cancelled": "Cancelled",
@@ -433,7 +433,7 @@
       "viewEvent": "View event",
       "timeline": "Order status",
       "buyer": "Buyer",
-      "pastDeadline": "The payment deadline has passed; the order will be updated shortly.",
+      "pastDeadline": "The payment deadline has passed. Reload the page for the latest status.",
       "tickets": "You have {count} tickets.",
       "viewTickets": "View tickets",
       "ticketsSoon": "The tickets page is coming soon."
@@ -448,7 +448,8 @@
         "cancelled": "Cancelled",
         "expired": "Expired",
         "refunding": "Refund in progress",
-        "refunded": "Refunded"
+        "refunded": "Refunded",
+        "received": "Payment received"
       },
       "state": {
         "done": "completed",
@@ -456,13 +457,13 @@
         "upcoming": "upcoming"
       },
       "notes": {
-        "created": "The order is created and holding your seats. No payment yet.",
         "awaiting": "Complete the payment before the seat hold runs out.",
         "failed": "The transaction did not complete. You can try again until the payment deadline.",
         "cancelled": "The seats have been released.",
         "expired": "The payment time ran out and the seats were released.",
         "refunded": "We have refunded this order."
-      }
+      },
+      "deadline": "Hold deadline: {time}"
     }
   },
   "mockGateway": {
