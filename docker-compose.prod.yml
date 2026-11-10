@@ -11,6 +11,9 @@ x-dotnet-env: &dotnet-env
   Catalog__AccessCodePepper: ${ACCESS_CODE_PEPPER:?set ACCESS_CODE_PEPPER}
   # Signs and verifies payment webhooks (spec 08); the api and the worker must share it.
   Payments__Mock__WebhookSecret: ${PAYMENT_WEBHOOK_SECRET:?set PAYMENT_WEBHOOK_SECRET}
+  # Where the mock gateway sends the buyer after /pay. The mock is off by default in production; until a real gateway adapter
+  # lands, production cannot take real payments (README, spec 08).
+  Payments__Mock__WebBaseUrl: https://${PUBLIC_HOST}
   Email__FromAddress: ${EMAIL_FROM_ADDRESS}
   Storage__PublicBaseUrl: https://${PUBLIC_HOST}/media
   Frontend__BaseUrl: https://${PUBLIC_HOST}

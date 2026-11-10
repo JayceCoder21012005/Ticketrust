@@ -16,4 +16,13 @@ public sealed class DeployConfigTests
         api.ShouldBeGreaterThan(hubs);
         web.ShouldBeGreaterThan(api);
     }
+
+    [Fact]
+    public void The_production_compose_points_the_mock_redirect_at_the_public_host()
+    {
+        // Without it the mock session's redirectUrl defaults to http://localhost:3000, unreachable for a real buyer.
+        var compose = RepoFiles.Read("docker-compose.prod.yml");
+
+        compose.ShouldContain("Payments__Mock__WebBaseUrl: https://${PUBLIC_HOST}");
+    }
 }
