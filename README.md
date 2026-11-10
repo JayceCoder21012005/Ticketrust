@@ -187,10 +187,12 @@ npm run lighthouse                  # budget LCP/TBT/CLS/JS (cần Chrome)
 một ghế có hơn một vé chưa bị huỷ, `sold_count` vượt sức chứa hoặc lệch số vé GA, đơn `Paid` thiếu vé, đơn chưa trả tiền hoặc
 đang hoàn tiền mà còn vé. Hướng dẫn đầy đủ (stack compose, dữ liệu mẫu, biến môi trường) nằm ở [load-tests/README.md](load-tests/README.md).
 
+> ⚠️ Luôn thêm `-p ticketrush-loadtest` vào mọi lệnh `docker compose` của load test: tên project khác làm volume và container tách hẳn khỏi stack `ticketrush` thật (volume thành `ticketrush-loadtest_postgres-data`, ...), nên không thể dùng lại hay ghi đè dữ liệu thật. Không bao giờ chạy overlay này trên máy chủ production; script k6 và script kiểm tra từ chối host/CSDL tự chọn nếu thiếu `LOADTEST_CONFIRM=loadtest`.
+
 ```bash
-docker compose -f docker-compose.prod.yml -f load-tests/docker-compose.loadtest.yml --env-file .env up -d --build
+docker compose -p ticketrush-loadtest -f docker-compose.prod.yml -f load-tests/docker-compose.loadtest.yml --env-file .env up -d --build
 k6 run -e EVENT_ID=<uuid> -e GA_TIER_ID=<uuid> -e BUYERS=500 -e VUS=100 load-tests/sale.js
-ENV_FILE=.env load-tests/check-sale-invariants.sh      # exit 0 = mọi bất biến đúng
+ENV_FILE=.env load-tests/check-sale-invariants.sh      # exit 0 = mọi bất biến đúng (mặc định nhắm vào project ticketrush-loadtest)
 ```
 
 Bản tự động của cùng truy vấn là `SaleInvariantTests` (dòng `dotnet test` ở trên). Lần chạy k6 thật chưa được thực hiện
@@ -276,8 +278,29 @@ Bộ khoá này cũng bảo vệ token xác nhận email và đặt lại mật 
 Việc cần làm ở production:
 
 - Redis phải bền: giữ `--appendonly yes` và volume `redis-data` (xem trên). Không dùng Redis chỉ-cache cho môi trường có vé thật.
-- **Sao lưu key ring** (khoá chỉ đổi khoảng 90 ngày một lần, nên sao lưu hằng ngày là đủ), cất cùng nơi với bản sao lưu Postgres:
-  `docker compose -f docker-compose.prod.yml exec -T redis sh -c 'redis-cli -a "$REDIS_PASSWORD" --no-auth-warning LRANGE tr:prod:dataprotection:keys 0 -1' > dp-keys.txt`
-- Khôi phục: nạp lại từng phần tử vào đúng key đó (`RPUSH`) **trước khi** cho api và worker chạy.
+- **Sao lưu key ring** (khoá chỉ đổi khoảng 90 ngày một lần, nên sao lưu hằng ngày là đủ). Mỗi phần tử của LIST là một dòng XML; sao lưu từng phần tử ra một tệp, bỏ ký tự xuống dòng mà `redis-cli --raw` thêm vào cuối (`head -c -1` của GNU coreutils; trên macOS dùng `perl -pe 'chomp if eof'`):
+
+  ```bash
+  DC="docker compose -f docker-compose.prod.yml"
+  KEY=tr:prod:dataprotection:keys
+  n=$($DC exec -T redis sh -c "redis-cli -a \"\$REDIS_PASSWORD\" --no-auth-warning LLEN $KEY")
+  umask 077 && mkdir -p dp-keys
+  for i in $(seq 0 $((n-1))); do
+    $DC exec -T redis sh -c "redis-cli -a \"\$REDIS_PASSWORD\" --no-auth-warning --raw LINDEX $KEY $i" | head -c -1 > "dp-keys/$i.xml"
+  done
+  tar -c dp-keys | age -r <khoá công khai age> -o dp-keys.tar.age && rm -r dp-keys     # hoặc: gpg --encrypt -r <id>
+  ```
+
+- **Khôi phục** (key phải đang trống: kiểm tra `LLEN` bằng 0, nếu không sẽ có khoá lặp; làm **trước khi** cho api và worker chạy). `redis-cli -x` đọc nguyên tệp làm giá trị, nên XML có dấu nháy, `&` hay `/` không bị hỏng; giữ đúng thứ tự `0, 1, 2, ...`:
+
+  ```bash
+  age -d -i <khoá riêng> dp-keys.tar.age | tar -x
+  for i in $(seq 0 $((n-1))); do
+    $DC exec -T redis sh -c "redis-cli -a \"\$REDIS_PASSWORD\" --no-auth-warning -x RPUSH $KEY" < "dp-keys/$i.xml"
+  done
+  ```
+
+  Đã kiểm chứng vòng sao lưu, `FLUSHALL`, khôi phục trên container `redis:7.4` dùng một lần (cùng dạng lệnh `redis-cli` qua `docker exec -i`, tương đương `compose exec -T`): hai phần tử XML có dấu nháy, `+/=` và chú thích giống key thật, mỗi phần tử khớp từng byte (`cmp`) với bản gốc. Chưa chạy trực tiếp trên stack compose.
+- ⚠️ **Tệp sao lưu là khoá chủ ở dạng văn bản thường**: Data Protection không mã hoá key ring khi lưu (chính XML có dòng cảnh báo "the key below is in an unencrypted form"). Ai có tệp này giải mã được mọi bí mật QR và token. Hãy coi nó là **secret**: mã hoá (age/gpg) ngay khi tạo, không để bản rõ trên đĩa (`umask 077`, xoá thư mục tạm), không commit, không gửi qua chat, và cất ở nơi có quyền truy cập **tách biệt** với bản dump Postgres (người đọc được dump không đồng thời đọc được khoá).
 - Sao lưu Postgres mà thiếu key ring thì các vé trong bản sao lưu đó không dùng lại được. Hai thứ phải đi cùng nhau.
 - Spec 10 (vé điện tử) có thể suy ra bí mật QR từ khoá ký riêng thay vì lưu ngẫu nhiên, khi đó rủi ro này giảm; cho đến lúc đó phải coi key ring như dữ liệu quan trọng ngang database.

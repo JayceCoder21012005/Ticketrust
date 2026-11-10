@@ -38,9 +38,10 @@ internal sealed class CheckoutWorkersHarness : IAsyncDisposable
 
     private readonly ApiFactory _factory;
 
-    private CheckoutWorkersHarness(ApiFactory factory, FakeTimeProvider time, GatewaySpy spy)
+    private CheckoutWorkersHarness(ApiFactory factory, string connectionString, FakeTimeProvider time, GatewaySpy spy)
     {
         _factory = factory;
+        ConnectionString = connectionString;
         Time = time;
         Spy = spy;
         var gate = SaleLocks;
@@ -61,6 +62,9 @@ internal sealed class CheckoutWorkersHarness : IAsyncDisposable
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     public FakeTimeProvider Time { get; }
+
+    /// <summary>The Postgres connection string of this harness's own database.</summary>
+    public string ConnectionString { get; }
 
     public GatewaySpy Spy { get; }
 
@@ -96,11 +100,12 @@ internal sealed class CheckoutWorkersHarness : IAsyncDisposable
             all[key] = value;
         }
 
-        var factory = new ApiFactory(await containers.CreateDatabaseAsync(), containers.RedisConnectionString, settings: all);
+        var connectionString = await containers.CreateDatabaseAsync();
+        var factory = new ApiFactory(connectionString, containers.RedisConnectionString, settings: all);
         // Whole microseconds, as Postgres stores them, so times read back compare equal to the clock's.
         var start = DateTimeOffset.UtcNow;
         var clock = new FakeTimeProvider(new DateTimeOffset(start.Ticks - (start.Ticks % 10), TimeSpan.Zero));
-        var harness = new CheckoutWorkersHarness(factory, clock, new GatewaySpy());
+        var harness = new CheckoutWorkersHarness(factory, connectionString, clock, new GatewaySpy());
         await harness.SeedAsync();
         return harness;
     }

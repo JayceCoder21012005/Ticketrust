@@ -29,16 +29,21 @@ Each iteration is one distinct buyer (`BUYERS` iterations over `VUS` virtual use
 With the overlay's `Holds__TtlSeconds=60` and `DelayedWebhookDelay=90 s`, a `succeeded_delayed` payment lands **after** its hold and order ended (spec 08 C3): the
 expiry sweep finds it through the gateway status, and if the seat was resold meanwhile the order goes `RefundPending` then `Refunded`.
 
-Thresholds (the run fails on any): `sale_unexpected_responses == 0` (5xx, malformed answers; lost seat races are expected), `sale_double_click_same_order == 1`,
+Thresholds (the run fails on any): `sale_unexpected_responses == 0` (any answer of either double-click request that is not a success, `409 idempotency.in_progress`, or, when neither succeeded, a business refusal such as `order.hold_expired` / `order.expired`; lost seat races are expected), `sale_double_click_same_order == 1`,
 `sale_hold_duration p99 < HOLD_P99_MS` (150) and `sale_checkout_duration p99 < CHECKOUT_P99_MS` (300), the spec 17 budgets.
 
 ## Run it against the docker-compose stack
+
+> **Never point this at a real deployment.** The overlay seeds dev data and opens the mock gateway. Every compose command here carries `-p ticketrush-loadtest`: the project name prefixes
+> the volumes and containers (`ticketrush-loadtest_postgres-data`, ...), so the stack cannot reuse or overwrite those of a real `ticketrush` project on the same Docker host. (`-p` on the command
+> line beats the `name:` in the compose files; the overlay also sets `name: ticketrush-loadtest` and switches Caddy off, whose ports 80/443 belong to a real deployment. Both facts
+> were checked with `docker compose config`.) `sale.js` refuses a `BASE_URL` that is not localhost, and `check-sale-invariants.sh` refuses a `PSQL_CMD`, unless `LOADTEST_CONFIRM=loadtest`.
 
 Needs Docker, [k6](https://grafana.com/docs/k6/latest/set-up/install-k6/) and bash (Git Bash or WSL on Windows). From the repository root:
 
 ```bash
 cp .env.example .env            # fill in the secrets once
-export COMPOSE="docker compose -f docker-compose.prod.yml -f load-tests/docker-compose.loadtest.yml --env-file .env"
+export COMPOSE="docker compose -p ticketrush-loadtest -f docker-compose.prod.yml -f load-tests/docker-compose.loadtest.yml --env-file .env"
 
 # 1. Stack with the dev event and the mock gateway controls (never on a real deployment).
 $COMPOSE up -d --build
@@ -60,14 +65,16 @@ k6 run -e BASE_URL=http://localhost:8080 -e EVENT_ID=<EVENT_ID> -e GA_TIER_ID=<G
 ENV_FILE=.env load-tests/check-sale-invariants.sh
 ```
 
-Without Docker for the database, point the checker at any Postgres: `PSQL_CMD="psql postgresql://user:pass@host:5432/ticketrush" load-tests/check-sale-invariants.sh`.
+Without Docker for the database, point the checker at any *load-test* Postgres: `LOADTEST_CONFIRM=loadtest PSQL_CMD="psql postgresql://user:pass@host:5432/ticketrush" load-tests/check-sale-invariants.sh`.
 Run the check after any other scenario too: it is read-only and the invariants must hold at every instant, not only when the sale is quiet.
 
 Notes:
 
 - The scenario can only buy what the database has: 600 seats and a 2000-ticket GA tier in the dev seed. A second run on the same data finds the hot seats already sold, which is
-  fine for the invariants but lowers the success rate. `docker compose down -v` and start again for a clean sale.
-- `BUYERS` must not exceed the `buyers` you seeded.
+  fine for the invariants but lowers the success rate. `$COMPOSE down -v` (with the `-p ticketrush-loadtest` project, never a bare `docker compose down -v`) and start again for a clean sale.
+- `BUYERS` must not exceed the `buyers` you seeded. `VUS` is clamped to `BUYERS` (k6's shared-iterations executor needs at least one iteration per VU).
+- The default p99 thresholds (hold 150 ms, checkout 300 ms) are the spec 17 budgets for a dedicated machine. On a laptop that runs the whole stack plus k6 they will usually fail: raise them
+  (`-e HOLD_P99_MS=1000 -e CHECKOUT_P99_MS=2000`) and read a threshold failure as a tuning signal, not as an invariant violation (only the SQL check decides that).
 - Buyers log in with a real password hash check, so login dominates the CPU of a small machine. Keep `VUS` modest (50 to 100) on a laptop.
 - The summary is also written to `load-tests/results/sale-summary.json` (git-ignored).
 

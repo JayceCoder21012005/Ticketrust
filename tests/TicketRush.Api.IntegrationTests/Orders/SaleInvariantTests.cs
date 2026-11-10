@@ -93,12 +93,15 @@ public sealed class SaleInvariantTests(ContainersFixture containers) : IAsyncLif
     {
         _http.Dispose();
         _webhookHttp.Dispose();
+        _gate.Dispose();
         await _h.DisposeAsync();
     }
 
-    [Fact]
+    [Fact(Timeout = 300_000)]
     public async Task A_concurrent_sale_with_contention_duplicates_and_late_payments_never_oversells()
     {
+        // The helpers use the same token, so the 5 minute timeout cancels every call in flight.
+        TestContext.Current.CancellationToken.ThrowIfCancellationRequested();
         var buyers = Enumerable.Range(0, SeatBuyers + GaBuyers).Select(_ => NewBuyer()).ToArray();
         var wants = Enumerable.Range(0, SeatBuyers).Select(i => new Want(_h.Seats[i % HotSeats], 0, SeatOutcomes[i % HotSeats]))
             .Concat(Enumerable.Range(0, GaBuyers).Select(j => new Want(null, (j % 3) + 1, GaOutcomes[j])))
@@ -129,16 +132,20 @@ public sealed class SaleInvariantTests(ContainersFixture containers) : IAsyncLif
     public async Task The_invariant_query_reports_every_kind_of_planted_corruption()
     {
         var clean = await PaidSeatOrderAsync(_h.Seats[0]);
-        await PaidSeatOrderAsync(_h.Seats[1]);
+        var duplicated = await PaidSeatOrderAsync(_h.Seats[1]);
         var emptied = await PaidSeatOrderAsync(_h.Seats[2]);
         var unpaid = await PaidGaOrderAsync(2);
         var refunding = await PaidGaOrderAsync(1);
+        var wrongTier = await PaidGaOrderAsync(2);
         (await CheckAsync()).ShouldBeEmpty();
+        var cleanTicket = await _h.WithDbAsync(db => db.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM tickets WHERE order_id = {clean.OrderId}").SingleAsync(Ct));
 
         await Corrupt($"DELETE FROM tickets WHERE order_id = {emptied.OrderId}");
         await Corrupt($"UPDATE orders SET status = 'Expired' WHERE id = {unpaid.OrderId}");
         await Corrupt($"UPDATE orders SET status = 'RefundPending' WHERE id = {refunding.OrderId}");
         await Corrupt($"UPDATE tickets SET event_id = (SELECT id FROM events WHERE id <> {_h.EventId} LIMIT 1) WHERE order_id = {clean.OrderId}");
+        // The right number of tickets in total (2), but one of them in the wrong tier: only the per-tier check can see it.
+        await Corrupt($"UPDATE tickets SET tier_id = {_h.Seated.Id} WHERE id = (SELECT id FROM tickets WHERE order_id = {wrongTier.OrderId} LIMIT 1)");
         await Corrupt($"UPDATE ticket_tiers SET sold_count = capacity + 1 WHERE id = {_h.Ga.Id}");
         await _h.WithDbAsync(db => db.Database.ExecuteSqlRawAsync(DropTicketSeatIndex, Ct));
         await Corrupt($"""
@@ -147,18 +154,22 @@ public sealed class SaleInvariantTests(ContainersFixture containers) : IAsyncLif
             FROM tickets WHERE seat_index = {_h.Seats[1]}
             """);
 
-        (await CheckAsync()).Select(v => v.Check).Distinct().Order().ShouldBe(
-        [
-            "ga_sold_count_drift",
-            "paid_order_ticket_count",
-            "paid_order_tier_tickets",
-            "refund_order_has_tickets",
-            "seat_sold_twice",
-            "ticket_event_mismatch",
-            "tier_oversold",
-            "unpaid_order_has_tickets",
-        ]);
+        var found = await CheckAsync();
+        SubjectsOf(found, "seat_sold_twice").ShouldBe([$"{_h.EventId}/seat {_h.Seats[1]}"]);
+        SubjectsOf(found, "tier_oversold").ShouldBe([_h.Ga.Id.ToString()]);
+        SubjectsOf(found, "ga_sold_count_drift").ShouldBe([_h.Ga.Id.ToString()]);
+        SubjectsOf(found, "ticket_event_mismatch").ShouldBe([cleanTicket.ToString()]);
+        SubjectsOf(found, "unpaid_order_has_tickets").ShouldBe([unpaid.OrderId.ToString()]);
+        SubjectsOf(found, "refund_order_has_tickets").ShouldBe([refunding.OrderId.ToString()]);
+        // Wrong total: the order without tickets and the order with a duplicated ticket, NOT the one with a wrong-tier ticket.
+        SubjectsOf(found, "paid_order_ticket_count").ShouldBe([duplicated.OrderId.ToString(), emptied.OrderId.ToString()], ignoreOrder: true);
+        SubjectsOf(found, "paid_order_tier_tickets").Select(x => x.Split('/')[0]).ShouldBe(
+            [duplicated.OrderId.ToString(), emptied.OrderId.ToString(), wrongTier.OrderId.ToString()], ignoreOrder: true);
+        found.Select(v => v.Check).Distinct().Count().ShouldBe(8, "no other check fires");
     }
+
+    private static string[] SubjectsOf(IReadOnlyList<SaleInvariants.Violation> found, string check) =>
+        [.. found.Where(v => v.Check == check).Select(v => v.Subject)];
 
     // ---------------------------------------------------------------- the sale
 
@@ -347,7 +358,7 @@ public sealed class SaleInvariantTests(ContainersFixture containers) : IAsyncLif
         gaSold.ShouldBeLessThanOrEqualTo(GaCapacity);
     }
 
-    private Task<IReadOnlyList<SaleInvariants.Violation>> CheckAsync() => _h.WithDbAsync(db => SaleInvariants.CheckAsync(db, Ct));
+    private Task<IReadOnlyList<SaleInvariants.Violation>> CheckAsync() => SaleInvariants.CheckAsync(_h.ConnectionString, Ct);
 
     private async Task<CheckoutWorkersHarness.Placed> PaidSeatOrderAsync(int seat) => await PaidAsync(_h.Seat(seat));
 

@@ -20,10 +20,10 @@ internal static class SaleInvariants
 
     public static string Sql() => RepoFiles.Read("load-tests", "sql", "sale-invariants.sql");
 
-    /// <summary>Every violation the query finds; an empty list means all invariants hold.</summary>
-    public static async Task<IReadOnlyList<Violation>> CheckAsync(AppDbContext db, CancellationToken ct)
+    /// <summary>Every violation the query finds in the database behind <paramref name="connectionString"/>; empty = all invariants hold.</summary>
+    public static async Task<IReadOnlyList<Violation>> CheckAsync(string connectionString, CancellationToken ct)
     {
-        await using var connection = new NpgsqlConnection(db.Database.GetConnectionString());
+        await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(ct);
         await using var command = new NpgsqlCommand(Sql(), connection);
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -35,6 +35,10 @@ internal static class SaleInvariants
 
         return found;
     }
+
+    /// <summary>The same check for a context whose connection string is its database's.</summary>
+    public static Task<IReadOnlyList<Violation>> CheckAsync(AppDbContext db, CancellationToken ct) =>
+        CheckAsync(db.Database.GetConnectionString() ?? throw new InvalidOperationException("The context has no connection string."), ct);
 
     /// <summary>Asserts only the seat and tier-counter invariants: for tests that stop mid-flight, with orders in hand-made states.</summary>
     public static async Task<int> AssertInventoryAsync(AppDbContext db, CancellationToken ct)

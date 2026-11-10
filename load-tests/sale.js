@@ -12,7 +12,8 @@
 //   EVENT_ID        the seated + GA event on sale
 //   GA_TIER_ID      a general-admission tier of that event; without it nobody buys GA
 //   BUYERS          iterations = distinct buyers, default 200 (users loadbuyerNNNNN@ticketrush.test, see sql/seed-buyers.sql)
-//   VUS             concurrent buyers, default 50
+//   VUS             concurrent buyers, default 50; clamped to BUYERS (shared-iterations needs iterations >= vus)
+//   LOADTEST_CONFIRM  must be "loadtest" to run against any host other than localhost: this scenario creates real orders
 //   BUYER_PASSWORD  default Dev@12345 (the dev seed's password, cloned by seed-buyers.sql)
 //   SEAT_MIN, SEAT_MAX  seat index range of the event, default 0..599 (the seed's 600-seat map)
 //   HOT_SEATS       how many of the first seats are "hot", default 10
@@ -21,7 +22,8 @@
 //   GA_MAX_QTY      GA tickets per buyer, 1..N, default 2
 //   MIX             gateway outcomes as succeeded:failed:delayed:twice:abandon weights, default 55:15:12:10:8
 //   POLL_SECONDS    how long a buyer polls the order, default 25 (a "delayed" buyer is not waited for past this)
-//   HOLD_P99_MS, CHECKOUT_P99_MS   thresholds, default 150 and 300 (spec 17 budgets)
+//   HOLD_P99_MS, CHECKOUT_P99_MS   thresholds, default 150 and 300 (the spec 17 budgets for a dedicated machine). On a laptop
+//                   that also runs the stack, k6 and the database share the CPU: expect to raise them, e.g. -e HOLD_P99_MS=1000.
 import http from 'k6/http';
 import exec from 'k6/execution';
 import { check, sleep } from 'k6';
@@ -34,7 +36,7 @@ const API = `${BASE_URL}/api/v1`;
 const EVENT_ID = __ENV.EVENT_ID;
 const GA_TIER_ID = __ENV.GA_TIER_ID || '';
 const BUYERS = Number(__ENV.BUYERS || 200);
-const VUS = Number(__ENV.VUS || 50);
+const VUS = Math.min(Number(__ENV.VUS || 50), BUYERS);
 const PASSWORD = __ENV.BUYER_PASSWORD || 'Dev@12345';
 const SEAT_MIN = Number(__ENV.SEAT_MIN || 0);
 const SEAT_MAX = Number(__ENV.SEAT_MAX || 599);
@@ -78,6 +80,9 @@ export const options = {
 export function setup() {
   if (!EVENT_ID) {
     throw new Error('EVENT_ID is required (see load-tests/README.md)');
+  }
+  if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(BASE_URL) && __ENV.LOADTEST_CONFIRM !== 'loadtest') {
+    throw new Error(`${BASE_URL} is not localhost: set LOADTEST_CONFIRM=loadtest to confirm it is a load-test stack (this scenario creates real orders)`);
   }
   const probe = http.get(`${API}/events/${EVENT_ID}/holds/me`);
   // 401 is the healthy answer for an anonymous probe: it proves the api is up and the route exists.
@@ -196,6 +201,28 @@ function hold(token, admission) {
   return null;
 }
 
+// A hold or order that ran out between two steps is a normal business answer (the overlay's hold lasts 60 s).
+const BUSINESS_REFUSALS = ['order.hold_expired', 'order.hold_invalid', 'order.expired', 'order.not_payable'];
+
+// Classifies the two answers of a double click. Every answer must be a success, 409 idempotency.in_progress (the loser of the
+// race), or, when nobody succeeded, one business refusal; anything else (5xx, 4xx, malformed) is unexpected.
+// Returns the successful responses.
+function settleDoubleClick(responses, okStatuses) {
+  const usable = responses.filter((r) => okStatuses.includes(r.status));
+  for (const r of responses) {
+    if (okStatuses.includes(r.status)) {
+      continue;
+    }
+    const reason = code(r);
+    const inProgress = r.status === 409 && reason === 'idempotency.in_progress';
+    const refusal = usable.length === 0 && r.status === 409 && BUSINESS_REFUSALS.includes(reason);
+    if (!inProgress && !refusal) {
+      unexpected.add(1);
+    }
+  }
+  return usable;
+}
+
 // Two concurrent identical requests (a double click): both must answer with the same order.
 function createOrder(token, holdId, index) {
   const key = uuidv4();
@@ -205,37 +232,28 @@ function createOrder(token, holdId, index) {
     buyer: { name: `Load Buyer ${index + 1}`, email: buyerEmail(index), phone: '0901234567' },
   });
   const params = Object.assign(authed(token, { 'Idempotency-Key': key }), { tags: { name: 'order_create' } });
-  const [first, second] = http.batch([['POST', `${API}/orders`, body, params], ['POST', `${API}/orders`, body, params]]);
-  checkoutTime.add(first.timings.duration);
-  const usable = [first, second].filter((r) => r.status === 200 || r.status === 201);
+  const responses = http.batch([['POST', `${API}/orders`, body, params], ['POST', `${API}/orders`, body, params]]);
+  checkoutTime.add(responses[0].timings.duration);
+  const usable = settleDoubleClick(responses, [200, 201]);
   if (usable.length === 0) {
-    // 409 in_progress for the loser of the race is allowed, but at least one must have won.
-    unexpected.add(1);
     return null;
   }
-  const same = usable.length === 1 || usable[0].json('id') === usable[1].json('id');
-  results.double_click_same_order.add(same);
+  results.double_click_same_order.add(usable.length === 1 || usable[0].json('id') === usable[1].json('id'));
   return usable[0].json('id');
 }
 
 function pay(token, orderId, key) {
   const params = Object.assign(authed(token, { 'Idempotency-Key': key }), { tags: { name: 'order_pay' } });
-  const [first, second] = http.batch([
+  const responses = http.batch([
     ['POST', `${API}/orders/${orderId}/pay`, null, params],
     ['POST', `${API}/orders/${orderId}/pay`, null, params],
   ]);
-  checkoutTime.add(first.timings.duration);
-  const usable = [first, second].filter((r) => r.status === 200);
+  checkoutTime.add(responses[0].timings.duration);
+  const usable = settleDoubleClick(responses, [200]);
   if (usable.length === 0) {
-    // A hold that expired between order and pay is a normal business answer.
-    const reason = code(first);
-    if (!(first.status === 409 && ['order.expired', 'order.not_payable'].includes(reason))) {
-      unexpected.add(1);
-    }
     return null;
   }
-  const same = usable.length === 1 || usable[0].json('redirectUrl') === usable[1].json('redirectUrl');
-  results.double_click_same_order.add(same);
+  results.double_click_same_order.add(usable.length === 1 || usable[0].json('redirectUrl') === usable[1].json('redirectUrl'));
   const url = usable[0].json('redirectUrl');
   return url.substring(url.lastIndexOf('/') + 1);
 }
