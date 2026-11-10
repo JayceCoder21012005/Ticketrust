@@ -13,5 +13,12 @@ public static class EventErrors
     public static readonly Error CoverNotOwned =
         Error.Validation("event.cover_not_owned", "The cover must be uploaded through this event's upload link.");
 
+    /// <summary>
+    /// The cancel waited longer than the lock timeout for payments being confirmed right now; nothing changed. 409, not 5xx:
+    /// the organizer simply tries again a moment later.
+    /// </summary>
+    public static readonly Error CancelBusy =
+        Error.Conflict("event.cancel_busy", "Payments for this event are being confirmed right now. Please try cancelling again in a moment.");
+
     public static readonly Error VenueNotFound = Error.NotFound("venue.not_found", "Venue not found.");
 }

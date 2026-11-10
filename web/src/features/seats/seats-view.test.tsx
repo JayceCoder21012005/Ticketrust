@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/errors";
@@ -71,6 +71,7 @@ describe("SeatsView", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.useRealTimers();
   });
 
@@ -105,6 +106,16 @@ describe("SeatsView", () => {
     expect(holds.createHold).toHaveBeenCalledWith("e1", { seatIndexes: [0, 2], ga: [], replaceExisting: false }, "adm", expect.any(String));
     expect(await screen.findByText(/Giữ chỗ còn/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /ghế 1,.*bạn đang giữ/ })).toBeInTheDocument();
+  });
+
+  it("leads a held buyer on to the buyer step of this event's checkout", async () => {
+    arrange({ myHold: hold([0, 1]) });
+    render(<SeatsView event={event} />);
+
+    const checkout = await screen.findByRole("link", { name: "Tiếp tục thanh toán" });
+
+    expect(checkout).toHaveAttribute("href", "/events/su-kien/checkout");
+    expect(screen.queryByText(/sắp ra mắt/)).not.toBeInTheDocument();
   });
 
   it("keeps the other seats after a conflict and says how many were taken", async () => {
@@ -199,6 +210,61 @@ describe("SeatsView", () => {
     expect(await screen.findByRole("button", { name: "Tiếp tục" })).toBeInTheDocument();
   });
 
+  it("moves focus to the panel heading when a hold starts and when it is released", async () => {
+    arrange();
+    holds.createHold.mockResolvedValue(hold([0]));
+    holds.releaseMyHold.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<SeatsView event={event} />);
+    expect(await screen.findByRole("heading", { name: "Lựa chọn của bạn" })).not.toHaveFocus();
+
+    await user.click(await seatButton(1));
+    await user.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    expect(await screen.findByRole("heading", { name: "Bạn đang giữ 1 vé" })).toHaveFocus();
+
+    await user.click(screen.getByRole("button", { name: "Bỏ giữ chỗ" }));
+    expect(await screen.findByRole("heading", { name: "Lựa chọn của bạn" })).toHaveFocus();
+  });
+
+  it("moves focus to the heading inside the open mobile drawer, not the hidden desktop panel", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    arrange();
+    holds.createHold.mockResolvedValue(hold([0]));
+    holds.releaseMyHold.mockResolvedValue(undefined);
+    render(<SeatsView event={event} />);
+    fireEvent.click(await seatButton(1));
+    fireEvent.click(screen.getByRole("button", { name: "Xem lựa chọn" }));
+    const drawer = await screen.findByRole("dialog");
+
+    fireEvent.click(within(drawer).getByRole("button", { name: "Tiếp tục" }));
+    const held = await within(drawer).findByRole("heading", { name: "Bạn đang giữ 1 vé" });
+    expect(held).toHaveFocus();
+
+    fireEvent.click(within(drawer).getByRole("button", { name: "Bỏ giữ chỗ" }));
+    // The drawer's own sr-only title has the same text: pick the panel heading by its marker.
+    await within(drawer).findByRole("button", { name: "Tiếp tục" });
+    expect(drawer.querySelector("[data-panel-title]")).toHaveFocus();
+  });
+
+  it("does not take focus when the page opens with a hold already running", async () => {
+    arrange({ myHold: hold([1]) });
+    render(<SeatsView event={event} />);
+
+    expect(await screen.findByRole("heading", { name: "Bạn đang giữ 1 vé" })).not.toHaveFocus();
+  });
+
+  it("announces the running total politely as the selection changes", async () => {
+    arrange();
+    const user = userEvent.setup();
+    render(<SeatsView event={event} />);
+
+    await user.click(await seatButton(1));
+
+    const total = screen.getByText("Tạm tính").closest("p");
+    expect(total).toHaveAttribute("aria-live", "polite");
+    expect(total).toHaveTextContent(/1\.500\.000/);
+  });
+
   it("shows the expiry dialog when the hold runs out and goes back to selection", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "setTimeout", "Date"] });
     vi.setSystemTime(now);
@@ -219,6 +285,23 @@ describe("SeatsView", () => {
     });
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tiếp tục" })).toBeInTheDocument();
+  });
+
+  it("warns screen readers once the hold is under a minute from expiring", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "setTimeout", "Date"] });
+    vi.setSystemTime(now);
+    arrange({ myHold: hold([1], 90_000) });
+    render(<SeatsView event={event} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect(screen.queryByText("Còn dưới 1 phút để giữ chỗ")).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(35_000);
+    });
+
+    expect(screen.getByText("Còn dưới 1 phút để giữ chỗ")).toHaveAttribute("role", "status");
   });
 
   it("offers a retry when the seat map cannot load", async () => {

@@ -7,6 +7,7 @@
 -- Returns {'OK', expiresAtMs, version} | {'SEAT_UNAVAILABLE', seat...} | {'GA_INSUFFICIENT', tierId}
 --       | {'LIMIT_EXCEEDED'} | {'HAS_HOLD'} | {'STALE'} (userhold changed since the caller read it: nothing written, retry).
 -- A replaced hold's seats stay held the whole time: seats in both holds only change owner, so nobody sees them free.
+-- A dropped seat that is already sold is cleared from held but never announced as freed.
 -- An expired hold of the same user that the sweeper has not released yet counts as replaceable.
 
 local function split(s)
@@ -84,7 +85,7 @@ end
 for _, seat in ipairs(oldSeats) do
   if not newSet[seat] and redis.call('HGET', KEYS[2], seat) == oldId then
     redis.call('HDEL', KEYS[2], seat)
-    freed[#freed + 1] = seat
+    if redis.call('SISMEMBER', KEYS[1], seat) == 0 then freed[#freed + 1] = seat end
   end
 end
 

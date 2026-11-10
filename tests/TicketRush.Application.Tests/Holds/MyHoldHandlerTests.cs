@@ -59,6 +59,27 @@ public sealed class MyHoldHandlerTests
     }
 
     [Fact]
+    public async Task Release_limited_to_a_hold_frees_it_when_it_is_that_hold()
+    {
+        var hold = Hold();
+        _store.GetUserHoldAsync(HoldTestCatalog.EventId, User, Arg.Any<CancellationToken>()).Returns(hold);
+
+        (await new ReleaseMyHoldHandler(_catalog, _store).HandleAsync(User, HoldTestCatalog.EventId, hold.HoldId, Ct)).IsSuccess.ShouldBeTrue();
+
+        await _store.Received(1).ReleaseHoldAsync(HoldTestCatalog.EventId, hold.HoldId, Arg.Any<IReadOnlyList<Guid>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Release_limited_to_a_hold_leaves_a_newer_hold_alone()
+    {
+        _store.GetUserHoldAsync(HoldTestCatalog.EventId, User, Arg.Any<CancellationToken>()).Returns(Hold());
+
+        (await new ReleaseMyHoldHandler(_catalog, _store).HandleAsync(User, HoldTestCatalog.EventId, Guid.NewGuid(), Ct)).IsSuccess.ShouldBeTrue();
+
+        await _store.DidNotReceive().ReleaseHoldAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<IReadOnlyList<Guid>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Release_with_redis_down_is_system_busy()
     {
         _store.GetUserHoldAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>()).ThrowsAsync(new InventoryUnavailableException("down"));

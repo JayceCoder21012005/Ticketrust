@@ -9,10 +9,13 @@ using TicketRush.Api.Features.Auth;
 using TicketRush.Api.Features.Catalog;
 using TicketRush.Api.Features.Organizer;
 using TicketRush.Api.Features.Holds;
+using TicketRush.Api.Features.Orders;
+using TicketRush.Api.Features.Payments;
 using TicketRush.Api.Features.Queue;
 using TicketRush.Api.Features.ServerTime;
 using TicketRush.Api.Features.Storage;
 using TicketRush.Api.Features.Users;
+using TicketRush.Api.Features.Webhooks;
 using TicketRush.Infrastructure.Realtime;
 using TicketRush.Application.Options;
 
@@ -47,6 +50,8 @@ public static class ApiServiceCollectionExtensions
         });
 
         services.AddApiAuthentication();
+        services.AddSingleton<PaymentWebhookMetrics>();
+        services.AddScoped<PaymentWebhookReceiver>();
         return services;
     }
 
@@ -87,6 +92,9 @@ public static class ApiServiceCollectionExtensions
         v1.MapOrganizerEndpoints();
         v1.MapQueueEndpoints();
         v1.MapHoldEndpoints();
+        v1.MapOrderEndpoints();
+        v1.MapMockGatewayEndpoints();
+        v1.MapPaymentWebhookEndpoints();
         v1.MapLocalStorageEndpoints();
 
         app.MapHub<EventsHub>(EventsHub.Path);

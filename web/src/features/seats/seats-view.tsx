@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { t } from "@/lib/i18n";
 import { HoldExpiredDialog, HoldSummary } from "./hold-panel";
 import { LazySeatMap } from "./lazy-seat-map";
-import { SeatLegend, SelectionPanel } from "./selection-panel";
+import { PANEL_TITLE_SELECTOR, SeatLegend, SelectionPanel } from "./selection-panel";
 import { useSeatPage, type SeatPageEvent } from "./use-seat-page";
 
 /**
@@ -20,6 +20,21 @@ export function SeatsView({ event }: { event: SeatPageEvent }) {
   const [filter, setFilter] = useState<Set<string>>(() => new Set());
   const { expire } = page;
   const onExpire = useCallback(() => expire(), [expire]);
+
+  // Starting or ending a hold swaps the panel and unmounts the button that had focus: put it on the new heading.
+  // The panel is rendered twice (desktop aside, mobile drawer): focus the heading of the one the buyer is looking at.
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const asidePanel = useRef<HTMLDivElement>(null);
+  const drawerPanel = useRef<HTMLDivElement>(null);
+  const held = page.hold !== null;
+  const wasHeld = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (page.status !== "ready") return;
+    if (wasHeld.current !== null && wasHeld.current !== held) (drawerOpen ? drawerPanel : asidePanel).current?.querySelector<HTMLElement>(PANEL_TITLE_SELECTOR)?.focus();
+    wasHeld.current = held;
+    // Opening or closing the drawer alone must not move focus.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [held, page.status]);
 
   if (page.status === "error") {
     return (
@@ -47,7 +62,7 @@ export function SeatsView({ event }: { event: SeatPageEvent }) {
     });
 
   const panel = hold ? (
-    <HoldSummary hold={hold} offsetMs={page.offsetMs} onExpire={onExpire} onRelease={() => void page.release()} />
+    <HoldSummary hold={hold} offsetMs={page.offsetMs} checkoutHref={`/events/${event.slug}/checkout`} onExpire={onExpire} onRelease={() => void page.release()} />
   ) : (
     <SelectionPanel
       map={map}
@@ -75,10 +90,12 @@ export function SeatsView({ event }: { event: SeatPageEvent }) {
         ) : null}
       </section>
       <aside className="hidden md:block">
-        <div className="sticky top-20 rounded-xl border bg-card p-4">{panel}</div>
+        <div ref={asidePanel} className="sticky top-20 rounded-xl border bg-card p-4">
+          {panel}
+        </div>
       </aside>
       <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 p-3 md:hidden">
-        <Drawer>
+        <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
           <DrawerTrigger asChild>
             <Button className="w-full" variant="secondary">
               {t("seats.summary.open")}
@@ -86,7 +103,7 @@ export function SeatsView({ event }: { event: SeatPageEvent }) {
           </DrawerTrigger>
           <DrawerContent className="p-4">
             <DrawerTitle className="sr-only">{t("seats.summary.title")}</DrawerTitle>
-            {panel}
+            <div ref={drawerPanel}>{panel}</div>
           </DrawerContent>
         </Drawer>
       </div>

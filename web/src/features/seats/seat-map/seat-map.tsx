@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { TicketTier } from "@/lib/catalog/types";
@@ -48,6 +48,17 @@ export function SeatMap({ seatMap, tiers, store, tierFilter, onToggle }: SeatMap
   const visible = useMemo(() => seatMap.seats.filter((s) => s.section === section), [seatMap.seats, section]);
   const [focused, setFocused] = useState<number | null>(null);
   const { zoomIn, zoomOut, wasDrag } = usePanZoom(svg, group, section);
+  const [announcement, setAnnouncement] = useState("");
+  // Where keyboard focus goes once the next render has swapped overview and seats: a seat, or the section's toggle.
+  const pendingFocus = useRef<{ seat: true } | { section: string } | null>(null);
+
+  useEffect(() => {
+    const target = pendingFocus.current;
+    pendingFocus.current = null;
+    if (!target) return;
+    const found = "seat" in target ? svg.current?.querySelector<SVGElement>("[data-i][tabindex='0']") : [...(svg.current?.querySelectorAll<SVGElement>("[data-section]") ?? [])].find((g) => g.getAttribute("data-section") === target.section);
+    found?.focus();
+  }, [opened]);
 
   const tierById = useMemo(() => new Map(tiers.map((tier) => [tier.id, tier])), [tiers]);
   const box = section && visible.length > 0 ? boundsOf(visible) : { x: 0, y: 0, ...CANVAS };
@@ -57,6 +68,22 @@ export function SeatMap({ seatMap, tiers, store, tierFilter, onToggle }: SeatMap
   const indexOf = (target: EventTarget) => {
     const value = (target as Element).closest?.("[data-i]")?.getAttribute("data-i");
     return value === null || value === undefined ? null : Number(value);
+  };
+
+  const open = (name: string) => {
+    const own = seatMap.seats.filter((s) => s.section === name);
+    const free = own.filter((s) => store.get(s.index) === "free").length;
+    setFocused((own.find((s) => store.get(s.index) !== "taken") ?? own[0])?.index ?? null);
+    setAnnouncement(t("seats.sectionOpened", "vi", { name, count: free }));
+    pendingFocus.current = { seat: true };
+    setOpened(name);
+  };
+
+  const close = () => {
+    if (!opened) return;
+    setAnnouncement(t("seats.overviewOpened", "vi", { count: sections.length }));
+    pendingFocus.current = { section: opened };
+    setOpened(null);
   };
 
   const choose = (index: number) => {
@@ -73,19 +100,19 @@ export function SeatMap({ seatMap, tiers, store, tierFilter, onToggle }: SeatMap
     }
 
     const name = (e.target as Element).closest?.("[data-section]")?.getAttribute("data-section");
-    if (name) setOpened(name);
+    if (name) open(name);
   };
 
   const keyDown = (e: KeyboardEvent<SVGSVGElement>) => {
     if (e.key === "Escape" && opened) {
-      setOpened(null);
+      close();
       return;
     }
 
     const name = (e.target as Element).getAttribute?.("data-section");
     if (name && (e.key === "Enter" || e.key === " ")) {
       e.preventDefault();
-      setOpened(name);
+      open(name);
       return;
     }
 
@@ -108,7 +135,7 @@ export function SeatMap({ seatMap, tiers, store, tierFilter, onToggle }: SeatMap
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
         {opened ? (
-          <Button variant="outline" size="sm" onClick={() => setOpened(null)}>
+          <Button variant="outline" size="sm" onClick={close}>
             {t("seats.overview")}
           </Button>
         ) : (
@@ -155,6 +182,9 @@ export function SeatMap({ seatMap, tiers, store, tierFilter, onToggle }: SeatMap
           )}
         </g>
       </svg>
+      <p role="status" className="sr-only">
+        {announcement}
+      </p>
     </div>
   );
 }

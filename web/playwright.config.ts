@@ -7,6 +7,9 @@ const mockApiPort = 3199;
 /**
  * Runs against a production build (`npm run build` with ENABLE_DESIGN_PAGE=1 and API_URL=http://localhost:3199
  * first: the `/api` rewrite for browser calls is fixed at build time).
+ *
+ * Wall-clock `@perf` tests (e2e/organizer.spec.ts) assert only the stable budget by default; set PERF_BUDGET=strict on a
+ * stable, otherwise idle runner (opt-in CI workflow perf-strict.yml) to also assert the cold timings: `PERF_BUDGET=strict npx playwright test --grep @perf`.
  */
 export default defineConfig({
   testDir: "./e2e",
@@ -34,7 +37,8 @@ export default defineConfig({
     {
       command: `npx next start -p ${port}`,
       url: `http://localhost:${port}`,
-      env: { API_URL: `http://localhost:${mockApiPort}` },
+      // The mock gateway page is dev/demo only (404 in a production build); e2e opts in like a demo deployment.
+      env: { API_URL: `http://localhost:${mockApiPort}`, ENABLE_MOCK_GATEWAY: "1" },
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
     },

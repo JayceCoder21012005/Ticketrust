@@ -121,4 +121,48 @@ describe("SeatMap", () => {
     expect(screen.getByRole("button", { name: /Khu A, còn/ })).toBeInTheDocument();
     expect(within(document.body).queryByRole("button", { name: /^Khu A, hàng/ })).not.toBeInTheDocument();
   });
+
+  it("moves focus to the first free seat when a section opens and back to its toggle when it closes", async () => {
+    const user = userEvent.setup();
+    setup();
+    const toggle = screen.getByRole("button", { name: /Khu A,/ });
+    toggle.focus();
+
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("button", { name: /hàng 1, ghế 1,/ })).toHaveFocus();
+
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: /Khu A, còn/ })).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+    await user.click(screen.getByRole("button", { name: "Toàn cảnh" }));
+    expect(screen.getByRole("button", { name: /Khu A, còn/ })).toHaveFocus();
+  });
+
+  it("focuses the first free seat, skipping taken ones", () => {
+    const store = createSeatStore(map.seats.length);
+    store.load({ version: 1, unavailable: [0], mine: [] });
+    render(<SeatMap seatMap={map} tiers={tiers} store={store} tierFilter={new Set()} onToggle={vi.fn()} />);
+
+    zoomInto(/Khu A,/);
+
+    expect(screen.getByRole("button", { name: /hàng 1, ghế 2,/ })).toHaveFocus();
+  });
+
+  it("announces opening a section and going back to the overview in a status region", async () => {
+    const user = userEvent.setup();
+    setup();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+
+    zoomInto(/Khu A,/);
+    expect(screen.getByRole("status")).toHaveTextContent("Đã mở Khu A, còn 3 ghế trống");
+
+    await user.click(screen.getByRole("button", { name: "Toàn cảnh" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Toàn cảnh, 2 khu");
+  });
+
+  it("does not steal focus on first render", () => {
+    setup();
+    expect(document.body).toHaveFocus();
+  });
 });

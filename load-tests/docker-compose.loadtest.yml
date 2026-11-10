@@ -1,0 +1,29 @@
+# Overlay for running load-tests/sale.js against the compose stack. Use it TOGETHER with the prod file; never on a real deployment:
+#   docker compose -p ticketrush-loadtest -f docker-compose.prod.yml -f load-tests/docker-compose.loadtest.yml --env-file .env up -d --build
+# ALWAYS pass `-p ticketrush-loadtest`: the project name prefixes the volumes (ticketrush-loadtest_postgres-data, ...) and
+# containers, so this stack can never reuse or overwrite the volumes of a real `ticketrush` deployment on the same Docker host.
+# (-p on the command line beats `name:` in a file; the `name:` below is only a second line of defence.) Caddy is switched
+# off (its ports 80/443 belong to a real deployment); the api is reached directly on :8080.
+# - seeds the dev data (the event the scenario buys, customer@ticketrush.dev) and publishes the api on :8080;
+# - turns the mock gateway's control endpoints and webhook delivery worker on (they refuse to start in Production otherwise);
+# - shortens the hold to 60 s and delays "succeeded_delayed" webhooks by 90 s, so a delayed payment arrives AFTER its
+#   hold and order expired (spec 08 C3): the seat may be resold in between, which exercises the late-payment refund path.
+name: ticketrush-loadtest
+
+x-sale-env: &sale-env
+  Payments__Mock__Enabled: "true"
+  Payments__Mock__AllowInProduction: "true"
+  Payments__Mock__DelayedWebhookDelay: "00:01:30"
+  Holds__TtlSeconds: "60"
+
+services:
+  caddy:
+    profiles: [never]
+  migrations:
+    environment:
+      Migrations__SeedDevData: "true"
+  api:
+    ports: ["8080:8080"]
+    environment: *sale-env
+  worker:
+    environment: *sale-env

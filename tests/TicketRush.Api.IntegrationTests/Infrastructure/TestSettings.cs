@@ -13,6 +13,7 @@ public static class TestSettings
         ["Jwt:SigningKey"] = "test-signing-key-that-is-long-enough-0123456789",
         ["AdmissionToken:SigningKey"] = "test-admission-key-long-enough-0123456789",
         ["Payment:Provider"] = "Mock",
+        ["Payments:Mock:WebhookSecret"] = "test-mock-webhook-secret-0123456789",
         ["Email:FromAddress"] = "no-reply@ticketrush.dev",
         ["Email:FromName"] = "TicketRush",
         ["Storage:Provider"] = "Local",

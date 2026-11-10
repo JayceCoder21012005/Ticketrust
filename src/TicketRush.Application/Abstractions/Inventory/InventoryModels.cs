@@ -33,6 +33,17 @@ public sealed record HoldOutcome(HoldStatus Status, Guid? HoldId, DateTimeOffset
         new(status, null, null, unavailable ?? [], tier);
 }
 
+public enum CommitStatus
+{
+    Committed,
+
+    /// <summary>The order was already committed (redelivery); nothing changed.</summary>
+    Duplicate,
+}
+
+/// <param name="Version">The event's inventory version after the commit (unchanged for a duplicate).</param>
+public sealed record CommitOutcome(CommitStatus Status, long Version);
+
 public sealed record ActiveHold(Guid HoldId, Guid UserId, IReadOnlyList<int> Seats, IReadOnlyList<GaLine> Ga, DateTimeOffset ExpiresAt);
 
 /// <param name="Warm">False until the event's inventory has been seeded from the database.</param>

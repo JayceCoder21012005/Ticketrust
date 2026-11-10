@@ -27,7 +27,8 @@ nhanh và **không bao giờ bán trùng một ghế**. Toàn bộ đặc tả n
 | [05](specs/05-organizer-event-management.md) | Khu nhà tổ chức: địa điểm, wizard tạo sự kiện, sơ đồ ghế, đợt mở bán, xuất bản, huỷ | ✅ Hoàn thành |
 | [06](specs/06-virtual-waiting-room.md) | Phòng chờ: hàng đợi ngẫu nhiên trước giờ mở bán, nhận người theo tốc độ, admission token gắn với tài khoản, trạng thái phòng theo kho vé. Còn CAPTCHA (12), waitlist (13) | 🟡 Gần xong |
 | [07](specs/07-seat-selection-and-hold.md) | Chọn ghế trên sơ đồ trực tiếp, giữ ghế 8 phút bằng Lua nguyên tử trên Redis, cập nhật thời gian thực qua SignalR | ✅ Hoàn thành |
-| [08](specs/08-checkout-and-payment.md) – [17](specs/17-load-testing-and-observability.md) | Thanh toán, vé điện tử… | ⏳ Chưa làm |
+| [08](specs/08-checkout-and-payment.md) | Thanh toán: đơn hàng từ lượt giữ ghế, cổng thanh toán giả lập (ký webhook, chống gửi trùng, thanh toán trễ), phát vé đúng một lần, hoàn tiền tự động, các trang checkout và `/account/orders`. Còn: chạy k6 `load-tests/sale.js` trên stack compose (chưa chạy) | 🟡 Gần xong |
+| [09](specs/09-notifications-and-email.md) – [17](specs/17-load-testing-and-observability.md) | Email, vé điện tử… (spec 17 mới có kịch bản bán vé và bộ kiểm tra bất biến trong `load-tests/`) | ⏳ Chưa làm |
 
 ## Yêu cầu
 
@@ -64,7 +65,7 @@ Các resource Aspire khởi động:
 | `mailpit` | Hộp thư giả: mọi email của hệ thống đều nằm ở đây, không gửi ra ngoài |
 | `migrations` | Chạy migration và nạp dữ liệu mẫu, rồi dừng |
 | `api` | ASP.NET Core Minimal API (`/api/v1/*`) |
-| `worker` | Background service: gửi outbox, gửi email |
+| `worker` | Background service: gửi outbox và email, hết hạn đơn hàng, hoàn tiền, giao webhook của cổng thanh toán giả lập |
 | `web-installer` | Chạy `npm install` cho `web/` trước khi `web` khởi động |
 | `web` | Next.js (`npm run dev`); chuyển tiếp `/api`, `/hubs`, `/media` sang `api` |
 
@@ -130,6 +131,10 @@ Tài khoản chưa xác nhận vẫn đăng nhập được, nhưng sẽ không 
 | `/account` | Hồ sơ, số điện thoại, ảnh đại diện (JPEG/PNG/WebP/AVIF, tối đa 2 MB), đăng xuất |
 | `/events/{slug}/seats` | Chọn ghế (cần lượt vào từ phòng chờ). Bấm "Mua vé" ở trang sự kiện → phòng chờ → tự chuyển sang trang này. Chọn ghế trên sơ đồ (chuột hoặc phím mũi tên + Enter), hoặc "Chọn chỗ tốt nhất", rồi "Tiếp tục" để giữ ghế 8 phút. Ghế người khác vừa giữ đổi trạng thái ngay, không cần tải lại |
 | `/events/{slug}/queue` | Phòng chờ (cần đăng nhập và email đã xác nhận). Sự kiện mẫu "Hà Anh Tuấn" mở bán sau 5 phút, "Vũ Cát Tường" sau 20 phút: vào phòng chờ trước giờ mở để được xếp ngẫu nhiên, khi mở bán sẽ được nhận dần 50 người/giây (cấu hình `Queue` trong `appsettings.json`) |
+| `/events/{slug}/checkout` | Bước người mua (sau khi giữ ghế): tên, email, số điện thoại, đếm ngược giữ chỗ. Bấm "Tiếp tục" tạo đơn hàng rồi chuyển sang `/checkout/{orderId}` |
+| `/checkout/{orderId}` | Tóm tắt đơn, điều khoản, "Thanh toán" (bấm đúp vẫn chỉ tạo một phiên), "Huỷ đơn" khi đơn còn `Pending`. Chuyển sang cổng thanh toán giả lập `/mock-gateway/{sessionId}`: *Thành công*, *Thất bại*, *Thành công – webhook trễ 3 phút*, *Gửi webhook 2 lần*. Trang chỉ có khi cổng giả lập bật (mặc định bật ở dev, tắt ở production: trả 404) |
+| `/checkout/{orderId}/result` | Kết quả: đang xác nhận, thành công, thất bại (thử lại), hết hạn, đang hoàn tiền (kèm lý do), đã hoàn tiền |
+| `/account/orders` | Đơn hàng của tôi (danh sách, "Xem thêm") và chi tiết có dòng thời gian trạng thái |
 | `/design` | Design system: token màu, component dùng chung, màu ghế trên sơ đồ |
 | `/organizer/events` | Đăng nhập bằng `organizer@ticketrush.dev`. Danh sách sự kiện (lọc theo trạng thái, tìm không dấu), nút "Tạo sự kiện" (5 trường, tạo ngay bản nháp) |
 | `/organizer/events/{id}/info` → `review` | Wizard 5 bước, tự lưu: thông tin và ảnh cover cắt 16:9 → hạng vé → sơ đồ (mẫu dựng sẵn, xem trước SVG) → đợt mở bán (dòng thời gian, mã presale) → checklist, xem trước trang người mua, xuất bản, huỷ |
@@ -162,6 +167,9 @@ dotnet test --project tests/TicketRush.Application.Tests
 dotnet test --project tests/TicketRush.ArchitectureTests
 dotnet test --project tests/TicketRush.Api.IntegrationTests
 
+# Bất biến bán vé (chỉ cần Docker, vì dùng Testcontainers): cùng truy vấn SQL với lần chạy k6 bên dưới
+dotnet test --project tests/TicketRush.Api.IntegrationTests --filter-class "*SaleInvariantTests"
+
 # Frontend
 cd web
 npm run lint && npm run typecheck && npm test
@@ -171,7 +179,26 @@ npm run test:e2e                    # axe, font tiếng Việt, INP, đăng nh�
 npm run lighthouse                  # budget LCP/TBT/CLS/JS (cần Chrome)
 ```
 
-CI (`.github/workflows/ci.yml`) chạy tất cả các bước trên. Nó cũng kiểm tra API client không bị lệch so với
+### Load test bán vé và kiểm tra bất biến
+
+`load-tests/sale.js` (k6) cho nhiều người mua cùng lúc đi hết luồng admission, giữ ghế, tạo đơn, thanh toán và nhận webhook
+(thành công, thất bại, trễ, gửi 2 lần, bỏ dở), có chủ ý tranh nhau ghế nóng và đòi vé GA nhiều hơn sức chứa. Sau đó
+`load-tests/check-sale-invariants.sh` chạy `load-tests/sql/sale-invariants.sql` và thoát với mã khác 0 nếu có vi phạm:
+một ghế có hơn một vé chưa bị huỷ, `sold_count` vượt sức chứa hoặc lệch số vé GA, đơn `Paid` thiếu vé, đơn chưa trả tiền hoặc
+đang hoàn tiền mà còn vé. Hướng dẫn đầy đủ (stack compose, dữ liệu mẫu, biến môi trường) nằm ở [load-tests/README.md](load-tests/README.md).
+
+> ⚠️ Luôn thêm `-p ticketrush-loadtest` vào mọi lệnh `docker compose` của load test: tên project khác làm volume và container tách hẳn khỏi stack `ticketrush` thật (volume thành `ticketrush-loadtest_postgres-data`, ...), nên không thể dùng lại hay ghi đè dữ liệu thật. Không bao giờ chạy overlay này trên máy chủ production; script k6 và script kiểm tra từ chối host/CSDL tự chọn nếu thiếu `LOADTEST_CONFIRM=loadtest`.
+
+```bash
+docker compose -p ticketrush-loadtest -f docker-compose.prod.yml -f load-tests/docker-compose.loadtest.yml --env-file .env up -d --build
+k6 run -e EVENT_ID=<uuid> -e GA_TIER_ID=<uuid> -e BUYERS=500 -e VUS=100 load-tests/sale.js
+ENV_FILE=.env load-tests/check-sale-invariants.sh      # exit 0 = mọi bất biến đúng (mặc định nhắm vào project ticketrush-loadtest)
+```
+
+Bản tự động của cùng truy vấn là `SaleInvariantTests` (dòng `dotnet test` ở trên). Lần chạy k6 thật chưa được thực hiện
+trong lần phát triển này (cần Docker); kết quả sẽ ghi vào README khi có.
+
+CI (`.github/workflows/ci.yml`) chạy tất cả các bước trên (trừ lần chạy k6). Nó cũng kiểm tra API client không bị lệch so với
 OpenAPI, và audit dependency: code ship ra production không được có lỗ hổng nào, công cụ dev không được có
 lỗ hổng high/critical.
 
@@ -198,6 +225,8 @@ lỗ hổng high/critical.
 | `src/TicketRush.AppHost`, `src/TicketRush.ServiceDefaults` | Điều phối Aspire, OpenTelemetry, health check |
 | `web/` | Next.js 16; `/api/*` được chuyển tiếp sang `api` (cùng origin) |
 | `tests/` | Unit, architecture và integration test (.NET) |
+| `load-tests/` | Kịch bản k6 bán vé, truy vấn SQL kiểm tra bất biến, compose overlay cho load test |
+| `docs/runbooks/` | Quy trình vận hành (ví dụ hoàn tiền bị treo: [parked-refunds.md](docs/runbooks/parked-refunds.md)) |
 | `specs/` | Đặc tả cho từng phần, từ 00 đến 17 |
 
 ## Triển khai production
@@ -210,3 +239,85 @@ docker compose -f docker-compose.prod.yml --env-file .env up -d
 ```
 
 Mỗi lần push lên `main`, CI build và publish image lên GHCR.
+
+SignalR (`/hubs/*`) đi thẳng từ Caddy tới `api:8080`, không qua Next (bản `standalone` không proxy được WebSocket).
+`CaddyWebSocketTests` kiểm tra điều này bằng thật: chạy image `caddy:2` với đúng `deploy/Caddyfile` (chỉ thay địa chỉ site
+và upstream), mở kết nối SignalR chỉ dùng WebSocket qua Caddy tới api chạy trên Kestrel, rồi nhận một `SeatDelta`.
+Cần Docker: `dotnet test --project tests/TicketRush.Api.IntegrationTests --filter-class "*CaddyWebSocketTests"`.
+
+### Thanh toán ở production
+
+- ⚠️ **Production chưa nhận được tiền thật.** Cổng thanh toán duy nhất hiện có là cổng giả lập, và nó **tắt mặc định** ở production (`Payments:Mock:Enabled` bị từ chối khi chạy ngoài Development, trừ khi đặt thêm `Payments:Mock:AllowInProduction=true` cho một bản demo công khai). Muốn bán vé thật cần viết adapter cho một cổng thật (spec 08, `IPaymentGateway`) và đăng ký nó.
+- `docker-compose.prod.yml` đặt `Payments__Mock__WebBaseUrl` thành `https://${PUBLIC_HOST}`, để khi bật cổng giả lập cho demo, `redirectUrl` trỏ đúng tên miền công khai thay vì `http://localhost:3000`.
+- Webhook của cổng thanh toán đi vào qua **rewrite `/api/:path*` của Next**: Caddy chuyển mọi đường dẫn trừ `/hubs/*` tới `web`, nên `/api/v1/webhooks/payments/...` hiện đi `Caddy → web → api`. Proxy này phải chuyển thân request **nguyên từng byte** và giữ header `X-Signature`, nếu không chữ ký HMAC sẽ sai. Điều này **chưa được kiểm chứng** ở đây (cổng giả lập gọi thẳng `api:8080`, không qua Next). Hãy kiểm chứng trước khi bật một provider thật, và cân nhắc cho Caddy chuyển `/api/v1/webhooks/*` thẳng tới `api:8080` như `/hubs/*`.
+- Huỷ sự kiện hoàn tiền cho người mua **không cần** key ring Data Protection: việc xử lý đơn của sự kiện bị huỷ không đọc bí mật QR của vé.
+- Giới hạn đã biết của việc hết hạn đơn và hoàn tiền: xem [docs/runbooks/parked-refunds.md](docs/runbooks/parked-refunds.md#known-limits-accepted).
+
+### Độ bền của Redis
+
+Ghế đang giữ và tập ghế đã bán nằm trong Redis (spec 07), nên Redis production chạy với
+`--appendonly yes` (xem `docker-compose.prod.yml`). Mặc định `appendfsync everysec`: Redis ghi AOF xuống đĩa
+mỗi giây, vì vậy nếu Redis sập đột ngột thì **mất tối đa khoảng 1 giây** lệnh ghi cuối (một ít lượt giữ ghế).
+Đây là quyết định R3 của spec 07: chấp nhận cửa sổ mất dữ liệu này, không thêm replica và không đổi sang
+`appendfsync always`.
+
+Phần mất đi được sửa bằng hai lớp, vì Postgres mới là nguồn sự thật về ghế đã bán:
+
+- **Reconciler** (`worker`, chạy lúc khởi động và mỗi 5 phút, thêm một lượt nhanh mỗi 5 giây để làm nóng lại sự kiện
+  còn lạnh) dựng lại tập `sold` và số GA còn lại từ database, rồi ghi log cảnh báo nếu có lệch.
+- **Unique index trên bảng vé** (spec 08) chặn bán trùng một ghế ngay cả khi Redis lỡ cho một lượt giữ lọt qua.
+
+Nguồn dữ liệu "đã bán" của reconciler là **bảng `tickets`** (các vé chưa bị huỷ; `DbSoldInventorySource`), không còn là nguồn rỗng như trước spec 08. Vì vậy mất `sold` trong Redis luôn tự khôi phục được từ database. Mỗi đơn đã thanh toán được ghi vào Redis đúng một lần nhờ dấu `committed:<orderId>` (giữ 7 ngày), nên outbox giao lại `OrderPaid` cũng không làm đếm đôi.
+
+Cả api và worker đều kiểm tra lúc khởi động (chỉ ngoài môi trường Development): nếu Redis không chạy với AOF
+(`aof_enabled` trong `INFO persistence`) thì ghi log **Warning**. Khi không đọc được (ví dụ Redis do nhà cung cấp quản lý
+chặn lệnh) thì chỉ ghi log Information và vẫn chạy bình thường. Không có AOF, mỗi lần Redis khởi động lại sẽ mất toàn bộ
+lượt giữ ghế, không chỉ 1 giây cuối.
+
+### Khoá Data Protection (bí mật QR của vé)
+
+`Ticket.QrSecret` (32 byte ngẫu nhiên) được mã hoá khi lưu bằng ASP.NET Data Protection (mục đích `TicketRush.Tickets.QrSecret.v1`).
+Bộ khoá (key ring) của Data Protection nằm **trong Redis**, ở key `tr:<môi trường>:dataprotection:keys` (một LIST các khoá XML), để mọi api và worker dùng chung.
+Bộ khoá này cũng bảo vệ token xác nhận email và đặt lại mật khẩu.
+
+> ⚠️ **Mất key ring này thì không giải mã được bí mật QR của mọi vé đã phát hành** (các vé trở thành không đọc được, không thể tạo mã QR). Token email đang chờ cũng hết hiệu lực.
+> Các cách mất: xoá volume `redis-data`, `FLUSHALL`, chạy Redis không có AOF rồi khởi động lại, đổi `Redis__Environment` (đổi tiền tố key).
+
+Việc cần làm ở production:
+
+- Redis phải bền: giữ `--appendonly yes` và volume `redis-data` (xem trên). Không dùng Redis chỉ-cache cho môi trường có vé thật.
+- **Sao lưu key ring** (khoá chỉ đổi khoảng 90 ngày một lần, nên sao lưu hằng ngày là đủ). Mỗi phần tử của LIST là một dòng XML; sao lưu từng phần tử ra một tệp, bỏ ký tự xuống dòng mà `redis-cli --raw` thêm vào cuối (`head -c -1` của GNU coreutils; trên macOS dùng `perl -pe 'chomp if eof'`):
+
+  ```bash
+  DC="docker compose -f docker-compose.prod.yml"
+  KEY=tr:prod:dataprotection:keys
+  n=$($DC exec -T redis sh -c "redis-cli -a \"\$REDIS_PASSWORD\" --no-auth-warning LLEN $KEY")
+  umask 077 && mkdir -p dp-keys
+  for i in $(seq 0 $((n-1))); do
+    $DC exec -T redis sh -c "redis-cli -a \"\$REDIS_PASSWORD\" --no-auth-warning --raw LINDEX $KEY $i" | head -c -1 > "dp-keys/$i.xml"
+  done
+  set -o pipefail    # nếu tar hoặc age lỗi thì không xoá bản rõ
+  tar -c dp-keys | age -r <khoá công khai age> -o dp-keys.tar.age && rm -r dp-keys     # hoặc: gpg --encrypt -r <id>
+  ```
+
+- **Khôi phục** (key phải đang trống: kiểm tra `LLEN` bằng 0, nếu không sẽ có khoá lặp; làm **trước khi** cho api và worker chạy). `redis-cli -x` đọc nguyên tệp làm giá trị, nên XML có dấu nháy, `&` hay `/` không bị hỏng; giữ đúng thứ tự `0, 1, 2, ...`:
+
+  ```bash
+  # Khai báo lại biến: khôi phục thường chạy ở một shell mới.
+  DC="docker compose -f docker-compose.prod.yml"
+  KEY=tr:prod:dataprotection:keys
+  umask 077
+  age -d -i <khoá riêng> dp-keys.tar.age | tar -x
+  n=$(ls dp-keys/*.xml | wc -l)
+  [ "$n" -gt 0 ] || { echo "không có phần tử key nào để khôi phục"; exit 1; }
+  for i in $(seq 0 $((n-1))); do
+    $DC exec -T redis sh -c "redis-cli -a \"\$REDIS_PASSWORD\" --no-auth-warning -x RPUSH $KEY" < "dp-keys/$i.xml"
+  done
+  $DC exec -T redis sh -c "redis-cli -a \"\$REDIS_PASSWORD\" --no-auth-warning LLEN $KEY"   # phải bằng $n
+  rm -r dp-keys    # không để bản rõ trên đĩa
+  ```
+
+  Đã kiểm chứng vòng sao lưu, `FLUSHALL`, khôi phục trên container `redis:7.4` dùng một lần (cùng dạng lệnh `redis-cli` qua `docker exec -i`, tương đương `compose exec -T`): hai phần tử XML có dấu nháy, `+/=` và chú thích giống key thật, mỗi phần tử khớp từng byte (`cmp`) với bản gốc. Chưa chạy trực tiếp trên stack compose.
+- ⚠️ **Tệp sao lưu là khoá chủ ở dạng văn bản thường**: Data Protection không mã hoá key ring khi lưu (chính XML có dòng cảnh báo "the key below is in an unencrypted form"). Ai có tệp này giải mã được mọi bí mật QR và token. Hãy coi nó là **secret**: mã hoá (age/gpg) ngay khi tạo, không để bản rõ trên đĩa (`umask 077`, xoá thư mục tạm), không commit, không gửi qua chat, và cất ở nơi có quyền truy cập **tách biệt** với bản dump Postgres (người đọc được dump không đồng thời đọc được khoá).
+- Sao lưu Postgres mà thiếu key ring thì các vé trong bản sao lưu đó không dùng lại được. Hai thứ phải đi cùng nhau.
+- Spec 10 (vé điện tử) có thể suy ra bí mật QR từ khoá ký riêng thay vì lưu ngẫu nhiên, khi đó rủi ro này giảm; cho đến lúc đó phải coi key ring như dữ liệu quan trọng ngang database.

@@ -1,11 +1,16 @@
--- Marks a paid order's seats sold, after checkout committed it to the database (spec 07/08).
+-- Marks a paid order's seats sold, after checkout committed it to the database (spec 07/08). Idempotent per order.
 -- KEYS: 1 sold (SET), 2 held (HASH), 3 expiry (ZSET), 4 userhold (STRING), 5 bought (STRING), 6 version (STRING),
---       7 gaheld (HASH), 8 hold (HASH), 9 commits (STRING), 10.. GA remaining of every GA tier, in the order of ARGV[6]
+--       7 gaheld (HASH), 8 hold (HASH), 9 commits (STRING), 10 committed marker of the order (STRING, same hash tag),
+--       11.. GA remaining of every GA tier, in the order of ARGV[6]
 -- ARGV: 1 holdId, 2 userId, 3 seats csv (sorted), 4 ga csv "tier:qty,...", 5 delta channel, 6 GA tier ids csv
--- Returns {'OK', version}.
--- Live hold: its GA was already taken when it was created, so only the held counter moves. Expired hold (late payment,
--- C3): the seats are sold anyway and GA is taken now; the database's unique index (08) is what settles a seat that was
--- re-held by someone else in the meantime.
+-- Returns {'OK', version} | {'DUPLICATE', version} (the order was already committed: nothing changed, nothing published).
+-- The marker is SET NX with a 7 day TTL, so a redelivered commit never counts bought / sold / GA twice.
+-- Live hold (its hash still exists): its GA was already taken when it was created, so only gaheld moves. A hold that is
+-- not live (expired and swept, released, or replaced by a newer hold of the user): gaheld is not touched (it belongs to
+-- whatever hold holds the GA now) and this order's GA is taken from remaining, exactly once (late payment, C3). The
+-- database's unique index (08) is what settles a seat that was re-held by someone else in the meantime: a sold seat is
+-- removed from held whoever holds it. That narrows the held+sold overlap but does not exclude it (a reconcile can still add
+-- a sold seat that is held), so hold_release / hold_create also never announce a sold seat as freed.
 
 local function split(s)
   local out = {}
@@ -14,16 +19,21 @@ local function split(s)
   return out
 end
 
+-- 7 days: longer than any retry window of the payment gateway webhook.
+if not redis.call('SET', KEYS[10], '1', 'NX', 'EX', 604800) then
+  return {'DUPLICATE', tonumber(redis.call('GET', KEYS[6]) or '0')}
+end
+
 local holdId = ARGV[1]
 local gaKey = {}
-for i, tier in ipairs(split(ARGV[6])) do gaKey[tier] = KEYS[9 + i] end
+for i, tier in ipairs(split(ARGV[6])) do gaKey[tier] = KEYS[10 + i] end
 local live = redis.call('EXISTS', KEYS[8]) == 1
 
 local seats = split(ARGV[3])
 local count = #seats
 for _, seat in ipairs(seats) do
   redis.call('SADD', KEYS[1], seat)
-  if redis.call('HGET', KEYS[2], seat) == holdId then redis.call('HDEL', KEYS[2], seat) end
+  redis.call('HDEL', KEYS[2], seat)
 end
 
 local tiers = {}

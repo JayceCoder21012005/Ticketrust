@@ -34,19 +34,30 @@ export function connectSeatFeed(eventId: string, { accessToken, onDelta, onResyn
     onResync();
   };
 
+  // A connection that is up but never joined the group would sit silent for good (and cannot be start()ed again):
+  // close it, and onclose below schedules the next attempt.
+  const leave = () => void connection.stop().catch(() => undefined);
+
+  // The backoff restarts only once a join worked; resetting it earlier would retry a failing join every second forever.
+  const joined = () =>
+    join().then(() => {
+      attempt = 0;
+    }, leave);
+
   const start = async () => {
     try {
       await connection.start();
-      attempt = 0;
-      await join();
     } catch {
       if (!stopped) timer = setTimeout(() => void start(), retryDelayMs(attempt++));
+      return;
     }
+
+    await joined();
   };
 
   connection.on("SeatDelta", (delta: SeatDelta) => onDelta(delta));
   connection.onreconnected(() => {
-    void join().catch(() => undefined);
+    void joined();
   });
   connection.onclose(() => {
     if (!stopped) timer = setTimeout(() => void start(), retryDelayMs(attempt++));

@@ -20,13 +20,14 @@ public sealed class InventoryReconcileTests(ContainersFixture containers) : IAsy
 
     public async ValueTask DisposeAsync() => await _h.DisposeAsync();
 
-    private InventorySeed Seed(int[]? sold = null, int gaSold = 0, Dictionary<Guid, int>? bought = null) => new(
+    private InventorySeed Seed(int[]? sold = null, int gaSold = 0, Dictionary<Guid, int>? bought = null, long? fence = null) => new(
         _h.EventId,
         SeatCount: 100,
         new Dictionary<Guid, int> { [_h.GaTier] = _h.GaCapacity },
         sold ?? [],
         new Dictionary<Guid, int> { [_h.GaTier] = gaSold },
-        bought ?? []);
+        bought ?? [],
+        fence);
 
     private sealed class FakeCatalog(HoldCatalogEntry entry) : IHoldCatalog
     {
@@ -100,6 +101,31 @@ public sealed class InventoryReconcileTests(ContainersFixture containers) : IAsy
     }
 
     [Fact]
+    public async Task A_fenced_reconcile_lowers_a_bought_count_that_counted_an_order_twice()
+    {
+        var a = Guid.NewGuid();
+        await _h.Db.StringSetAsync(_h.Keys.InvBought(_h.EventId, a), 6);
+
+        var report = await _h.Store.ReconcileAsync(Seed(bought: new() { [a] = 3 }, fence: await _h.Store.GetCommitFenceAsync(_h.EventId, None)), None);
+
+        report.Stale.ShouldBeFalse();
+        ((int)await _h.Db.StringGetAsync(_h.Keys.InvBought(_h.EventId, a))).ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task A_fenced_reconcile_that_lost_the_race_to_a_commit_writes_nothing()
+    {
+        var a = Guid.NewGuid();
+        await _h.Db.StringSetAsync(_h.Keys.InvBought(_h.EventId, a), 6);
+        await _h.Db.StringSetAsync(_h.Keys.InvCommits(_h.EventId), 1);
+
+        var report = await _h.Store.ReconcileAsync(Seed(bought: new() { [a] = 3 }, fence: 0), None);
+
+        report.Stale.ShouldBeTrue();
+        ((int)await _h.Db.StringGetAsync(_h.Keys.InvBought(_h.EventId, a))).ShouldBe(6);
+    }
+
+    [Fact]
     public async Task Bought_counts_never_go_below_what_redis_already_counted()
     {
         var a = Guid.NewGuid();
@@ -152,7 +178,7 @@ public sealed class InventoryReconcileTests(ContainersFixture containers) : IAsy
             if (Interlocked.Increment(ref _reads) == 1)
             {
                 // The database answer below was read before this commit, so it does not contain it.
-                await h.Store.CommitAsync(eventId, holdId, user, [1], [new GaLine(h.GaTier, 2)], h.GaTiers, ct);
+                await h.Store.CommitAsync(eventId, Guid.NewGuid(), holdId, user, [1], [new GaLine(h.GaTier, 2)], h.GaTiers, ct);
                 return new SoldInventory([], new Dictionary<Guid, int>(), new Dictionary<Guid, int>());
             }
 

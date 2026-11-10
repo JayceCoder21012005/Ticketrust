@@ -435,6 +435,12 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("name");
 
+                    b.Property<int>("SoldCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("sold_count");
+
                     b.ComplexProperty(typeof(Dictionary<string, object>), "Price", "TicketRush.Domain.Events.TicketTier.Price#Money", b1 =>
                         {
                             b1.IsRequired();
@@ -456,7 +462,413 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                     b.HasIndex("EventId")
                         .HasDatabaseName("ix_ticket_tiers_event_id");
 
-                    b.ToTable("ticket_tiers", (string)null);
+                    b.ToTable("ticket_tiers", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_ticket_tiers_sold_count", "sold_count >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("TicketRush.Domain.Orders.Order", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<Guid>("HoldId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("hold_id");
+
+                    b.Property<DateTimeOffset?>("PaidAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at");
+
+                    b.Property<string>("RefundReason")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("refund_reason");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Buyer", "TicketRush.Domain.Orders.Order.Buyer#BuyerInfo", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<string>("Email")
+                                .IsRequired()
+                                .HasMaxLength(320)
+                                .HasColumnType("character varying(320)")
+                                .HasColumnName("buyer_email");
+
+                            b1.Property<string>("Name")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("character varying(200)")
+                                .HasColumnName("buyer_name");
+
+                            b1.Property<string>("Phone")
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("buyer_phone");
+                        });
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Refund", "TicketRush.Domain.Orders.Order.Refund#RefundTracking", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<int>("Attempts")
+                                .HasColumnType("integer")
+                                .HasColumnName("refund_attempts");
+
+                            b1.Property<string>("LastError")
+                                .HasMaxLength(500)
+                                .HasColumnType("character varying(500)")
+                                .HasColumnName("refund_last_error");
+
+                            b1.Property<bool>("NeedsAttention")
+                                .HasColumnType("boolean")
+                                .HasColumnName("refund_needs_attention");
+
+                            b1.Property<DateTimeOffset?>("NextAttemptAt")
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("refund_next_attempt_at");
+                        });
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Total", "TicketRush.Domain.Orders.Order.Total#Money", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<long>("Amount")
+                                .HasColumnType("bigint")
+                                .HasColumnName("total_amount");
+
+                            b1.Property<string>("Currency")
+                                .IsRequired()
+                                .HasMaxLength(3)
+                                .HasColumnType("character varying(3)")
+                                .HasColumnName("total_currency");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_orders");
+
+                    b.HasIndex("EventId")
+                        .HasDatabaseName("ix_orders_event_id");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_orders_open_expires_at")
+                        .HasFilter("status IN ('Pending','AwaitingPayment','PaymentFailed')");
+
+                    b.HasIndex("HoldId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_orders_open_hold")
+                        .HasFilter("status IN ('Pending','AwaitingPayment','PaymentFailed')");
+
+                    b.HasIndex("Id")
+                        .HasDatabaseName("ix_orders_refund_pending")
+                        .HasFilter("status = 'RefundPending'");
+
+                    b.HasIndex("UserId", "CreatedAt", "Id")
+                        .IsDescending(false, true, true)
+                        .HasDatabaseName("ix_orders_user_created");
+
+                    b.ToTable("orders", (string)null);
+                });
+
+            modelBuilder.Entity("TicketRush.Domain.Orders.OrderItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<int?>("SeatIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("seat_index");
+
+                    b.Property<Guid>("TierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tier_id");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "UnitPrice", "TicketRush.Domain.Orders.OrderItem.UnitPrice#Money", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<long>("Amount")
+                                .HasColumnType("bigint")
+                                .HasColumnName("unit_price_amount");
+
+                            b1.Property<string>("Currency")
+                                .IsRequired()
+                                .HasMaxLength(3)
+                                .HasColumnType("character varying(3)")
+                                .HasColumnName("unit_price_currency");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_order_items");
+
+                    b.HasIndex("OrderId")
+                        .HasDatabaseName("ix_order_items_order_id");
+
+                    b.ToTable("order_items", (string)null);
+                });
+
+            modelBuilder.Entity("TicketRush.Domain.Orders.PaymentAttempt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("provider");
+
+                    b.Property<string>("ProviderSessionId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("provider_session_id");
+
+                    b.Property<string>("RedirectUrl")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("redirect_url");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<long?>("_refundAmount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("refund_amount");
+
+                    b.Property<string>("_refundCurrency")
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("refund_currency");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Amount", "TicketRush.Domain.Orders.PaymentAttempt.Amount#Money", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<long>("Amount")
+                                .HasColumnType("bigint")
+                                .HasColumnName("amount");
+
+                            b1.Property<string>("Currency")
+                                .IsRequired()
+                                .HasMaxLength(3)
+                                .HasColumnType("character varying(3)")
+                                .HasColumnName("currency");
+                        });
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Refund", "TicketRush.Domain.Orders.PaymentAttempt.Refund#RefundTracking", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<int>("Attempts")
+                                .HasColumnType("integer")
+                                .HasColumnName("refund_attempts");
+
+                            b1.Property<string>("LastError")
+                                .HasMaxLength(500)
+                                .HasColumnType("character varying(500)")
+                                .HasColumnName("refund_last_error");
+
+                            b1.Property<bool>("NeedsAttention")
+                                .HasColumnType("boolean")
+                                .HasColumnName("refund_needs_attention");
+
+                            b1.Property<DateTimeOffset?>("NextAttemptAt")
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("refund_next_attempt_at");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_payment_attempts");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_payment_attempts_pending_expires_at")
+                        .HasFilter("status = 'Pending'");
+
+                    b.HasIndex("Id")
+                        .HasDatabaseName("ix_payment_attempts_refund_pending")
+                        .HasFilter("status = 'RefundPending'");
+
+                    b.HasIndex("OrderId")
+                        .HasDatabaseName("ix_payment_attempts_order_id");
+
+                    b.HasIndex("ProviderSessionId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_payment_attempts_provider_session_id");
+
+                    b.ToTable("payment_attempts", (string)null);
+                });
+
+            modelBuilder.Entity("TicketRush.Domain.Orders.ProcessedWebhook", b =>
+                {
+                    b.Property<string>("Provider")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("provider");
+
+                    b.Property<string>("ProviderEventId")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("provider_event_id");
+
+                    b.Property<DateTimeOffset>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.HasKey("Provider", "ProviderEventId")
+                        .HasName("pk_processed_webhooks");
+
+                    b.HasIndex("ProcessedAt")
+                        .HasDatabaseName("ix_processed_webhooks_processed_at");
+
+                    b.ToTable("processed_webhooks", (string)null);
+                });
+
+            modelBuilder.Entity("TicketRush.Domain.Tickets.Ticket", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_user_id");
+
+                    b.Property<byte[]>("QrSecret")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("qr_secret");
+
+                    b.Property<int?>("SeatIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("seat_index");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tier_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_tickets");
+
+                    b.HasIndex("OrderId")
+                        .HasDatabaseName("ix_tickets_order_id");
+
+                    b.HasIndex("OwnerUserId")
+                        .HasDatabaseName("ix_tickets_owner_user_id");
+
+                    b.HasIndex("TierId")
+                        .HasDatabaseName("ix_tickets_tier_id");
+
+                    b.HasIndex("EventId", "OwnerUserId")
+                        .HasDatabaseName("ix_tickets_event_owner");
+
+                    b.HasIndex("EventId", "SeatIndex")
+                        .IsUnique()
+                        .HasDatabaseName("ux_tickets_event_seat")
+                        .HasFilter("status <> 'Voided' AND seat_index IS NOT NULL");
+
+                    b.ToTable("tickets", (string)null);
                 });
 
             modelBuilder.Entity("TicketRush.Domain.Users.RefreshToken", b =>
@@ -903,6 +1315,60 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_ticket_tiers_events_event_id");
                 });
 
+            modelBuilder.Entity("TicketRush.Domain.Orders.Order", b =>
+                {
+                    b.HasOne("TicketRush.Domain.Events.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_orders_events_event_id");
+                });
+
+            modelBuilder.Entity("TicketRush.Domain.Orders.OrderItem", b =>
+                {
+                    b.HasOne("TicketRush.Domain.Orders.Order", null)
+                        .WithMany("Items")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_order_items_orders_order_id");
+                });
+
+            modelBuilder.Entity("TicketRush.Domain.Orders.PaymentAttempt", b =>
+                {
+                    b.HasOne("TicketRush.Domain.Orders.Order", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_payment_attempts_orders_order_id");
+                });
+
+            modelBuilder.Entity("TicketRush.Domain.Tickets.Ticket", b =>
+                {
+                    b.HasOne("TicketRush.Domain.Events.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_tickets_events_event_id");
+
+                    b.HasOne("TicketRush.Domain.Orders.Order", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_tickets_orders_order_id");
+
+                    b.HasOne("TicketRush.Domain.Events.TicketTier", null)
+                        .WithMany()
+                        .HasForeignKey("TierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_tickets_ticket_tier_tier_id");
+                });
+
             modelBuilder.Entity("TicketRush.Domain.Users.RefreshToken", b =>
                 {
                     b.HasOne("TicketRush.Infrastructure.Identity.AppUser", null)
@@ -918,6 +1384,11 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                     b.Navigation("Phases");
 
                     b.Navigation("Tiers");
+                });
+
+            modelBuilder.Entity("TicketRush.Domain.Orders.Order", b =>
+                {
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }

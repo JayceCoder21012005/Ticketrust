@@ -42,10 +42,14 @@ export const profileSchema = z.object({
   phoneNumber: z.string().check(z.regex(/^((0|\+84)\d{9})?$/, "Số điện thoại không hợp lệ.")),
 });
 
+/** Who an order is for (spec 08): the same rules as the profile, plus a required email. */
+export const buyerSchema = z.object({ fullName, email, phoneNumber: z.string().check(z.regex(/^((0|\+84)\d{9})?$/, "Số điện thoại không hợp lệ.")) });
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type ProfileInput = z.infer<typeof profileSchema>;
+export type BuyerInput = z.infer<typeof buyerSchema>;
 
 export { passwordStrength } from "./password-strength";

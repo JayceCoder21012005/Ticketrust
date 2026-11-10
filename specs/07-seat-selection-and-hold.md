@@ -28,8 +28,8 @@
 | Script | Does (atomically) | Return codes |
 |---|---|---|
 | `hold_create.lua` | If `replace` → treat the user's old hold seats as free. Check limit `bought + requested ≤ max`. Every seat ∉ `sold` and ∉ `held`. Every GA `remaining ≥ qty`. Then write `held`, `DECRBY` GA, create the hold hash, `ZADD expiry`, set `userhold`, release the old hold, `PUBLISH` the delta | `OK`, `SEAT_UNAVAILABLE` + indexes, `GA_INSUFFICIENT` + tierId, `LIMIT_EXCEEDED`, `HAS_HOLD` |
-| `hold_release.lua` | Remove seats from `held` **only where the value == holdId**, `INCRBY` GA back, delete the hold, `ZREM`, clear `userhold` if it matches, `PUBLISH` | `OK`, `NOT_FOUND` (idempotent) |
-| `inventory_commit.lua` | Called by 08 after the DB commit: `SADD sold`, remove the hold, `INCRBY bought`. If the hold already expired, still `SADD sold` and `DECRBY` GA (late payment path) | `OK` |
+| `hold_release.lua` | Remove seats from `held` **only where the value == holdId** (a seat that is in `sold` is cleared from `held` too but is never announced as freed), `INCRBY` GA back, delete the hold, `ZREM`, clear `userhold` if it matches, `PUBLISH` | `OK`, `NOT_FOUND` (idempotent) |
+| `inventory_commit.lua` | Called by 08 (the `OrderPaid` consumer) after the DB commit, once per order: `SET committed:<orderId> NX` (7-day TTL, longer than any gateway retry window) is the idempotency marker. Then `SADD sold`, `HDEL held[seat]` for every sold seat whoever holds it, remove the hold, `INCRBY bought`, `INCR` the commit counter (the reconcile fence), publish the sold delta. **Live hold** (its hash still exists): its GA was taken when it was created, so only `gaheld` moves. **Hold not live** (expired and swept, released, or replaced by a newer hold of the user): `gaheld` is untouched (it belongs to whatever hold has the GA now) and this order's GA is taken from `remaining` exactly once (late payment path, C3) | `OK`, `DUPLICATE` (the order was already committed: nothing changed, nothing published) |
 
 Seat indexes are sorted ascending before calling a script (C9). Scripts take all keys as `KEYS[]` (cluster-safe). The TTL is passed as an argument (normal holds use config, waitlist offers in 13 use 15 min). The C# wrapper is `IInventoryStore` (Infrastructure), so handlers never touch Redis directly.
 
@@ -76,7 +76,7 @@ Error codes: `hold.seats_unavailable` (+ `unavailable: int[]`), `hold.insufficie
 - [x] Holds expire within 2 s of `expiresAt`, and the seats turn available on other clients within 1 s. (`HoldWorkersTests.Holds_expire_within_two_seconds_of_expiresAt`, `SeatDeltaTests.A_released_hold_shows_as_freed_on_other_clients_within_one_second`)
 - [x] Releasing an already-expired hold returns 204 and doesn't free seats that now belong to another hold. (`HoldApiTests`, `HoldScriptTests`)
 - [x] Killing Redis during a hold request returns 503 `system.busy`. Nothing is written to the DB. (`HoldApiTests.Redis_down_is_503_system_busy_and_nothing_reaches_the_database`; a dead connection maps to `InventoryUnavailableException` in `HoldScriptTests`)
-- [x] After a manual drift (delete `sold` in Redis), the reconciler restores it from the DB. (`InventoryReconcileTests` with a seeded sold source: the tickets table arrives in 08, which replaces `NoTicketsSoldInventorySource`)
+- [x] After a manual drift (delete `sold` in Redis), the reconciler restores it from the DB. (`InventoryReconcileTests`; since 08 the sold source is `DbSoldInventorySource`, which reads the non-voided tickets, and `NoTicketsSoldInventorySource` is gone)
 - [x] Keyboard-only users can select seats and continue. (`e2e/seats.spec.ts`)
 
 ## Implementation notes (what differs from the text above)
@@ -90,5 +90,6 @@ Error codes: `hold.seats_unavailable` (+ `unavailable: int[]`), `hold.insufficie
 - `GET /availability` reads Redis live (no cache) and warms a cold event on first read; Redis down → 503.
 - `POST /holds` uses a shared `Idempotency-Key` filter (400 missing, 422 reused with another body, 409 still running; 5xx not stored), which 08 reuses.
 - Production: `deploy/Caddyfile` sends `/hubs/*` straight to the api, because Next's standalone server does not proxy WebSocket upgrades.
-- Frontend: seat states are free / taken / mine / selected (availability does not tell held from sold). With a live hold the page shows its summary and countdown; checkout is a disabled "Thanh toán (sắp ra mắt)" until 08.
-- Known limits: until 08 nothing is sold in the database; with one Redis and AOF `everysec` a crash can lose up to one second of holds (08's unique index is the last guard); SignalR drops messages while Redis is down (clients resync on the version gap).
+- Frontend: seat states are free / taken / mine / selected (availability does not tell held from sold). With a live hold the page shows its summary and countdown, and "Tiếp tục thanh toán" links to the buyer step `/events/[slug]/checkout` (08).
+- Known limits: with one Redis and AOF `everysec` a crash can lose up to one second of holds (08's unique index is the last guard); SignalR drops messages while Redis is down (clients resync on the version gap).
+- Since 08: a hold is **not** a payment. Releasing or letting a hold expire while its order is `AwaitingPayment` is allowed; another buyer may then take the seats, and the late payment meets the DB unique index and is refunded (`seats_unavailable`). `inventory_commit.lua` marks a replaced, released or expired hold's order sold all the same, and the reconciler sets `bought` exactly from the database (fenced against a commit that races it), so a redelivered `OrderPaid` never double counts.

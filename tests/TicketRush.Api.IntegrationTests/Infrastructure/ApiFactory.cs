@@ -32,7 +32,11 @@ public sealed class CapturingEmailSender : IEmailSender
 }
 
 /// <summary>The real api pipeline against real containers, plus a few test-only endpoints.</summary>
-public sealed class ApiFactory(string databaseConnectionString, string redisConnectionString, string environment = "Production")
+public sealed class ApiFactory(
+    string databaseConnectionString,
+    string redisConnectionString,
+    string environment = "Production",
+    IReadOnlyDictionary<string, string?>? settings = null)
     : WebApplicationFactory<Program>
 {
     public CapturingEmailSender Emails { get; } = new();
@@ -54,6 +58,11 @@ public sealed class ApiFactory(string databaseConnectionString, string redisConn
     {
         builder.UseEnvironment(environment);
         foreach (var (key, value) in TestSettings.For(databaseConnectionString, redisConnectionString))
+        {
+            builder.UseSetting(key, value);
+        }
+
+        foreach (var (key, value) in settings ?? new Dictionary<string, string?>())
         {
             builder.UseSetting(key, value);
         }

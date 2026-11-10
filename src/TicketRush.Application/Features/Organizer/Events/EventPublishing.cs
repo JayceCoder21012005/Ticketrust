@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using TicketRush.Application.Abstractions.Inventory;
 using TicketRush.Application.Abstractions.Persistence;
 using TicketRush.Application.Features.Catalog;
+using TicketRush.Application.Options;
 using TicketRush.Domain.Events;
 using TicketRush.Domain.Events.Publishing;
 using TicketRush.Domain.Primitives;
@@ -82,19 +85,50 @@ public sealed class PublishEventHandler(IAppDbContext db, ICatalogCacheInvalidat
     }
 }
 
-/// <summary><c>Draft/Published → Cancelled</c>; emits <see cref="EventCancelled"/> (refunds: spec 08).</summary>
-public sealed class CancelEventHandler(IAppDbContext db, ICatalogCacheInvalidator cache)
+/// <summary>
+/// <c>Draft/Published → Cancelled</c>; emits <see cref="EventCancelled"/>, whose consumer settles the orders (spec 08, B9).
+/// The status change commits in a transaction that first takes the event sale lock <b>exclusively</b>
+/// (<see cref="IEventSaleLock.AcquireExclusiveAsync"/>, bounded by <see cref="FulfilmentOptions.LockTimeout"/>): a
+/// fulfilment in flight holds the shared lock, so it commits its order Paid before the cancel does (and the settlement then
+/// sends it to refund); one that starts later waits for the cancel and reads Cancelled (refund <c>event_cancelled</c>, no
+/// tickets). Ownership is checked before the lock, so nobody else's request can make the event's buyers wait. A wait longer
+/// than the lock timeout rolls back and answers 409 <c>event.cancel_busy</c> (try again), not a 5xx.
+/// </summary>
+public sealed class CancelEventHandler(IAppDbContext db, IEventSaleLock saleLock, ICatalogCacheInvalidator cache, IOptions<FulfilmentOptions> options)
 {
     public async Task<Result<OrganizerEvent>> HandleAsync(Guid eventId, Guid organizerId, CancellationToken ct)
     {
-        if (await OrganizerEvents.LoadOwnedAsync(db, eventId, organizerId, ct) is not { } evt)
+        Event? evt;
+        try
+        {
+            evt = await db.InTransactionAsync(token => CancelLockedAsync(eventId, organizerId, token), options.Value.LockTimeout, ct);
+        }
+        catch (DatabaseLockTimeoutException)
+        {
+            // Payments of this event were being confirmed for longer than the lock timeout: nothing changed, try again.
+            return EventErrors.CancelBusy;
+        }
+
+        if (evt is null)
         {
             return EventErrors.NotFound;
         }
 
-        evt.Cancel();
-        await db.SaveChangesAsync(ct);
         await cache.InvalidateEventAsync(evt.Id, evt.Slug, ct);
         return await OrganizerEvents.ToModelAsync(db, evt, ct);
+    }
+
+    private async Task<Event?> CancelLockedAsync(Guid eventId, Guid organizerId, CancellationToken ct)
+    {
+        if (await OrganizerEvents.LoadOwnedAsync(db, eventId, organizerId, ct) is not { } evt)
+        {
+            return null;
+        }
+
+        // The status was read before the lock; the event's xmin makes the save fail if anyone changed it meanwhile.
+        await saleLock.AcquireExclusiveAsync(eventId, ct);
+        evt.Cancel();
+        await db.SaveChangesAsync(ct);
+        return evt;
     }
 }

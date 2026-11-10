@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.DataProtection.StackExchangeRedis;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -25,6 +26,7 @@ using TicketRush.Infrastructure.Options;
 using TicketRush.Infrastructure.Security;
 using TicketRush.Application.Abstractions.Security;
 using TicketRush.Infrastructure.Outbox;
+using TicketRush.Infrastructure.Payments;
 using TicketRush.Infrastructure.Persistence;
 using TicketRush.Infrastructure.Persistence.Interceptors;
 using TicketRush.Infrastructure.Persistence.Seed;
@@ -38,6 +40,7 @@ using TicketRush.Infrastructure.Catalog;
 using TicketRush.Application.Features.Catalog;
 using TicketRush.Application.Abstractions.Catalog;
 using TicketRush.Domain.Events;
+using TicketRush.Domain.Orders;
 
 namespace TicketRush.Infrastructure;
 
@@ -58,15 +61,22 @@ public static class DependencyInjection
         services.AddValidatedOptions<JwtOptions>(JwtOptions.SectionName);
         services.AddValidatedOptions<AdmissionTokenOptions>(AdmissionTokenOptions.SectionName);
         services.AddValidatedOptions<PaymentOptions>(PaymentOptions.SectionName);
+        services.AddPaymentGateways(builder.Environment);
         services.AddValidatedOptions<EmailOptions>(EmailOptions.SectionName);
         services.AddValidatedOptions<StorageOptions>(StorageOptions.SectionName);
         services.AddValidatedOptions<QueueOptions>(QueueOptions.SectionName);
         services.AddValidatedOptions<HoldsOptions>(HoldsOptions.SectionName);
         services.AddValidatedOptions<RateLimitsOptions>(RateLimitsOptions.SectionName);
         services.AddValidatedOptions<FrontendOptions>(FrontendOptions.SectionName);
+        services.AddValidatedOptions<FulfilmentOptions>(FulfilmentOptions.SectionName);
+        services.AddValidatedOptions<RefundOptions>(RefundOptions.SectionName);
+        services.AddValidatedOptions<OrderExpiryOptions>(OrderExpiryOptions.SectionName);
+        services.AddValidatedOptions<CancelledEventSettlementOptions>(CancelledEventSettlementOptions.SectionName);
         services.AddValidatedOptions<OutboxOptions>(OutboxOptions.SectionName);
 
         services.AddSingleton<RedisKeys>();
+        services.AddSingleton<IRedisPersistenceProbe, RedisPersistenceProbe>();
+        services.AddHostedService<RedisDurabilityCheck>();
         services.AddSingleton<IDistributedLock, RedisDistributedLock>();
         services.AddSingleton<DomainEventTypeRegistry>();
         services.AddSingleton<OutboxMetrics>();
@@ -81,13 +91,24 @@ public static class DependencyInjection
 
         services.AddScoped<IHoldCatalog, HoldCatalog>();
         services.AddSingleton<IInventoryStore, RedisInventoryStore>();
-        services.AddSingleton<ISoldInventorySource, NoTicketsSoldInventorySource>();
+        services.AddScoped<ISoldInventorySource, DbSoldInventorySource>();
+        services.AddScoped<ITierInventory, TierInventory>();
+        services.AddScoped<IInventoryStrategy, GeneralAdmissionInventoryStrategy>();
+        services.AddScoped<IInventoryStrategy, SeatedInventoryStrategy>();
+        services.AddScoped<ITicketPurchaseLimit, TicketPurchaseLimit>();
+        services.AddScoped<IEventSaleLock, EventSaleLock>();
+        services.AddScoped<Application.Abstractions.Payments.IWebhookInbox, WebhookInbox>();
         services.AddSingleton<IInventoryEventSource, InventoryEventSource>();
         services.AddScoped<InventorySeeder>();
         services.AddScoped<IInventorySeeder>(sp => sp.GetRequiredService<InventorySeeder>());
         services.AddSingleton<IIdempotencyStore, RedisIdempotencyStore>();
         services.AddIntegrationEventHandler<EventPublished, InventoryWarmHandler>();
+        // One handler for the whole cancellation: rooms, then holds, then orders (see its remarks for why not two).
+        services.AddSingleton<EventCancellationMetrics>();
         services.AddIntegrationEventHandler<EventCancelled, EventCancelledInventoryHandler>();
+        // Order matters: the outbox runs a message's handlers in this order and stops at the first failure (commit first).
+        services.AddIntegrationEventHandler<OrderPaid, OrderPaidInventoryCommitHandler>();
+        services.AddIntegrationEventHandler<OrderPaid, OrderPaidLeaveQueueHandler>();
 
         PersistDataProtectionKeysToRedis(services);
         AddAccounts(services);
@@ -110,6 +131,7 @@ public static class DependencyInjection
         services.AddDbContext<AppDbContext>((provider, options) => options
             .UseNpgsql(connectionString, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history"))
             .UseSnakeCaseNamingConvention()
+            .ReplaceService<IModelCacheKeyFactory, AppModelCacheKeyFactory>()
             .AddInterceptors(
                 provider.GetRequiredService<AuditableEntitiesInterceptor>(),
                 provider.GetRequiredService<DomainEventsToOutboxInterceptor>()));
