@@ -126,4 +126,16 @@ public sealed class OrderValidatorTests
     {
         OrderCursor.TryDecode(value, out _).ShouldBeFalse();
     }
+
+    [Theory]
+    [InlineData("0001-01-01T00:00:00+07:00")]
+    [InlineData("0001-01-01T05:00:00+07:00")]
+    [InlineData("9999-12-31T23:59:59-07:00")]
+    public void A_cursor_whose_instant_is_out_of_the_utc_range_does_not_decode(string createdAt)
+    {
+        var json = $$"""{"CreatedAt":"{{createdAt}}","Id":"{{Guid.CreateVersion7()}}"}""";
+        var encoded = System.Buffers.Text.Base64Url.EncodeToString(System.Text.Encoding.UTF8.GetBytes(json));
+
+        OrderCursor.TryDecode(encoded, out _).ShouldBeFalse();
+    }
 }

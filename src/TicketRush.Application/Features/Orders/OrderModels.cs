@@ -95,8 +95,10 @@ public sealed record OrderCursor(DateTimeOffset CreatedAt, Guid Id)
             cursor = decoded with { CreatedAt = decoded.CreatedAt.ToUniversalTime() };
             return true;
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or ArgumentException or FormatException or OverflowException)
         {
+            // Malformed JSON, or an instant outside DateTimeOffset's range (System.Text.Json refuses most of those as a
+            // JsonException; the rest must never escape as a 500).
             return false;
         }
     }
