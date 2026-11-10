@@ -39,20 +39,26 @@ public sealed class PaymentConfigurationTests
         Validate(environment, _ => { }).Succeeded.ShouldBeTrue();
     }
 
-    [Fact]
-    public void Enabling_the_mock_in_Production_fails_startup()
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Staging")]
+    [InlineData("Test")]
+    public void Enabling_the_mock_outside_Development_fails_startup(string environment)
     {
-        var result = Validate("Production", o => o.Enabled = true);
+        var result = Validate(environment, o => o.Enabled = true);
 
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("Payments:Mock:Enabled must not be true in Production");
+        result.FailureMessage.ShouldContain("Payments:Mock:Enabled must not be true outside Development");
+        result.FailureMessage.ShouldContain(environment);
         result.FailureMessage.ShouldContain("AllowInProduction");
     }
 
-    [Fact]
-    public void An_explicit_override_allows_the_mock_in_Production()
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Staging")]
+    public void An_explicit_override_allows_the_mock_outside_Development(string environment)
     {
-        Validate("Production", o => { o.Enabled = true; o.AllowInProduction = true; }).Succeeded.ShouldBeTrue();
+        Validate(environment, o => { o.Enabled = true; o.AllowInProduction = true; }).Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -61,13 +67,10 @@ public sealed class PaymentConfigurationTests
         new MockGatewayOptions { AllowInProduction = true }.Enabled.ShouldBeFalse();
     }
 
-    [Theory]
-    [InlineData("Development")]
-    [InlineData("Staging")]
-    [InlineData("Test")]
-    public void Enabling_the_mock_outside_Production_is_fine(string environment)
+    [Fact]
+    public void Enabling_the_mock_in_Development_is_fine()
     {
-        Validate(environment, o => o.Enabled = true).Succeeded.ShouldBeTrue();
+        Validate("Development", o => o.Enabled = true).Succeeded.ShouldBeTrue();
     }
 
     [Theory]

@@ -9,7 +9,7 @@ public sealed record CompleteMockSessionRequest(MockOutcome Outcome);
 
 /// <summary>
 /// Control surface of the mock payment gateway for the dev/demo page <c>/mock-gateway/[sessionId]</c> (spec 08).
-/// Mapped only when <c>Payments:Mock:Enabled</c> is true; startup refuses that setting in Production unless
+/// Mapped only when <c>Payments:Mock:Enabled</c> is true; startup refuses that setting outside Development unless
 /// <c>Payments:Mock:AllowInProduction</c> is set too. Anonymous on purpose: the session id is the capability, like a
 /// real provider's hosted payment page.
 /// </summary>

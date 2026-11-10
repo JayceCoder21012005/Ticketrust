@@ -94,7 +94,7 @@ public sealed class MockGatewayEndpointsTests(ContainersFixture containers) : IA
 
         var failure = Should.Throw<Exception>(() => factory.CreateClient());
 
-        Flatten(failure).ShouldContain("Payments:Mock:Enabled must not be true in Production");
+        Flatten(failure).ShouldContain("Payments:Mock:Enabled must not be true outside Development");
     }
 
     [Fact]

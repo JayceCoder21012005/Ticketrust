@@ -16,7 +16,10 @@ public sealed class MockGatewayOptions
     /// <summary>Maps the control endpoints and starts the delivery worker. Off unless a developer or demo turns it on.</summary>
     public bool Enabled { get; set; }
 
-    /// <summary>Explicit override that lets <see cref="Enabled"/> stand in Production (a public demo). Without it the host refuses to start.</summary>
+    /// <summary>
+    /// Explicit override that lets <see cref="Enabled"/> stand outside Development (a public demo; Staging and Production alike,
+    /// because the control surface is anonymous). Without it the host refuses to start. The name predates Staging being covered.
+    /// </summary>
     public bool AllowInProduction { get; set; }
 
     /// <summary>HMAC key of the webhook signature. Required outside Development; the worker signs and the api verifies with it.</summary>
@@ -50,7 +53,7 @@ public sealed class MockGatewayOptions
     public bool SimulateOutage { get; set; }
 }
 
-/// <summary>Refuses Production configurations that would leave the mock gateway open or unsigned.</summary>
+/// <summary>Refuses non-Development configurations that would leave the mock gateway open or unsigned.</summary>
 internal sealed class MockGatewayOptionsValidator(IHostEnvironment environment) : IValidateOptions<MockGatewayOptions>
 {
     internal const int MinimumSecretLength = 16;
@@ -58,9 +61,9 @@ internal sealed class MockGatewayOptionsValidator(IHostEnvironment environment) 
     public ValidateOptionsResult Validate(string? name, MockGatewayOptions options)
     {
         var failures = new List<string>();
-        if (options.Enabled && environment.IsProduction() && !options.AllowInProduction)
+        if (options.Enabled && !environment.IsDevelopment() && !options.AllowInProduction)
         {
-            failures.Add($"{MockGatewayOptions.SectionName}:Enabled must not be true in Production. Set {MockGatewayOptions.SectionName}:AllowInProduction to override.");
+            failures.Add($"{MockGatewayOptions.SectionName}:Enabled must not be true outside Development (this host runs as {environment.EnvironmentName}). Set {MockGatewayOptions.SectionName}:AllowInProduction to override.");
         }
 
         if (!environment.IsDevelopment() && options.WebhookSecret.Length < MinimumSecretLength)
