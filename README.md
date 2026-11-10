@@ -288,16 +288,25 @@ Việc cần làm ở production:
   for i in $(seq 0 $((n-1))); do
     $DC exec -T redis sh -c "redis-cli -a \"\$REDIS_PASSWORD\" --no-auth-warning --raw LINDEX $KEY $i" | head -c -1 > "dp-keys/$i.xml"
   done
+  set -o pipefail    # nếu tar hoặc age lỗi thì không xoá bản rõ
   tar -c dp-keys | age -r <khoá công khai age> -o dp-keys.tar.age && rm -r dp-keys     # hoặc: gpg --encrypt -r <id>
   ```
 
 - **Khôi phục** (key phải đang trống: kiểm tra `LLEN` bằng 0, nếu không sẽ có khoá lặp; làm **trước khi** cho api và worker chạy). `redis-cli -x` đọc nguyên tệp làm giá trị, nên XML có dấu nháy, `&` hay `/` không bị hỏng; giữ đúng thứ tự `0, 1, 2, ...`:
 
   ```bash
+  # Khai báo lại biến: khôi phục thường chạy ở một shell mới.
+  DC="docker compose -f docker-compose.prod.yml"
+  KEY=tr:prod:dataprotection:keys
+  umask 077
   age -d -i <khoá riêng> dp-keys.tar.age | tar -x
+  n=$(ls dp-keys/*.xml | wc -l)
+  [ "$n" -gt 0 ] || { echo "không có phần tử key nào để khôi phục"; exit 1; }
   for i in $(seq 0 $((n-1))); do
     $DC exec -T redis sh -c "redis-cli -a \"\$REDIS_PASSWORD\" --no-auth-warning -x RPUSH $KEY" < "dp-keys/$i.xml"
   done
+  $DC exec -T redis sh -c "redis-cli -a \"\$REDIS_PASSWORD\" --no-auth-warning LLEN $KEY"   # phải bằng $n
+  rm -r dp-keys    # không để bản rõ trên đĩa
   ```
 
   Đã kiểm chứng vòng sao lưu, `FLUSHALL`, khôi phục trên container `redis:7.4` dùng một lần (cùng dạng lệnh `redis-cli` qua `docker exec -i`, tương đương `compose exec -T`): hai phần tử XML có dấu nháy, `+/=` và chú thích giống key thật, mỗi phần tử khớp từng byte (`cmp`) với bản gốc. Chưa chạy trực tiếp trên stack compose.
