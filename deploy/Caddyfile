@@ -10,5 +10,11 @@
 	handle /hubs/* {
 		reverse_proxy api:8080
 	}
+	# Payment webhooks go straight to the api too (spec 08): the signature covers the exact body bytes, so no Next rewrite sits in between.
+	# Measured through the rewrite: a body just over the 64 KB limit sometimes came back 502 instead of 413 (the api answers and closes while Next is still
+	# writing, "Failed to proxy ... EPIPE"); a real provider would see a 5xx and retry.
+	handle /api/v1/webhooks/* {
+		reverse_proxy api:8080
+	}
 	reverse_proxy web:3000
 }
