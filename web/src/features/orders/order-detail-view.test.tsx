@@ -180,7 +180,7 @@ describe("OrderDetailView", () => {
       expect(timeline().queryByText("Đã thanh toán")).not.toBeInTheDocument();
       expect(timeline().queryByText("Hết hạn")).not.toBeInTheDocument();
       const items = timeline().getAllByRole("listitem");
-      expect(items[1]).not.toHaveTextContent(/d{2}:d{2}/);
+      expect(items[1]).not.toHaveTextContent(/\d{2}:\d{2}/);
       expect(items[2]).toHaveTextContent("Thanh toán đến sau khi thời gian giữ ghế đã hết và ghế đã có người khác mua.");
     });
 
