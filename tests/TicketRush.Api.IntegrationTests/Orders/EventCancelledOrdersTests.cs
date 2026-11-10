@@ -90,23 +90,7 @@ public sealed class EventCancelledOrdersTests(ContainersFixture containers) : IA
         _h.WithDbAsync(db => db.Tickets.CountAsync(t => t.EventId == _h.EventId && t.Status != TicketStatus.Voided, Ct));
 
     /// <summary>C1 plus B2's invariant: one live ticket per seat, and every GA tier's sold_count = its non-voided GA tickets.</summary>
-    private Task<int> AssertInventoryInvariantsAsync() => _h.WithDbAsync(async db =>
-    {
-        var doubleSold = await db.Database.SqlQuery<int>($"""
-            SELECT count(*)::int AS "Value" FROM (
-              SELECT event_id, seat_index FROM tickets
-              WHERE status <> 'Voided' AND seat_index IS NOT NULL
-              GROUP BY event_id, seat_index HAVING count(*) > 1) d
-            """).SingleAsync(Ct);
-        var badTiers = await db.Database.SqlQuery<int>($"""
-            SELECT count(*)::int AS "Value" FROM ticket_tiers tt
-            WHERE tt.capacity IS NOT NULL AND (tt.sold_count < 0 OR tt.sold_count > tt.capacity OR tt.sold_count <> (
-              SELECT count(*) FROM tickets t WHERE t.tier_id = tt.id AND t.seat_index IS NULL AND t.status <> 'Voided'))
-            """).SingleAsync(Ct);
-        doubleSold.ShouldBe(0, "a seat has more than one non-voided ticket");
-        badTiers.ShouldBe(0, "a tier's sold_count is negative, over capacity or differs from its GA tickets");
-        return 0;
-    });
+    private Task<int> AssertInventoryInvariantsAsync() => _h.WithDbAsync(db => SaleInvariants.AssertInventoryAsync(db, Ct));
 
     /// <summary>Waits until some transaction of this test's database queues for an advisory lock (the sale lock).</summary>
     private async Task WaitForSaleLockWaiterAsync()

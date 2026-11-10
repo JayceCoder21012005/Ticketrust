@@ -194,26 +194,10 @@ public sealed class PaymentWebhookTests(ContainersFixture containers) : IAsyncLi
         WithDbAsync(db => db.ProcessedWebhooks.CountAsync(w => w.Provider == "mock" && w.ProviderEventId == providerEventId, Ct));
 
     /// <summary>
-    /// The spec's SQL invariant (C1): per seat at most one non-voided ticket, per GA tier <c>sold_count &lt;= capacity</c>
-    /// and <c>sold_count</c> equal to the tier's non-voided GA tickets.
+    /// The spec's SQL invariant (C1), from <c>load-tests/sql/sale-invariants.sql</c>: per seat at most one non-voided ticket, per GA tier
+    /// <c>sold_count &lt;= capacity</c> and <c>sold_count</c> equal to the tier's non-voided GA tickets.
     /// </summary>
-    private Task<int> AssertInventoryInvariantsAsync() => WithDbAsync(async db =>
-    {
-        var doubleSold = await db.Database.SqlQuery<int>($"""
-            SELECT count(*)::int AS "Value" FROM (
-              SELECT event_id, seat_index FROM tickets
-              WHERE status <> 'Voided' AND seat_index IS NOT NULL
-              GROUP BY event_id, seat_index HAVING count(*) > 1) d
-            """).SingleAsync(Ct);
-        var badTiers = await db.Database.SqlQuery<int>($"""
-            SELECT count(*)::int AS "Value" FROM ticket_tiers tt
-            WHERE tt.capacity IS NOT NULL AND (tt.sold_count > tt.capacity OR tt.sold_count <> (
-              SELECT count(*) FROM tickets t WHERE t.tier_id = tt.id AND t.seat_index IS NULL AND t.status <> 'Voided'))
-            """).SingleAsync(Ct);
-        doubleSold.ShouldBe(0, "a seat has more than one non-voided ticket");
-        badTiers.ShouldBe(0, "a tier's sold_count is over capacity or differs from its GA tickets");
-        return 0;
-    });
+    private Task<int> AssertInventoryInvariantsAsync() => WithDbAsync(db => SaleInvariants.AssertInventoryAsync(db, Ct));
 
     // ================================================================ signature gate
 
