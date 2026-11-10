@@ -54,6 +54,16 @@ public sealed class TicketTests
     }
 
     [Fact]
+    public void The_statuses_voidable_for_a_cancelled_event_are_exactly_those_the_domain_method_accepts()
+    {
+        foreach (var status in Enum.GetValues<TicketStatus>())
+        {
+            var accepted = Legal[nameof(Ticket.VoidForCancelledEvent)].ContainsKey(status);
+            Ticket.StatusesVoidableForCancelledEvent.Contains(status).ShouldBe(accepted, status.ToString());
+        }
+    }
+
+    [Fact]
     public void Issue_creates_a_valid_ticket_with_a_32_byte_random_secret()
     {
         var ticket = Issue();

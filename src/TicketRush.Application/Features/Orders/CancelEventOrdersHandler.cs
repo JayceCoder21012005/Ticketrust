@@ -29,7 +29,10 @@ public sealed record EventOrderSettlement(int Cancelled, int RefundPending, int 
 /// <see cref="BatchSize"/> orders, each batch ONE transaction that first takes the event sale lock exclusively:
 /// <list type="bullet">
 /// <item><b>Paid</b> → <see cref="Order.RequestRefundForCancelledEvent"/> (RefundPending, <c>event_cancelled</c>, outbox
-/// <see cref="RefundRequested"/>), every ticket of the order not yet voided → <see cref="Ticket.VoidForCancelledEvent"/>
+/// <see cref="RefundRequested"/>), every ticket of the order not yet voided → Voided (the rule of
+/// <see cref="Ticket.VoidForCancelledEvent"/>, applied by one set-based UPDATE over <see cref="Ticket.StatusesVoidableForCancelledEvent"/>
+/// so no <see cref="Ticket"/> entity, and no encrypted QR secret, is ever loaded: settling must not depend on the Data Protection
+/// key ring, or a lost ring would keep every buyer of a cancelled event from their refund)
 /// (a checked-in one too), and the general-admission units go back with <see cref="ITierInventory.ReleaseAsync"/>. All of it
 /// commits together, so the refund worker (which picks up RefundPending orders) never sees a refund owed on live tickets,
 /// and <c>sold_count</c> stays equal to the tier's non-voided GA tickets.</item>
@@ -54,6 +57,7 @@ public sealed partial class CancelEventOrdersHandler(
     IEventSaleLock saleLock,
     ITierInventory tiers,
     IOptions<FulfilmentOptions> options,
+    TimeProvider time,
     ILogger<CancelEventOrdersHandler> logger)
 {
     public const int BatchSize = 500;
@@ -129,27 +133,56 @@ public sealed partial class CancelEventOrdersHandler(
             .Take(BatchSize)
             .ToListAsync(ct);
         var tickets = await LiveTicketsAsync(eventId, orders, ct);
-        var settlement = orders.Aggregate(EventOrderSettlement.None, (sum, order) => sum.Add(Settle(order, tickets[order.Id])));
+        await VoidAsync(tickets.SelectMany(t => t).ToList(), ct);
+        var settlement = orders.Aggregate(EventOrderSettlement.None, (sum, order) => sum.Add(Settle(order, tickets[order.Id].Count())));
         await ReleaseGeneralAdmissionAsync(eventId, tickets.SelectMany(t => t), ct);
         await db.SaveChangesAsync(ct);
         return settlement;
     }
 
-    /// <summary>The non-voided tickets of the batch's Paid orders, by order.</summary>
-    private async Task<ILookup<Guid, Ticket>> LiveTicketsAsync(Guid eventId, IReadOnlyList<Order> orders, CancellationToken ct)
+    /// <summary>The not yet voided tickets of the batch's Paid orders, by order. Only the columns settling needs: never the secret.</summary>
+    private async Task<ILookup<Guid, LiveTicket>> LiveTicketsAsync(Guid eventId, IReadOnlyList<Order> orders, CancellationToken ct)
     {
         var paid = orders.Where(o => o.Status == OrderStatus.Paid).Select(o => o.Id).ToList();
         if (paid.Count == 0)
         {
-            return Array.Empty<Ticket>().ToLookup(t => t.OrderId);
+            return Array.Empty<LiveTicket>().ToLookup(t => t.OrderId);
         }
 
         // ix_tickets_order_id; the event filter is a guard (a ticket always belongs to its order's event).
-        var live = await db.Tickets.Where(t => t.EventId == eventId && paid.Contains(t.OrderId) && t.Status != TicketStatus.Voided).ToListAsync(ct);
+        var voidable = Ticket.StatusesVoidableForCancelledEvent;
+        var live = await db.Tickets.AsNoTracking()
+            .Where(t => t.EventId == eventId && paid.Contains(t.OrderId) && voidable.Contains(t.Status))
+            .Select(t => new LiveTicket(t.Id, t.OrderId, t.TierId, t.SeatIndex))
+            .ToListAsync(ct);
         return live.ToLookup(t => t.OrderId);
     }
 
-    private static EventOrderSettlement Settle(Order order, IEnumerable<Ticket> liveTickets)
+    /// <summary>
+    /// Voids <paramref name="tickets"/> with one UPDATE inside the batch's transaction (the sale lock is held). The update is
+    /// guarded by the voidable statuses, so a ticket another writer voided in the meantime is not counted: any difference from
+    /// the rows read means the batch no longer matches what it read, and it rolls back whole.
+    /// </summary>
+    private async Task VoidAsync(IReadOnlyList<LiveTicket> tickets, CancellationToken ct)
+    {
+        if (tickets.Count == 0)
+        {
+            return;
+        }
+
+        var ids = tickets.Select(t => t.Id).ToList();
+        var voidable = Ticket.StatusesVoidableForCancelledEvent;
+        var now = time.GetUtcNow();
+        var updated = await db.Tickets
+            .Where(t => ids.Contains(t.Id) && voidable.Contains(t.Status))
+            .ExecuteUpdateAsync(set => set.SetProperty(t => t.Status, TicketStatus.Voided).SetProperty(t => t.UpdatedAt, now), ct);
+        if (updated != ids.Count)
+        {
+            throw new InvalidOperationException($"Voided {updated} tickets, expected {ids.Count}: a ticket changed under the sale lock; the batch is rolled back.");
+        }
+    }
+
+    private static EventOrderSettlement Settle(Order order, int liveTickets)
     {
         switch (order.Status)
         {
@@ -158,14 +191,7 @@ public sealed partial class CancelEventOrdersHandler(
                 return EventOrderSettlement.None with { Cancelled = 1 };
             case OrderStatus.Paid:
                 order.RequestRefundForCancelledEvent();
-                var voided = 0;
-                foreach (var ticket in liveTickets)
-                {
-                    ticket.VoidForCancelledEvent();
-                    voided++;
-                }
-
-                return new EventOrderSettlement(0, 1, voided);
+                return new EventOrderSettlement(0, 1, liveTickets);
             default:
                 // The query reads Pending and Paid only: anything else is a bug, and the whole batch rolls back.
                 throw new InvalidOperationException($"Order {order.Id} is {order.Status}; the settlement only handles Pending and Paid orders.");
@@ -177,7 +203,7 @@ public sealed partial class CancelEventOrdersHandler(
     /// claimed than tickets voided means <c>sold_count</c> had already drifted: logged at Error for a person, and the
     /// settlement goes on, because blocking it would keep the buyers' money.
     /// </summary>
-    private async Task ReleaseGeneralAdmissionAsync(Guid eventId, IEnumerable<Ticket> voided, CancellationToken ct)
+    private async Task ReleaseGeneralAdmissionAsync(Guid eventId, IEnumerable<LiveTicket> voided, CancellationToken ct)
     {
         foreach (var tier in voided.Where(t => t.SeatIndex is null).GroupBy(t => t.TierId).OrderBy(g => g.Key))
         {
@@ -188,6 +214,9 @@ public sealed partial class CancelEventOrdersHandler(
             }
         }
     }
+
+    /// <summary>What settling needs of a ticket (no secret, no tracking).</summary>
+    private sealed record LiveTicket(Guid Id, Guid OrderId, Guid TierId, int? SeatIndex);
 
     [LoggerMessage(EventId = 8301, Level = LogLevel.Information, Message = "Cancelled event {EventId}: batch committed; {Cancelled} orders cancelled, {RefundPending} sent to refund, {TicketsVoided} tickets voided.")]
     private partial void LogBatch(Guid eventId, int cancelled, int refundPending, int ticketsVoided);

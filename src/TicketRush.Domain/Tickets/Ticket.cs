@@ -13,6 +13,14 @@ public sealed class Ticket : AggregateRoot, IAuditable
 {
     public const int QrSecretLength = 32;
 
+    /// <summary>
+    /// The statuses <see cref="VoidForCancelledEvent"/> accepts. The cancelled-event settlement voids tickets with one
+    /// set-based UPDATE (it must not load <see cref="QrSecret"/>, which needs the Data Protection key ring) and filters on
+    /// this list, so the rule lives here once.
+    /// </summary>
+    public static IReadOnlyList<TicketStatus> StatusesVoidableForCancelledEvent { get; } =
+        [TicketStatus.Valid, TicketStatus.Listed, TicketStatus.CheckedIn];
+
     private Ticket(Guid orderId, Guid eventId, Guid tierId, int? seatIndex, Guid ownerUserId)
         : base(Guid.CreateVersion7())
     {
@@ -88,7 +96,7 @@ public sealed class Ticket : AggregateRoot, IAuditable
     /// so no ticket of it may stay usable, a checked-in one included. An already voided ticket is refused like everywhere else.
     /// </summary>
     public void VoidForCancelledEvent() =>
-        Move(TicketStatus.Voided, nameof(VoidForCancelledEvent), TicketStatus.Valid, TicketStatus.Listed, TicketStatus.CheckedIn);
+        Move(TicketStatus.Voided, nameof(VoidForCancelledEvent), [.. StatusesVoidableForCancelledEvent]);
 
     private void Move(TicketStatus to, string method, params TicketStatus[] from)
     {

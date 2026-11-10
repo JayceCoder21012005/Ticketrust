@@ -1,3 +1,7 @@
+using System.Security.Cryptography;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using StackExchange.Redis;
@@ -278,6 +282,35 @@ public sealed class EventCancelledOrdersTests(ContainersFixture containers) : IA
 
         (await TicketsAsync(paid.OrderId)).ShouldBe([TicketStatus.Voided, TicketStatus.Voided]);
         (await _h.StateAsync(paid.OrderId)).Status.ShouldBe(OrderStatus.RefundPending);
+        (await SoldCountAsync()).ShouldBe(0);
+        await AssertInventoryInvariantsAsync();
+    }
+
+    [Fact]
+    public async Task Settlement_does_not_need_the_data_protection_key_ring()
+    {
+        var seated = await PaidAsync(_h.Seat(_h.Seats[0]), _h.Seat(_h.Seats[1]));
+        var ga = await PaidAsync(_h.GaUnits(3));
+        await CancelEventAsync();
+        await using var keyless = _h.Host.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<IDataProtectionProvider, LostKeyRing>()));
+
+        // The lost ring really makes a ticket unreadable (otherwise the settlement below would prove nothing).
+        await using (var probe = keyless.Services.CreateAsyncScope())
+        {
+            var db = probe.ServiceProvider.GetRequiredService<AppDbContext>();
+            await Should.ThrowAsync<CryptographicException>(() => db.Tickets.AsNoTracking().FirstAsync(Ct));
+        }
+
+        await using var scope = keyless.Services.CreateAsyncScope();
+        var total = await scope.ServiceProvider.GetRequiredService<CancelEventOrdersHandler>().HandleAsync(_h.EventId, null, Ct);
+
+        total.ShouldBe(new EventOrderSettlement(0, 2, 5));
+        foreach (var placed in new[] { seated, ga })
+        {
+            (await _h.StateAsync(placed.OrderId)).Status.ShouldBe(OrderStatus.RefundPending);
+            (await TicketsAsync(placed.OrderId)).ShouldAllBe(s => s == TicketStatus.Voided);
+        }
+
         (await SoldCountAsync()).ShouldBe(0);
         await AssertInventoryInvariantsAsync();
     }
@@ -639,5 +672,15 @@ public sealed class EventCancelledOrdersTests(ContainersFixture containers) : IA
             Interlocked.Increment(ref _releases) == failOnCall
                 ? throw new InvalidOperationException("simulated crash in the middle of the settlement")
                 : inner.ReleaseAsync(tierId, quantity, ct);
+    }
+
+    /// <summary>A Data Protection setup whose key ring is gone: every secret fails to decrypt (and nothing can be encrypted).</summary>
+    private sealed class LostKeyRing : IDataProtectionProvider, IDataProtector
+    {
+        public IDataProtector CreateProtector(string purpose) => this;
+
+        public byte[] Protect(byte[] plaintext) => throw new CryptographicException("The key ring is lost.");
+
+        public byte[] Unprotect(byte[] protectedData) => throw new CryptographicException("The key ring is lost.");
     }
 }
