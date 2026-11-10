@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Net.WebSockets;
+using System.Text;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -7,18 +9,22 @@ using Microsoft.Extensions.DependencyInjection;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using TicketRush.Api.IntegrationTests.Auth;
+using TicketRush.Application.Abstractions.Payments;
+using TicketRush.Infrastructure.Payments;
 using TicketRush.Infrastructure.Realtime;
 
 namespace TicketRush.Api.IntegrationTests.Infrastructure;
 
 /// <summary>
 /// Task A4 (spec 07/08): the production Caddyfile, unchanged except for the site address and the two upstreams, in front of the
-/// api on a real socket. A real SignalR client must get WebSocket through it (no long-polling fallback) and receive a SeatDelta.
+/// api on a real socket. A real SignalR client must get WebSocket through it (no long-polling fallback) and receive a SeatDelta,
+/// and a payment webhook must reach the api through it (not through the web app, spec 08).
 /// Needs Docker (like every test in this assembly) and the <c>caddy:2</c> image.
 /// </summary>
 public sealed class CaddyWebSocketTests(ContainersFixture containers) : IAsyncLifetime
 {
     private const string HostAlias = "host.docker.internal";
+    private const string WebhookSecret = "test-mock-webhook-secret-0123456789"; // TestSettings
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -115,6 +121,45 @@ public sealed class CaddyWebSocketTests(ContainersFixture containers) : IAsyncLi
         received.ShouldNotBeNull();
         received.Held.ShouldBe([5, 6]);
         received.V.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task A_signed_payment_webhook_reaches_the_api_through_caddy_with_its_exact_bytes_and_never_goes_to_web()
+    {
+        // web:3000 does not resolve in this test, so a webhook that was proxied to web would come back 502; only the api answers with these codes.
+        var caddyPort = await StartCaddyAsync(TestCaddyfile(_api.Port));
+        using var http = new HttpClient { BaseAddress = new Uri($"http://localhost:{caddyPort}") };
+
+        // Not what a JSON re-serialiser would write: odd key order and spacing, unicode, a CRLF and a trailing newline.
+        const string Body = "{  \"type\" :\"payment.succeeded\" ,\r\n  \"sessionId\":  \"mock_no_such_session\", \"id\":\"evt_caddy_1\",\n  \"note\":\"Đặt vé ✓ 🎫 \\/ \"}\n";
+
+        var accepted = await PostWebhookAsync(http, Body, WebhookSignature.Sign(WebhookSecret, Body, DateTimeOffset.UtcNow));
+        accepted.StatusCode.ShouldBe(HttpStatusCode.OK, "the signature covers the exact bytes; a proxy that changed them would make it 401");
+        (await accepted.Content.ReadAsStringAsync(Ct)).ShouldContain("unknown_session");
+
+        var altered = await PostWebhookAsync(http, Body + " ", WebhookSignature.Sign(WebhookSecret, Body, DateTimeOffset.UtcNow));
+        altered.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+
+        var unsigned = await PostWebhookAsync(http, Body, signature: null);
+        unsigned.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+
+        var tooLarge = new string('x', 64 * 1024 + 1);
+        var refused = await PostWebhookAsync(http, tooLarge, WebhookSignature.Sign(WebhookSecret, tooLarge, DateTimeOffset.UtcNow));
+        refused.StatusCode.ShouldBe(HttpStatusCode.RequestEntityTooLarge);
+    }
+
+    private static Task<HttpResponseMessage> PostWebhookAsync(HttpClient http, string body, string? signature)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/webhooks/payments/mock")
+        {
+            Content = new StringContent(body, new UTF8Encoding(false), "application/json"),
+        };
+        if (signature is not null)
+        {
+            request.Headers.TryAddWithoutValidation(WebhookHeaders.SignatureHeader, signature);
+        }
+
+        return http.SendAsync(request, Ct);
     }
 
     /// <summary>Removes the whole <c>handle /hubs/*</c> block, nested braces included.</summary>
