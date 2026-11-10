@@ -78,6 +78,21 @@ Notes:
 - Buyers log in with a real password hash check, so login dominates the CPU of a small machine. Keep `VUS` modest (50 to 100) on a laptop.
 - The summary is also written to `load-tests/results/sale-summary.json` (git-ignored).
 
+Run notes (first real run, 2026-11-10, Windows laptop with 7.8 GB RAM, Docker Desktop capped at 4 GB, k6 on the host):
+
+- Build the images one group at a time (`$COMPOSE build migrations api worker`, then `$COMPOSE build web`): about 3.5 and 3 minutes cold. Set `REGISTRY=ticketrush-lt` and `TAG=loadtest` in `.env` so the images
+  cannot be mistaken for, or overwrite, a real `ghcr.io/...:latest` one. A `PUBLIC_HOST=localhost` is enough here (Caddy is off).
+- Memory is small: the whole stack idled at about 450 MB and peaked at about 650 MB (api 280 MB, Postgres 200 MB, worker 130 MB, web 50 MB, Redis 12 MB); k6 adds a few hundred MB on the host. Docker's own VM (4 GB) was never the limit.
+- Start the worker too: the waiting room admits from the worker, so without it every buyer waits in the queue forever.
+- On Windows use `-e BASE_URL=http://127.0.0.1:8080`, not `localhost`: `localhost` resolves to `::1` first, where a stale `wslrelay` can hold port 8080 and hang the request.
+- 500 buyers at `VUS=50` took under two minutes. The invariants hold at every instant, so run the check right after k6 **and** again about three minutes later, when the 90 s delayed webhooks, the expiry sweep and the refunds have settled
+  (`Paid` 253, `Expired` 64, `Refunded` 2 in that run; `RefundPending` must be 0 once settled).
+- `VUS=100` overran the default Postgres `max_connections` (100) against two .NET connection pools: 6 logins answered 500 (`53300 too many clients already`) and `sale_unexpected_responses` failed, while the invariants still held.
+  Keep `VUS` at 50 on the default settings, or raise `max_connections` / lower the pool size first.
+- The p99 values the thresholds judge are now printed in the summary (`summaryTrendStats` in `sale.js`). On that laptop: hold p99 244 ms, checkout p99 764 ms at `VUS=50`, so only the laptop thresholds
+  (`HOLD_P99_MS=1000 CHECKOUT_P99_MS=2000`) pass.
+- One run uses each buyer once: the buyers of an earlier run own tickets and may hit the per-user limit. For a clean run, `down -v` the load-test project and seed again. Starting a single service (`$COMPOSE start web`) re-runs the migration container; that is harmless.
+
 ## The invariants (`sql/sale-invariants.sql`)
 
 | Check name | Violated when |

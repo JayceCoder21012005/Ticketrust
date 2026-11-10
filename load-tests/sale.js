@@ -66,6 +66,8 @@ const holdTime = new Trend('sale_hold_duration', true);
 const checkoutTime = new Trend('sale_checkout_duration', true);
 
 export const options = {
+  // The thresholds are on p(99); k6's default summary stops at p(95), so the number a threshold judged would never be printed.
+  summaryTrendStats: ['avg', 'min', 'med', 'p(90)', 'p(95)', 'p(99)', 'max'],
   scenarios: {
     buyers: { executor: 'shared-iterations', vus: VUS, iterations: BUYERS, maxDuration: '30m' },
   },
