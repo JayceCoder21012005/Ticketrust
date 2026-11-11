@@ -196,6 +196,7 @@ public static class DependencyInjection
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddSingleton<IAccessTokenIssuer, JwtAccessTokenIssuer>();
         services.AddSingleton<IEmailSender, SmtpEmailSender>();
+        services.AddSingleton<IEmailRenderer, ScribanEmailRenderer>();
         services.AddIntegrationEventHandler<UserRegistered, SendConfirmationEmailHandler>();
         services.AddIntegrationEventHandler<PasswordResetRequested, SendPasswordResetEmailHandler>();
     }

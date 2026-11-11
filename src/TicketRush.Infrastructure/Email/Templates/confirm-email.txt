@@ -1,0 +1,10 @@
+Subject: Xác nhận email TicketRush
+
+Xin chào {{ name }},
+
+Cảm ơn bạn đã đăng ký TicketRush. Hãy xác nhận địa chỉ email của bạn để hoàn tất việc tạo tài khoản.
+
+Xác nhận email của bạn:
+{{ link }}
+
+Liên kết có hiệu lực trong 3 ngày. Nếu bạn không đăng ký tài khoản, hãy bỏ qua email này.

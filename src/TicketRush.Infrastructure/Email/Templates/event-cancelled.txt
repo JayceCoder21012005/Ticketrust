@@ -1,0 +1,10 @@
+Subject: Sự kiện đã bị hủy: {{ eventTitle }}
+
+Xin chào {{ name }},
+
+Rất tiếc, sự kiện {{ eventTitle }} dự kiến diễn ra lúc {{ startsAtText }} đã bị hủy.
+
+Xem chi tiết:
+{{ link }}
+
+Nếu bạn đã mua vé, bạn sẽ được hoàn tiền đầy đủ. Chúng tôi xin lỗi vì sự bất tiện này.

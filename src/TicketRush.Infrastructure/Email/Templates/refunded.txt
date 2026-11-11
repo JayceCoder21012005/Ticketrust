@@ -1,0 +1,10 @@
+Subject: Đã hoàn tiền, đơn hàng {{ orderCode }}
+
+Xin chào {{ name }},
+
+Khoản hoàn tiền {{ amount }} cho đơn hàng {{ orderCode }} của sự kiện {{ eventTitle }} đã được thực hiện.
+
+Xem đơn hàng:
+{{ link }}
+
+Thời gian tiền về tài khoản có thể khác nhau tùy theo ngân hàng hoặc đơn vị thanh toán của bạn.

@@ -1,0 +1,10 @@
+Subject: Sắp diễn ra: {{ eventTitle }}
+
+Xin chào {{ name }},
+
+Sự kiện {{ eventTitle }} sẽ diễn ra lúc {{ startsAtText }}, tức là trong vòng 24 giờ tới.
+
+Xem chi tiết sự kiện:
+{{ link }}
+
+Chúc bạn có một buổi trải nghiệm thật vui.

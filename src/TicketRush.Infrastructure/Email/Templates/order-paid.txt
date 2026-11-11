@@ -1,0 +1,10 @@
+Subject: Thanh toán thành công, đơn hàng {{ orderCode }}
+
+Xin chào {{ name }},
+
+Thanh toán của bạn đã thành công. Đơn hàng {{ orderCode }} cho sự kiện {{ eventTitle }} đã được xác nhận với tổng số tiền {{ amount }}.
+
+Xem vé:
+{{ link }}
+
+Bạn có thể xem lại vé và chi tiết đơn hàng bất cứ lúc nào trong tài khoản của mình.
