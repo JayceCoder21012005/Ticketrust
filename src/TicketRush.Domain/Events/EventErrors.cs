@@ -7,6 +7,10 @@ public static class EventErrors
     /// <summary>Also returned for draft and cancelled events, so unpublished events can't be probed.</summary>
     public static readonly Error NotFound = Error.NotFound("event.not_found", "Event not found.");
 
+    /// <summary>Only a published event can be followed: a draft has nothing to remind about, an ended or cancelled one is over.</summary>
+    public static readonly Error NotFollowable =
+        Error.Conflict("event.not_followable", "Only a published event can be followed.");
+
     public static readonly Error ConcurrentEdit =
         Error.Conflict("event.concurrent_edit", "The event was changed somewhere else. Reload and try again.");
 
