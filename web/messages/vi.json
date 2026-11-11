@@ -466,6 +466,29 @@
       "deadline": "Hạn giữ chỗ: {time}"
     }
   },
+  "notifications": {
+    "title": "Thông báo",
+    "description": "Cập nhật về đơn hàng, hoàn tiền và các sự kiện bạn theo dõi.",
+    "open": "Thông báo",
+    "unreadLabel": "{count} thông báo chưa đọc",
+    "viewAll": "Xem tất cả",
+    "markAllRead": "Đánh dấu tất cả đã đọc",
+    "markAllFailed": "Không đánh dấu được. Vui lòng thử lại.",
+    "markReadFailed": "Không đánh dấu được thông báo là đã đọc.",
+    "loading": "Đang tải thông báo…",
+    "loadFailed": "Không tải được thông báo.",
+    "unread": "Chưa đọc",
+    "list": "Danh sách thông báo",
+    "loadMore": "Tải thêm",
+    "loadingMore": "Đang tải…",
+    "loadMoreFailed": "Không tải thêm được thông báo. Vui lòng thử lại.",
+    "loadedMore": "Đã tải thêm {count} thông báo, đang hiển thị {total}.",
+    "toastView": "Xem",
+    "empty": {
+      "title": "Bạn chưa có thông báo nào",
+      "description": "Khi có cập nhật về đơn hàng hoặc sự kiện bạn theo dõi, thông báo sẽ xuất hiện ở đây."
+    }
+  },
   "mockGateway": {
     "title": "Cổng thanh toán giả lập",
     "notice": "Chỉ dùng khi phát triển và demo. Không có tiền thật.",

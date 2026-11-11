@@ -466,6 +466,29 @@
       "deadline": "Hold deadline: {time}"
     }
   },
+  "notifications": {
+    "title": "Notifications",
+    "description": "Updates about your orders, refunds and the events you follow.",
+    "open": "Notifications",
+    "unreadLabel": "{count} unread notifications",
+    "viewAll": "View all",
+    "markAllRead": "Mark all as read",
+    "markAllFailed": "Could not mark them as read. Please try again.",
+    "markReadFailed": "Could not mark the notification as read.",
+    "loading": "Loading notifications…",
+    "loadFailed": "Could not load notifications.",
+    "unread": "Unread",
+    "list": "Notification list",
+    "loadMore": "Load more",
+    "loadingMore": "Loading…",
+    "loadMoreFailed": "Could not load more notifications. Please try again.",
+    "loadedMore": "Loaded {count} more notifications, showing {total}.",
+    "toastView": "View",
+    "empty": {
+      "title": "You have no notifications yet",
+      "description": "Updates about your orders or the events you follow will show up here."
+    }
+  },
   "mockGateway": {
     "title": "Mock payment gateway",
     "notice": "For development and demos only. No real money.",
