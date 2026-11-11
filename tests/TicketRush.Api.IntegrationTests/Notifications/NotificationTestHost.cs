@@ -93,15 +93,25 @@ public sealed class NotificationTestHost : IAsyncDisposable
 
     private readonly IHost _host;
 
-    public NotificationTestHost(string database, string redis, ScriptedEmailSender sender, FakeTimeProvider clock, int batchSize = 20, CapturingLoggerProvider? logs = null, TimeSpan? sendTimeout = null, IUserNotifier? notifier = null, IInterceptor? interceptor = null)
+    /// <param name="sender">Replaces the mail sender; <c>null</c> keeps the real <c>SmtpEmailSender</c>, which then needs <paramref name="smtpConnectionString"/>.</param>
+    public NotificationTestHost(string database, string redis, IEmailSender? sender, FakeTimeProvider clock, int batchSize = 20, CapturingLoggerProvider? logs = null, TimeSpan? sendTimeout = null, IUserNotifier? notifier = null, IInterceptor? interceptor = null, string? smtpConnectionString = null)
     {
         var builder = Host.CreateApplicationBuilder();
         builder.Configuration.AddInMemoryCollection(TestSettings.For(database, redis));
+        if (smtpConnectionString is not null)
+        {
+            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:mailpit"] = smtpConnectionString });
+        }
+
         builder.Services.AddSingleton<TimeProvider>(clock);
         builder.AddInfrastructure();
         builder.Services.AddApplication();
         builder.Services.AddTicketRushSignalR(builder.Configuration); // like the worker: the real notifier, sending through the backplane
-        builder.Services.AddSingleton<IEmailSender>(sender);
+        if (sender is not null)
+        {
+            builder.Services.AddSingleton(sender);
+        }
+
         builder.Services.Configure<EmailDeliveryOptions>(options =>
         {
             options.BatchSize = batchSize;
