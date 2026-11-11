@@ -37,6 +37,17 @@ public sealed class NotificationTests
         New(link: null).Link.ShouldBeNull();
     }
 
+    [Theory]
+    [InlineData("https://evil.example/phish")]
+    [InlineData("//evil.example/phish")]
+    [InlineData("account/orders/1")]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("/\\evil.example")]
+    public void Notification_create_rejects_a_link_that_is_not_an_app_relative_path(string link)
+    {
+        Should.Throw<DomainException>(() => New(link: link)).Code.ShouldBe("notification.invalid");
+    }
+
     [Fact]
     public void Notification_create_rejects_a_missing_user_body_or_dedupe_key_and_over_long_text()
     {
@@ -45,7 +56,7 @@ public sealed class NotificationTests
         Should.Throw<DomainException>(() => Notification.Create(UserId, NotificationType.OrderPaid, "t", "b", null, " ", Now));
         Should.Throw<DomainException>(() => New(title: new string('x', Notification.MaxTitleLength + 1)));
         Should.Throw<DomainException>(() => New(body: new string('x', Notification.MaxBodyLength + 1)));
-        Should.Throw<DomainException>(() => New(link: new string('x', Notification.MaxLinkLength + 1)));
+        Should.Throw<DomainException>(() => New(link: "/" + new string('x', Notification.MaxLinkLength)));
     }
 
     [Fact]

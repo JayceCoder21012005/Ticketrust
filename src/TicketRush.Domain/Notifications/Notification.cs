@@ -60,16 +60,20 @@ public sealed class Notification : Entity
         if (userId == Guid.Empty
             || string.IsNullOrEmpty(cleanTitle) || cleanTitle.Length > MaxTitleLength
             || string.IsNullOrEmpty(cleanBody) || cleanBody.Length > MaxBodyLength
-            || cleanLink?.Length > MaxLinkLength
+            || (cleanLink is not null && (cleanLink.Length > MaxLinkLength || !IsAppRelativePath(cleanLink)))
             || string.IsNullOrEmpty(cleanKey) || cleanKey.Length > MaxDedupeKeyLength)
         {
             throw new DomainException(
                 "notification.invalid",
-                $"A notification needs a user, a title (up to {MaxTitleLength}), a body (up to {MaxBodyLength}), a link of up to {MaxLinkLength} and a dedupe key (up to {MaxDedupeKeyLength}).");
+                $"A notification needs a user, a title (up to {MaxTitleLength}), a body (up to {MaxBodyLength}), an app-relative link starting with '/' of up to {MaxLinkLength} and a dedupe key (up to {MaxDedupeKeyLength}).");
         }
 
         return new Notification(userId, type, cleanTitle, cleanBody, cleanLink, cleanKey, now);
     }
+
+    /// <summary>One leading slash only: <c>//host</c> and <c>/\host</c> are read by browsers as another site.</summary>
+    private static bool IsAppRelativePath(string link) =>
+        link.StartsWith('/') && !link.StartsWith("//", StringComparison.Ordinal) && !link.StartsWith("/\\", StringComparison.Ordinal);
 
     /// <summary>Idempotent: reading twice keeps the first <see cref="ReadAt"/>.</summary>
     public void MarkRead(DateTimeOffset now) => ReadAt ??= now;
