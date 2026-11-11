@@ -16,6 +16,7 @@ using TicketRush.Infrastructure.Notifications;
 using TicketRush.Infrastructure.Options;
 using TicketRush.Infrastructure.Outbox;
 using TicketRush.Infrastructure.Persistence;
+using TicketRush.Infrastructure.Realtime;
 
 namespace TicketRush.Api.IntegrationTests.Notifications;
 
@@ -99,6 +100,7 @@ public sealed class NotificationTestHost : IAsyncDisposable
         builder.Services.AddSingleton<TimeProvider>(clock);
         builder.AddInfrastructure();
         builder.Services.AddApplication();
+        builder.Services.AddTicketRushSignalR(builder.Configuration); // like the worker: the real notifier, sending through the backplane
         builder.Services.AddSingleton<IEmailSender>(sender);
         builder.Services.Configure<EmailDeliveryOptions>(options =>
         {

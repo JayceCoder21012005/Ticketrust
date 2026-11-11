@@ -98,6 +98,7 @@ public static class ApiServiceCollectionExtensions
         v1.MapLocalStorageEndpoints();
 
         app.MapHub<EventsHub>(EventsHub.Path);
+        app.MapHub<UserHub>(UserHub.Path);
         return app;
     }
 }

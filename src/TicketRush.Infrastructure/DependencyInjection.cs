@@ -234,8 +234,7 @@ public static class DependencyInjection
         services.AddScoped<IUserDirectory, UserDirectory>();
         services.AddScoped<INotificationWriter, NotificationWriter>();
         services.AddSingleton<EmailDeliveryProcessor>();
-        // Until the realtime hub registers its own notifier (ahead of this line), pushing is a no-op.
-        services.TryAddSingleton<IUserNotifier, NullUserNotifier>();
+        // IUserNotifier comes from AddTicketRushSignalR, which both hosts call.
     }
 
     /// <summary>In-process HybridCache (no L2 yet): single-flight per key protects Postgres from stampedes (C6).</summary>
