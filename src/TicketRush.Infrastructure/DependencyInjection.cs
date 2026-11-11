@@ -209,6 +209,12 @@ public static class DependencyInjection
     /// <summary>
     /// Registered before the inventory and queue consumers of <c>OrderPaid</c>: the outbox runs a message's handlers in registration
     /// order and stops at the first failure, so a failing Redis step must never hold back the buyer's notice.
+    /// <para>
+    /// Accepted trade-off: the reverse also holds, so a deterministic failure inside a notification handler (a DomainException from
+    /// <c>Notification.Create</c>, an email model that cannot be serialized) would hold back the inventory commit through the retries
+    /// until the message is dead-lettered. The risk is low: titles, bodies and links are built from bounded values (an event title is
+    /// at most 200 characters, the link is a fixed path) and live pushes are swallowed. The commit is also recoverable by the reconciler.
+    /// </para>
     /// </summary>
     private static void AddOrderNotificationHandlers(IServiceCollection services)
     {

@@ -11,6 +11,7 @@ using TicketRush.Domain.Notifications;
 using TicketRush.Domain.Orders;
 using TicketRush.Domain.Primitives;
 using TicketRush.Infrastructure.Inventory;
+using TicketRush.Infrastructure.Queue;
 using TicketRush.Infrastructure.Outbox;
 using TicketRush.Infrastructure.Persistence;
 using TicketRush.Infrastructure.Persistence.Seed;
@@ -18,23 +19,42 @@ using Order = TicketRush.Domain.Orders.Order;
 
 namespace TicketRush.Api.IntegrationTests.Notifications;
 
-/// <summary>Remembers what the handlers pushed to users' open tabs.</summary>
+/// <summary>Remembers what the handlers pushed to users' open tabs; with <see cref="Throws"/> every push fails like a dead hub.</summary>
 public sealed class RecordingUserNotifier : IUserNotifier
 {
     public ConcurrentQueue<(Guid UserId, NotificationItem Item)> Items { get; } = new();
 
     public ConcurrentQueue<(Guid UserId, Guid OrderId, string Status)> Statuses { get; } = new();
 
+    public bool Throws { get; set; }
+
+    /// <summary>Every push call, including the ones that threw.</summary>
+    public int Calls => _calls;
+
+    private int _calls;
+
     public Task PushAsync(Guid userId, NotificationItem item, CancellationToken ct)
     {
+        Interlocked.Increment(ref _calls);
+        Fail();
         Items.Enqueue((userId, item));
         return Task.CompletedTask;
     }
 
     public Task PushOrderStatusAsync(Guid userId, Guid orderId, string status, CancellationToken ct)
     {
+        Interlocked.Increment(ref _calls);
+        Fail();
         Statuses.Enqueue((userId, orderId, status));
         return Task.CompletedTask;
+    }
+
+    private void Fail()
+    {
+        if (Throws)
+        {
+            throw new InvalidOperationException("hub down");
+        }
     }
 }
 
@@ -248,6 +268,36 @@ public sealed class OrderNotificationTests(ContainersFixture containers) : IAsyn
         var mail = _sender.Sent.Single(m => m.HtmlBody.Contains("300.000 ₫"));
         mail.TextBody.ShouldContain(_eventTitle);
         _notifier.Statuses.Last().ShouldBe((userId, orderId, "Paid"), "the order itself is unchanged by a session refund");
+    }
+
+    [Fact]
+    public async Task A_failing_live_push_never_fails_the_handler_or_holds_back_the_later_order_paid_handlers()
+    {
+        _notifier.Throws = true;
+        var (userId, _) = await _host.CreateUserAsync(emailConfirmed: true);
+        var orderId = await PaidOrderAsync(userId);
+
+        await _host.DrainOutboxAsync(Ct);
+        await DeliverEmailsAsync();
+        await _host.DrainOutboxAsync(Ct);
+        await DeliverEmailsAsync();
+
+        (await NotificationsAsync()).ShouldHaveSingleItem().DedupeKey.ShouldBe($"order-paid:{orderId}");
+        (await DeliveriesAsync()).ShouldHaveSingleItem();
+        _sender.Sent.Count.ShouldBe(1, "a second pass sends nothing extra");
+        _notifier.Calls.ShouldBe(2, "each push is tried on its own, and the retry-free message is not pushed again");
+        await using var scope = _host.Scope();
+        var db = NotificationTestHost.Db(scope);
+        var message = await db.OutboxMessages.AsNoTracking().SingleAsync(m => m.AggregateId == orderId, Ct);
+        message.ProcessedAt.ShouldNotBeNull();
+        message.LastError.ShouldBeNull();
+        message.Attempts.ShouldBe(1);
+        (await db.ConsumerReceipts.AsNoTracking().Where(r => r.MessageId == message.Id).Select(r => r.Handler).ToListAsync(Ct)).ShouldBe(
+        [
+            typeof(OrderPaidNotificationHandler).FullName!,
+            typeof(OrderPaidInventoryCommitHandler).FullName!,
+            typeof(OrderPaidLeaveQueueHandler).FullName!,
+        ], ignoreOrder: true);
     }
 
     [Fact]

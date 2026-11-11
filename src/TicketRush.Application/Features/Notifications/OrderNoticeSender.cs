@@ -1,5 +1,5 @@
-using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TicketRush.Application.Abstractions.Notifications;
 using TicketRush.Application.Abstractions.Persistence;
@@ -21,13 +21,14 @@ public sealed record OrderNotice(Guid OrderId, NotificationType Type, string Ded
 /// created something. The buyer is the order's owner, so every event resolves its user the same way (the payment-session
 /// refund carries no user id).
 /// </summary>
-public sealed class OrderNoticeSender(
+public sealed partial class OrderNoticeSender(
     IAppDbContext db,
     IUserDirectory users,
     INotificationWriter writer,
     IUserNotifier notifier,
     IOptions<FrontendOptions> frontend,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ILogger<OrderNoticeSender> logger)
 {
     private sealed record OrderFacts(Guid UserId, OrderStatus Status, string EventTitle);
 
@@ -62,7 +63,7 @@ public sealed class OrderNoticeSender(
     private async Task<NotificationDraft?> BuildDraftAsync(OrderNotice notice, OrderFacts order, CancellationToken ct)
     {
         var path = $"/account/orders/{notice.OrderId}";
-        var amount = notice.Amount is { } value ? FormatMoney(value, notice.Currency) : string.Empty;
+        var amount = notice.Amount is { } value ? MoneyText.Format(value, notice.Currency) : string.Empty;
         var facts = new OrderNoticeFacts(order.EventTitle, OrderCode(notice.OrderId), amount);
         var (title, body) = NotificationCopy.ForOrder(notice.Type, facts);
 
@@ -82,20 +83,33 @@ public sealed class OrderNoticeSender(
         return new NotificationDraft(order.UserId, notice.Type, title, body, path, notice.DedupeKey, email);
     }
 
+    /// <summary>
+    /// Best effort: a push that fails (the hub or Redis backplane is down) must not undo the notice just written, which would also
+    /// stop the order's later outbox handlers. The inbox and the polling fallback show the same data. Each push is guarded on its own.
+    /// </summary>
     private async Task PushAsync(Guid notificationId, NotificationDraft draft, Guid orderId, OrderStatus status, CancellationToken ct)
     {
         var item = new NotificationItem(notificationId, draft.Type.ToString(), draft.Title, draft.Body, draft.Link, Read: false, timeProvider.GetUtcNow());
-        await notifier.PushAsync(draft.UserId, item, ct);
-        await notifier.PushOrderStatusAsync(draft.UserId, orderId, status.ToString(), ct);
+        await TryPushAsync("notification", draft.Type, () => notifier.PushAsync(draft.UserId, item, ct), ct);
+        await TryPushAsync("order-status", draft.Type, () => notifier.PushOrderStatusAsync(draft.UserId, orderId, status.ToString(), ct), ct);
     }
+
+    private async Task TryPushAsync(string what, NotificationType type, Func<Task> push, CancellationToken ct)
+    {
+        try
+        {
+            await push();
+        }
+        catch (Exception ex) when (!(ex is OperationCanceledException && ct.IsCancellationRequested))
+        {
+            // Type names only: no user, address or text in the log.
+            LogPushFailed(what, type, ex.GetType().Name);
+        }
+    }
+
+    [LoggerMessage(EventId = 9001, Level = LogLevel.Warning, Message = "Live push ({What}) of a {Type} order notice failed ({ExceptionType}); the notice itself is saved")]
+    private partial void LogPushFailed(string what, NotificationType type, string exceptionType);
 
     /// <summary>The same short reference the order page shows the buyer (the web's <c>orderCode</c>).</summary>
     private static string OrderCode(Guid orderId) => $"#{orderId.ToString("D")[..8].ToUpperInvariant()}";
-
-    /// <summary>Whole dong with dots, like the web (<c>1.250.000 ₫</c>); another currency shows its code.</summary>
-    private static string FormatMoney(long amount, string currency)
-    {
-        var digits = amount.ToString("N0", CultureInfo.InvariantCulture).Replace(',', '.');
-        return string.Equals(currency, Money.DefaultCurrency, StringComparison.OrdinalIgnoreCase) ? $"{digits} ₫" : $"{digits} {currency}";
-    }
 }

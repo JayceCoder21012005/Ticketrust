@@ -71,9 +71,15 @@ public sealed class Notification : Entity
         return new Notification(userId, type, cleanTitle, cleanBody, cleanLink, cleanKey, now);
     }
 
-    /// <summary>One leading slash only: <c>//host</c> and <c>/\host</c> are read by browsers as another site.</summary>
+    /// <summary>
+    /// One leading slash only: <c>//host</c> and <c>/\host</c> are read by browsers as another site. No whitespace or control
+    /// character anywhere either: browsers strip tab and newline, so <c>/&lt;tab&gt;/host</c> would become <c>//host</c>.
+    /// </summary>
     private static bool IsAppRelativePath(string link) =>
-        link.StartsWith('/') && !link.StartsWith("//", StringComparison.Ordinal) && !link.StartsWith("/\\", StringComparison.Ordinal);
+        link.StartsWith('/')
+        && !link.StartsWith("//", StringComparison.Ordinal)
+        && !link.StartsWith("/\\", StringComparison.Ordinal)
+        && !link.Any(c => char.IsControl(c) || char.IsWhiteSpace(c));
 
     /// <summary>Idempotent: reading twice keeps the first <see cref="ReadAt"/>.</summary>
     public void MarkRead(DateTimeOffset now) => ReadAt ??= now;

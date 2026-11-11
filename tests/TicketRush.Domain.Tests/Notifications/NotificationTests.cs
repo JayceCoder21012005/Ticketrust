@@ -43,6 +43,12 @@ public sealed class NotificationTests
     [InlineData("account/orders/1")]
     [InlineData("javascript:alert(1)")]
     [InlineData("/\\evil.example")]
+    [InlineData("/\t/evil.example")]
+    [InlineData("/\n/evil.example")]
+    [InlineData("/\r/evil.example")]
+    [InlineData("/account orders")]
+    [InlineData("/account\u00a0orders")]
+    [InlineData("/account/\u0000orders")]
     public void Notification_create_rejects_a_link_that_is_not_an_app_relative_path(string link)
     {
         Should.Throw<DomainException>(() => New(link: link)).Code.ShouldBe("notification.invalid");
