@@ -1,4 +1,4 @@
-using System.Net;
+using System.Text;
 using System.Reflection;
 using Microsoft.Extensions.Options;
 using Scriban;
@@ -64,7 +64,35 @@ internal sealed class ScribanEmailRenderer(IOptions<FrontendOptions> frontend) :
         public override string? ObjectToString(object? value, bool nested = false)
         {
             var text = base.ObjectToString(value, nested);
-            return escapeHtml ? WebUtility.HtmlEncode(text) : text;
+            return escapeHtml ? EscapeHtml(text) : text;
+        }
+
+        /// <summary>
+        /// Escapes only the five HTML-significant characters. Every other character, such as a Vietnamese letter or <c>₫</c>, stays raw:
+        /// the HTML part is sent as UTF-8, so numeric entities (what <c>WebUtility.HtmlEncode</c> writes for non-ASCII letters) would only make the source unreadable.
+        /// </summary>
+        private static string? EscapeHtml(string? text)
+        {
+            if (string.IsNullOrEmpty(text) || text.AsSpan().IndexOfAny("&<>\"'") < 0)
+            {
+                return text;
+            }
+
+            var escaped = new StringBuilder(text.Length + 16);
+            foreach (var c in text)
+            {
+                escaped.Append(c switch
+                {
+                    '&' => "&amp;",
+                    '<' => "&lt;",
+                    '>' => "&gt;",
+                    '"' => "&quot;",
+                    '\'' => "&#39;",
+                    _ => c.ToString(),
+                });
+            }
+
+            return escaped.ToString();
         }
     }
 

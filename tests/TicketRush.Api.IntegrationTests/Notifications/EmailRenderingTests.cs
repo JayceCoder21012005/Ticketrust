@@ -77,6 +77,51 @@ public sealed partial class EmailRenderingTests
         email.Subject.ShouldNotContain("&lt;");
     }
 
+    public static TheoryData<string> TemplatesWithEventTitle() =>
+    [
+        "order-paid",
+        "refund-requested",
+        "refunded",
+        "event-cancelled",
+        "reminder-sale-opens",
+        "reminder-event-starts",
+    ];
+
+    [Theory]
+    [MemberData(nameof(Templates))]
+    public void Vietnamese_letters_are_raw_utf8_in_the_html_and_not_numeric_entities(string template)
+    {
+        const string EventTitle = "Đêm nhạc Sơn Tùng M-TP — Sky Tour";
+        var model = new
+        {
+            name = "Nguyễn Văn Đạt",
+            eventTitle = EventTitle,
+            orderCode = "TR-20261111-0042",
+            amount = "1.250.000 ₫",
+            startsAtText = "20:00, 15/11/2026",
+            link = $"{BaseUrl}/account/orders/{OrderId}?a=1&b=2",
+        };
+
+        var email = _renderer.Render(template, model);
+
+        email.Html.ShouldContain("Xin chào Nguyễn Văn Đạt");
+        if (TemplatesWithEventTitle().Select(row => row.Data).Contains(template))
+        {
+            email.Html.ShouldContain(EventTitle);
+        }
+
+        email.Html.ShouldNotMatch(@"&#\d+;");
+        email.Html.ShouldContain($"?a=1&amp;b=2");
+    }
+
+    [Fact]
+    public void Only_the_five_html_significant_characters_are_escaped()
+    {
+        var email = _renderer.Render("order-paid", Model("&<>\"'ùỹ₫"));
+
+        email.Html.ShouldContain("&amp;&lt;&gt;&quot;&#39;ùỹ₫");
+    }
+
     [Fact]
     public void Links_are_escaped_in_html_attributes_but_verbatim_in_text()
     {
