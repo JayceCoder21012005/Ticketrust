@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using TicketRush.Application.Abstractions.Persistence;
 using TicketRush.Domain.Events;
+using TicketRush.Domain.Notifications;
 using TicketRush.Domain.Orders;
 using TicketRush.Domain.Primitives;
 using TicketRush.Domain.Tickets;
@@ -41,6 +42,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataPr
     public DbSet<Ticket> Tickets => Set<Ticket>();
 
     public DbSet<ProcessedWebhook> ProcessedWebhooks => Set<ProcessedWebhook>();
+
+    public DbSet<Notification> Notifications => Set<Notification>();
+
+    public DbSet<EmailDelivery> EmailDeliveries => Set<EmailDelivery>();
+
+    public DbSet<EventFollow> EventFollows => Set<EventFollow>();
+
+    public DbSet<ReminderDispatch> ReminderDispatches => Set<ReminderDispatch>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
