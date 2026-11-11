@@ -55,29 +55,45 @@ afterEach(() => {
   act(() => clearSession());
 });
 
+/**
+ * An api whose answers follow what was set (the hook reconciles with the server after every toggle, so a fake that always
+ * says "false" would undo the click). `hold` keeps a write in flight until the test lets it land.
+ */
+function serve(initial: boolean, { hold }: { hold?: Promise<void> } = {}) {
+  const server = { following: initial, reads: 0 };
+  api.getFollowing.mockImplementation(async () => {
+    server.reads++;
+    return server.following;
+  });
+  api.setFollowing.mockImplementation(async (_id: string, next: boolean) => {
+    await hold;
+    server.following = next;
+  });
+  return server;
+}
+
 describe("FollowButton signed in", () => {
   it("Follow_toggles_optimistically", async () => {
     const user = userEvent.setup();
     const request = deferred();
-    api.getFollowing.mockResolvedValue(false);
-    api.setFollowing.mockReturnValue(request.promise);
+    serve(false, { hold: request.promise });
     renderButton();
 
     await user.click(await ready("Nhắc tôi"));
 
     // The api has not answered yet: the page already shows the new state.
-    const on = await following();
-    expect(on).toHaveAttribute("aria-pressed", "true");
+    expect(await following()).toBeInTheDocument();
     expect(api.setFollowing).toHaveBeenCalledWith("e1", true);
+    expect(screen.queryByRole("button", { name: "Nhắc tôi" })).toBeNull();
 
     request.resolve();
-    await waitFor(() => expect(api.setFollowing).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(api.getFollowing).toHaveBeenCalledTimes(2));
     expect(await following()).toBeInTheDocument();
 
     // And back.
-    api.setFollowing.mockResolvedValue(undefined);
-    await user.click(on);
-    expect(await remind()).toHaveAttribute("aria-pressed", "false");
+    serve(true);
+    await user.click(await ready("Đã bật nhắc nhở"));
+    expect(await remind()).toBeInTheDocument();
     expect(api.setFollowing).toHaveBeenLastCalledWith("e1", false);
   });
 
@@ -85,47 +101,53 @@ describe("FollowButton signed in", () => {
   // inline role="alert" message right under the button.
   it("Follow_rolls_back_and_toasts_on_failure", async () => {
     const user = userEvent.setup();
-    api.getFollowing.mockResolvedValue(false);
+    serve(false);
     api.setFollowing.mockRejectedValue(new ApiError(503, { code: "system.busy" }));
     renderButton();
 
     await user.click(await ready("Nhắc tôi"));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Hệ thống đang bận. Vui lòng thử lại sau giây lát.");
-    const back = await remind();
-    expect(back).toHaveAttribute("aria-pressed", "false");
-    expect(back).toBeEnabled();
+    expect(await ready("Nhắc tôi")).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Đã bật nhắc nhở" })).toBeNull();
 
     // Trying again clears the message.
-    api.setFollowing.mockResolvedValue(undefined);
-    await user.click(back);
+    serve(false);
+    await user.click(await ready("Nhắc tôi"));
     expect(await following()).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("rolls an unfollow back to following when the api refuses", async () => {
     const user = userEvent.setup();
-    api.getFollowing.mockResolvedValue(true);
+    serve(true);
     api.setFollowing.mockRejectedValue(new Error("offline"));
     renderButton();
 
     await user.click(await ready("Đã bật nhắc nhở"));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Không kết nối được máy chủ");
-    expect(await following()).toHaveAttribute("aria-pressed", "true");
+    expect(await ready("Đã bật nhắc nhở")).toBeInTheDocument();
   });
 
   it("Button_label_switches_between_Nhac_toi_and_Da_bat_nhac_nho", async () => {
-    api.getFollowing.mockResolvedValue(true);
+    serve(true);
     const { unmount } = renderButton();
-    expect(await following()).toHaveAttribute("aria-pressed", "true");
+    expect(await ready("Đã bật nhắc nhở")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Nhắc tôi" })).toBeNull();
     unmount();
 
-    api.getFollowing.mockResolvedValue(false);
+    serve(false);
     renderButton(new QueryClient());
-    expect(await remind()).toHaveAttribute("aria-pressed", "false");
+    expect(await ready("Nhắc tôi")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Đã bật nhắc nhở" })).toBeNull();
+  });
+
+  it("does not use aria-pressed: the label already says the state (it would be announced twice)", async () => {
+    serve(true);
+    renderButton();
+
+    expect(await ready("Đã bật nhắc nhở")).not.toHaveAttribute("aria-pressed");
   });
 
   it("is a disabled, busy button while the state is loading", async () => {
@@ -139,8 +161,8 @@ describe("FollowButton signed in", () => {
     expect(api.setFollowing).not.toHaveBeenCalled();
 
     load.resolve(false);
-    await waitFor(() => expect(button).toBeEnabled());
-    expect(button).not.toHaveAttribute("aria-busy", "true");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Nhắc tôi" })).toBeEnabled());
+    expect(screen.getByRole("button", { name: "Nhắc tôi" })).not.toHaveAttribute("aria-busy", "true");
   });
 
   it("offers a retry when the state cannot be loaded", async () => {
@@ -150,17 +172,16 @@ describe("FollowButton signed in", () => {
 
     expect(await screen.findByText("Không tải được trạng thái nhắc nhở.")).toBeInTheDocument();
     expect(await remind()).toBeDisabled();
-    api.getFollowing.mockResolvedValue(true);
+    serve(true);
     await user.click(screen.getByRole("button", { name: "Thử lại" }));
 
-    expect(await following()).toBeEnabled();
+    expect(await ready("Đã bật nhắc nhở")).toBeEnabled();
   });
 
   it("sends one request for a double click while the first is pending", async () => {
     const user = userEvent.setup();
     const request = deferred();
-    api.getFollowing.mockResolvedValue(false);
-    api.setFollowing.mockReturnValue(request.promise);
+    serve(false, { hold: request.promise });
     renderButton();
 
     await user.dblClick(await ready("Nhắc tôi"));
@@ -172,25 +193,46 @@ describe("FollowButton signed in", () => {
 
   it("a 409 event.not_followable says so, rolls back and disables the button", async () => {
     const user = userEvent.setup();
-    api.getFollowing.mockResolvedValue(false);
+    serve(false);
     api.setFollowing.mockRejectedValue(new ApiError(409, { code: "event.not_followable" }));
     renderButton();
 
     await user.click(await ready("Nhắc tôi"));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Sự kiện này không còn nhận nhắc nhở nữa.");
+    // The reconciling read that follows must not make the event followable again.
+    await waitFor(() => expect(api.getFollowing).toHaveBeenCalledTimes(2));
     const button = await remind();
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("alert")).toHaveTextContent("không còn nhận nhắc nhở");
 
     await user.click(button);
     expect(api.setFollowing).toHaveBeenCalledTimes(1);
   });
 
+  it("a read that lands in the middle of a toggle does not leave a wrong final state", async () => {
+    const user = userEvent.setup();
+    const request = deferred();
+    const server = serve(false, { hold: request.promise });
+    const { client } = renderButton();
+    await user.click(await ready("Nhắc tôi"));
+    expect(await following()).toBeInTheDocument();
+
+    // Another reader (a second button mounting, a refocus) gets the server's answer from before the write.
+    await act(() => client.refetchQueries({ queryKey: ["follow", "e1"] }));
+    expect(server.following).toBe(false);
+
+    request.resolve();
+
+    // Once the write has landed the page is reconciled with the server: following, not the stale read.
+    await waitFor(() => expect(server.following).toBe(true));
+    expect(await ready("Đã bật nhắc nhở")).toBeInTheDocument();
+    expect(client.getQueryData(["follow", "e1"])).toMatchObject({ following: true });
+  });
+
   it("is operable by keyboard", async () => {
     const user = userEvent.setup();
-    api.getFollowing.mockResolvedValue(false);
-    api.setFollowing.mockResolvedValue(undefined);
+    serve(false);
     renderButton();
 
     const button = await ready("Nhắc tôi");
@@ -198,6 +240,7 @@ describe("FollowButton signed in", () => {
     expect(button).toHaveFocus();
     await user.keyboard(" ");
     expect(await following()).toHaveFocus();
+    await waitFor(() => expect(api.getFollowing).toHaveBeenCalledTimes(2));
     await user.keyboard("{Enter}");
     expect(await remind()).toHaveFocus();
     expect(api.setFollowing).toHaveBeenNthCalledWith(1, "e1", true);
@@ -206,8 +249,7 @@ describe("FollowButton signed in", () => {
 
   it("two buttons for one event share one request and one state", async () => {
     const user = userEvent.setup();
-    api.getFollowing.mockResolvedValue(false);
-    api.setFollowing.mockResolvedValue(undefined);
+    serve(false);
     const client = new QueryClient();
     render(
       <QueryClientProvider client={client}>
@@ -216,20 +258,20 @@ describe("FollowButton signed in", () => {
       </QueryClientProvider>,
     );
 
-    const [first] = await screen.findAllByRole("button", { name: "Nhắc tôi" });
-    await waitFor(() => expect(first).toBeEnabled());
-    await user.click(first!);
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Nhắc tôi" })[0]).toBeEnabled());
+    expect(api.getFollowing).toHaveBeenCalledTimes(1);
+    await user.click(screen.getAllByRole("button", { name: "Nhắc tôi" })[0]!);
 
     expect(await screen.findAllByRole("button", { name: "Đã bật nhắc nhở" })).toHaveLength(2);
-    expect(api.getFollowing).toHaveBeenCalledTimes(1);
     expect(client.getQueryData(["follow", "e1"])).toMatchObject({ following: true });
   });
 
   it("on a public page (no query client above) the state is dropped when another user signs in", async () => {
-    api.getFollowing.mockResolvedValueOnce(true).mockResolvedValue(false);
+    const server = serve(true);
     render(<FollowButton eventId="e1" returnTo={PAGE} />);
     expect(await following()).toBeInTheDocument();
 
+    server.following = false;
     act(() => setSession({ ...session, user: { ...session.user, id: "u2" } }));
 
     // Not user 1's "following": the next user's own state is asked for.

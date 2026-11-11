@@ -27,7 +27,8 @@ export type Follow = {
 /**
  * Follow state of one event for the signed-in user. Toggling is optimistic and rolled back if the api refuses: that is
  * safe here because no seat, stock or money is involved and both calls are idempotent. A second click while a request is
- * out is ignored (never two requests in flight).
+ * out is ignored (never two requests in flight). When a write settles the state is read again, so the cache ends up as the
+ * server has it.
  */
 export function useFollow(eventId: string): Follow {
   const client = useQueryClient();
@@ -37,7 +38,11 @@ export function useFollow(eventId: string): Follow {
 
   const query = useQuery({
     queryKey: key,
-    queryFn: async ({ signal }): Promise<FollowState> => ({ following: await getFollowing(eventId, signal), closed: false }),
+    // `closed` is kept across reads: the api only says it on a refused write, and an event does not become followable again.
+    queryFn: async ({ signal }): Promise<FollowState> => ({
+      following: await getFollowing(eventId, signal),
+      closed: client.getQueryData<FollowState>(key)?.closed ?? false,
+    }),
     enabled: signedIn,
     staleTime: 30_000,
   });
@@ -56,6 +61,8 @@ export function useFollow(eventId: string): Follow {
     },
     onSettled: () => {
       busy.current = false;
+      // Reconcile with the server: a read that landed while the write was out may have put an older value in the cache.
+      void client.invalidateQueries({ queryKey: key });
     },
   });
 

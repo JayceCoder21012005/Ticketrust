@@ -129,6 +129,81 @@ describe("EventCta", () => {
     expect(screen.getByText("Vé đã mua sẽ được hoàn tiền tự động.")).toBeInTheDocument();
   });
 
+  describe("the follow button (spec 09)", () => {
+    const follow = () => screen.queryByRole("link", { name: "Nhắc tôi" });
+    const at = (ms: number) => vi.setSystemTime(ms);
+
+    // Signed out in these tests, so "Nhắc tôi" is the login link; the signed-in toggle has its own tests.
+    it.each([
+      ["Upcoming", () => at(serverNow), null],
+      ["PreQueue", () => at(Date.parse(opensAt) - 10 * MIN), "Vào phòng chờ"],
+      ["OnSale", () => at(Date.parse(opensAt) + MIN), "Mua vé"],
+    ] as const)("is offered in the %s state, beside the main action", async (_state, arrange, primary) => {
+      startDeviceClock(0);
+      arrange();
+      render(<EventCta event={event} priceFrom={800_000} />);
+      await flush();
+
+      expect(follow()).toHaveAttribute("href", "/login?returnUrl=%2Fevents%2Fson-tung-mtp-live");
+      if (primary) {
+        const buy = screen.getByRole("link", { name: primary });
+        // Never above the main action: it follows it in the document, and is the quiet (ghost) one.
+        expect(buy.compareDocumentPosition(follow()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(follow()).toHaveAttribute("data-variant", "ghost");
+        expect(buy).not.toHaveAttribute("data-variant", "ghost");
+      }
+    });
+
+    it("is offered in the SoldOut state, under the disabled waitlist button", async () => {
+      startDeviceClock(0, 0);
+      at(Date.parse(opensAt) + MIN);
+      render(<EventCta event={event} priceFrom={800_000} />);
+      await flush();
+
+      expect(screen.getByRole("button", { name: "Hết vé — Vào danh sách chờ" })).toBeDisabled();
+      expect(follow()).toBeInTheDocument();
+    });
+
+    it.each<[string, typeof event, () => void]>([
+      ["Ended", { ...event, status: "Ended" }, () => at(serverNow)],
+      ["Cancelled", { ...event, status: "Cancelled" }, () => at(serverNow)],
+      ["SalesClosed", event, () => at(Date.parse("2026-12-25T00:00:00Z"))],
+      ["NotScheduled", { ...event, phases: [] }, () => at(serverNow)],
+    ])("is not offered in the %s state", async (_state, forEvent, arrange) => {
+      startDeviceClock(0);
+      arrange();
+      render(<EventCta event={forEvent} priceFrom={800_000} />);
+      await flush();
+
+      expect(screen.getAllByRole("button").length).toBeGreaterThan(0);
+      expect(follow()).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Nhắc tôi|Đã bật nhắc nhở/ })).not.toBeInTheDocument();
+    });
+
+    it("sits before the buy button in the mobile bar, so buying stays at the thumb's end", async () => {
+      startDeviceClock(0);
+      at(Date.parse(opensAt) + MIN);
+      render(<EventCta event={event} priceFrom={800_000} variant="bar" />);
+      await flush();
+
+      const buy = screen.getByRole("link", { name: "Mua vé" });
+      expect(follow()!.compareDocumentPosition(buy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("keeps the reminder hint (30 minutes before the sale) to the state where that reminder is still to come", async () => {
+      startDeviceClock(0);
+      const { unmount } = render(<EventCta event={event} priceFrom={800_000} />);
+      await flush();
+      expect(screen.getByText(/trước giờ mở bán 30 phút/)).toBeInTheDocument();
+      unmount();
+
+      at(Date.parse(opensAt) + MIN);
+      render(<EventCta event={event} priceFrom={800_000} />);
+      await flush();
+      expect(screen.queryByText(/trước giờ mở bán 30 phút/)).not.toBeInTheDocument();
+    });
+  });
+
   it("shows the starting price", async () => {
     startDeviceClock(0);
     render(<EventCta event={event} priceFrom={800_000} />);

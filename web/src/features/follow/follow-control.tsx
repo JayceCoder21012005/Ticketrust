@@ -8,10 +8,10 @@ import { getSession, refreshAccessToken, subscribe } from "@/lib/api/session";
 import { useDropCacheOnUserChange } from "@/lib/api/use-drop-cache-on-user-change";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { RemindLink, RemindPlaceholder, type FollowSize } from "./follow-ui";
+import { RemindLink, RemindPlaceholder, type FollowSize, type FollowVariant } from "./follow-ui";
 import { useFollow } from "./use-follow";
 
-type ControlProps = { eventId: string; path: string; size: FollowSize; className?: string };
+type ControlProps = { eventId: string; path: string; size: FollowSize; variant: FollowVariant; className?: string };
 
 /**
  * Public pages have no `AppProviders` (their JS is budgeted), so a signed-in visitor there gets a query client of the
@@ -44,7 +44,7 @@ function OwnClient({ children }: { children: ReactNode }) {
  * nothing restores it, so a hint with a live refresh cookie restores it here, and a stale hint ends in the login link
  * instead of a redirect (the api client would otherwise send the visitor to login on the first 401).
  */
-function Control({ eventId, path, size, className }: ControlProps) {
+function Control({ eventId, path, size, variant, className }: ControlProps) {
   const session = useSyncExternalStore(subscribe, getSession, () => null);
   const [restoreFailed, setRestoreFailed] = useState(false);
 
@@ -55,13 +55,13 @@ function Control({ eventId, path, size, className }: ControlProps) {
   }, []);
 
   if (!session) {
-    return restoreFailed ? <RemindLink path={path} size={size} {...(className ? { className } : {})} /> : <RemindPlaceholder size={size} {...(className ? { className } : {})} />;
+    return restoreFailed ? <RemindLink path={path} size={size} variant={variant} {...(className ? { className } : {})} /> : <RemindPlaceholder size={size} variant={variant} {...(className ? { className } : {})} />;
   }
 
-  return <Toggle eventId={eventId} size={size} {...(className ? { className } : {})} />;
+  return <Toggle eventId={eventId} size={size} variant={variant} {...(className ? { className } : {})} />;
 }
 
-function Toggle({ eventId, size, className }: Omit<ControlProps, "path">) {
+function Toggle({ eventId, size, variant, className }: Omit<ControlProps, "path">) {
   const { following, toggle, closed, message, loadFailed, reload } = useFollow(eventId);
   const loading = following === undefined;
 
@@ -69,9 +69,8 @@ function Toggle({ eventId, size, className }: Omit<ControlProps, "path">) {
     <div className={cn("flex flex-col gap-2", className)}>
       <Button
         type="button"
-        variant={following ? "secondary" : "outline"}
+        variant={following ? "secondary" : variant}
         size={size}
-        aria-pressed={following ?? false}
         aria-busy={loading && !loadFailed ? true : undefined}
         disabled={loading || closed}
         title={loading && !loadFailed ? t("follow.loading") : undefined}

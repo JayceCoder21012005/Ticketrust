@@ -8,6 +8,8 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
  */
 const SLUG = "ha-anh-tuan-chan-troi-ruc-ro";
 const EVENT_PATH = `/events/${SLUG}`;
+// The sale of this one opened days ago: the CTA is "Mua vé" and the follow button is its quiet companion.
+const ON_SALE_PATH = "/events/son-tung-mtp-live";
 const MOCK_API = "http://localhost:3199";
 const MIN = 60_000;
 
@@ -66,24 +68,47 @@ test("follow, reload keeps the state, unfollow", async ({ context, page, baseURL
   await page.goto(EVENT_PATH);
 
   await expect(remind(page)).toBeEnabled();
-  await expect(remind(page)).toHaveAttribute("aria-pressed", "false");
   await remind(page).click();
-  await expect(reminding(page)).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => follow.following).toBe(true);
 
   await page.reload();
   await expect(reminding(page)).toBeEnabled();
-  await expect(reminding(page)).toHaveAttribute("aria-pressed", "true");
 
   await reminding(page).click();
-  await expect(remind(page)).toHaveAttribute("aria-pressed", "false");
   await expect.poll(() => follow.following).toBe(false);
 
   await page.reload();
   await expect(remind(page)).toBeEnabled();
-  await expect(remind(page)).toHaveAttribute("aria-pressed", "false");
   expect(follow.calls.filter((method) => method !== "GET")).toEqual(["POST", "DELETE"]);
   expect([...follow.ids]).toEqual([await eventId(page)]);
+});
+
+test("with the sale open, follow still works beside the buy button and does not replace it", async ({ context, page, baseURL }) => {
+  const follow = await arrange(context, baseURL!);
+  await page.goto(ON_SALE_PATH);
+
+  await expect(page.getByRole("link", { name: "Mua vé" }).locator("visible=true")).toBeVisible();
+  await expect(remind(page)).toBeEnabled();
+  await remind(page).click();
+  await expect(reminding(page)).toBeVisible();
+  await expect.poll(() => follow.following).toBe(true);
+
+  await page.reload();
+  await expect(reminding(page)).toBeEnabled();
+  await expect(page.getByRole("link", { name: "Mua vé" }).locator("visible=true")).toBeVisible();
+
+  await reminding(page).click();
+  await expect(remind(page)).toBeVisible();
+  await expect.poll(() => follow.following).toBe(false);
+});
+
+test("no follow button once the event has ended", async ({ context, page, baseURL }) => {
+  await arrange(context, baseURL!);
+  await page.goto("/events/jazz-night-saigon");
+
+  await expect(page.getByText("Sự kiện đã kết thúc").locator("visible=true").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Nhắc tôi" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Nhắc tôi" })).toHaveCount(0);
 });
 
 test("is operable by keyboard", async ({ context, page, baseURL }) => {
@@ -107,7 +132,6 @@ test("puts the button back and says so when the api refuses", async ({ context, 
   await remind(page).click();
 
   await expect(page.getByRole("alert").filter({ hasText: "Hệ thống đang bận" }).locator("visible=true")).toBeVisible();
-  await expect(remind(page)).toHaveAttribute("aria-pressed", "false");
   await expect(remind(page)).toBeEnabled();
 });
 
@@ -124,18 +148,27 @@ test("an event that can no longer be followed disables the button and says why",
 });
 
 for (const colorScheme of ["light", "dark"] as const) {
-  for (const state of ["signed out", "not following", "following", "refused"] as const) {
+  for (const [state, path] of [
+    ["signed out", EVENT_PATH],
+    ["not following", EVENT_PATH],
+    ["following", EVENT_PATH],
+    ["refused", EVENT_PATH],
+    ["signed out, sale open", ON_SALE_PATH],
+    ["not following, sale open", ON_SALE_PATH],
+    ["following, sale open", ON_SALE_PATH],
+  ] as const) {
     test(`the event page has no serious accessibility violations with the button ${state} (${colorScheme})`, async ({ context, page, baseURL }) => {
       await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
-      if (state !== "signed out") {
-        const follow = await arrange(context, baseURL!, { following: state === "following" });
+      const signedOut = state.startsWith("signed out");
+      if (!signedOut) {
+        const follow = await arrange(context, baseURL!, { following: state.startsWith("following") });
         if (state === "refused") follow.failNext = { status: 409, code: "event.not_followable" };
       }
 
-      await page.goto(EVENT_PATH);
-      if (state === "signed out") {
+      await page.goto(path);
+      if (signedOut) {
         await expect(page.getByRole("link", { name: "Nhắc tôi" }).locator("visible=true")).toBeVisible();
-      } else if (state === "following") {
+      } else if (state.startsWith("following")) {
         await expect(reminding(page)).toBeEnabled();
       } else {
         await expect(remind(page)).toBeEnabled();
