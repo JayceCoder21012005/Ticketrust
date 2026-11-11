@@ -25,6 +25,12 @@ public sealed class ScriptedEmailSender : IEmailSender
 
     public ConcurrentBag<string> RefusedAddresses { get; } = [];
 
+    /// <summary>Sends to these addresses never finish by themselves (a dropped SMTP connection): they end only when cancelled.</summary>
+    public ConcurrentBag<string> HangingAddresses { get; } = [];
+
+    /// <summary>Released each time a send to a hanging address starts.</summary>
+    public SemaphoreSlim HangStarted { get; } = new(0);
+
     public TimeSpan Delay { get; set; }
 
     /// <summary>Every call, including the refused ones.</summary>
@@ -36,6 +42,12 @@ public sealed class ScriptedEmailSender : IEmailSender
         if (Delay > TimeSpan.Zero)
         {
             await Task.Delay(Delay, ct);
+        }
+
+        if (HangingAddresses.Contains(message.To))
+        {
+            HangStarted.Release();
+            await Task.Delay(Timeout.Infinite, ct);
         }
 
         if (RefusedAddresses.Contains(message.To))
@@ -77,7 +89,7 @@ public sealed class NotificationTestHost : IAsyncDisposable
 
     private readonly IHost _host;
 
-    public NotificationTestHost(string database, string redis, ScriptedEmailSender sender, FakeTimeProvider clock, int batchSize = 20, CapturingLoggerProvider? logs = null)
+    public NotificationTestHost(string database, string redis, ScriptedEmailSender sender, FakeTimeProvider clock, int batchSize = 20, CapturingLoggerProvider? logs = null, TimeSpan? sendTimeout = null)
     {
         var builder = Host.CreateApplicationBuilder();
         builder.Configuration.AddInMemoryCollection(TestSettings.For(database, redis));
@@ -85,7 +97,11 @@ public sealed class NotificationTestHost : IAsyncDisposable
         builder.AddInfrastructure();
         builder.Services.AddApplication();
         builder.Services.AddSingleton<IEmailSender>(sender);
-        builder.Services.Configure<EmailDeliveryOptions>(options => options.BatchSize = batchSize);
+        builder.Services.Configure<EmailDeliveryOptions>(options =>
+        {
+            options.BatchSize = batchSize;
+            options.SendTimeout = sendTimeout ?? options.SendTimeout;
+        });
         if (logs is not null)
         {
             builder.Logging.AddProvider(logs);

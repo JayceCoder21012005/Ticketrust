@@ -95,10 +95,14 @@ public sealed class EmailDeliveryOptions
 {
     public const string SectionName = "EmailDelivery";
 
-    /// <summary>Deliveries claimed, and sent one after the other, per batch.</summary>
+    /// <summary>Deliveries handled per <c>ProcessBatchAsync</c> call, one transaction each.</summary>
     [Range(1, 200)]
     public int BatchSize { get; set; } = 20;
 
     [Range(typeof(TimeSpan), "00:00:00.050", "00:01:00")]
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>Longest one render-and-send may take; past it the delivery counts as failed and is rescheduled.</summary>
+    [Range(typeof(TimeSpan), "00:00:00.050", "00:10:00")]
+    public TimeSpan SendTimeout { get; set; } = TimeSpan.FromSeconds(30);
 }

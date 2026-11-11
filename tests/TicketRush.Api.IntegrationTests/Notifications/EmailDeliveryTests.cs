@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
 using TicketRush.Api.IntegrationTests.Infrastructure;
 using TicketRush.Application.Abstractions.Messaging;
+using TicketRush.Application.Abstractions.Notifications;
 using TicketRush.Domain.Notifications;
 
 namespace TicketRush.Api.IntegrationTests.Notifications;
@@ -25,8 +26,8 @@ public sealed class EmailDeliveryTests(ContainersFixture containers) : IAsyncLif
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private NotificationTestHost NewHost(int batchSize = 20) =>
-        new(_database, containers.RedisConnectionString, _sender, _clock, batchSize, _logs);
+    private NotificationTestHost NewHost(int batchSize = 20, TimeSpan? sendTimeout = null) =>
+        new(_database, containers.RedisConnectionString, _sender, _clock, batchSize, _logs, sendTimeout);
 
     private async Task<EmailDelivery> SeedAsync(string? to = null, string template = "order-paid", string? modelJson = null)
     {
@@ -153,8 +154,12 @@ public sealed class EmailDeliveryTests(ContainersFixture containers) : IAsyncLif
         }
 
         _sender.Delay = TimeSpan.FromMilliseconds(10); // each batch holds its row locks for ~100 ms, so the other processor really overlaps
-        var first = Task.Run(() => DrainAsync(NewHost(batchSize: 10)), Ct);
-        var second = Task.Run(() => DrainAsync(NewHost(batchSize: 10)), Ct);
+        var hostA = NewHost(batchSize: 10);
+        var hostB = NewHost(batchSize: 10);
+        var go = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); // released only once both hosts exist
+        var first = Task.Run(async () => { await go.Task; return await DrainAsync(hostA); }, Ct);
+        var second = Task.Run(async () => { await go.Task; return await DrainAsync(hostB); }, Ct);
+        go.SetResult();
         var claimed = await Task.WhenAll(first, second);
 
         claimed.ShouldAllBe(count => count > 0, "both processors took part in the race");
@@ -193,6 +198,87 @@ public sealed class EmailDeliveryTests(ContainersFixture containers) : IAsyncLif
         log.ShouldNotContain("secret.buyer");
         log.ShouldNotContain("Xin chào");
         log.ShouldNotContain("TR-0001");
+    }
+
+    [Fact]
+    public async Task A_send_that_exceeds_the_timeout_is_a_failure_and_the_next_row_is_still_sent()
+    {
+        await using var host = NewHost(sendTimeout: TimeSpan.FromMilliseconds(200));
+        var hanging = await SeedAsync(to: "hangs@example.com");
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        var next = await SeedAsync();
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        _sender.HangingAddresses.Add("hangs@example.com");
+
+        (await host.Processor.ProcessBatchAsync(Ct)).ShouldBe(2);
+
+        var failed = await LoadAsync(hanging.Id);
+        failed.Status.ShouldBe(EmailDeliveryStatus.Pending);
+        failed.Attempts.ShouldBe(1);
+        failed.LastError.ShouldStartWith("TimeoutException");
+        failed.NextAttemptAt.ShouldBeGreaterThan(_clock.GetUtcNow());
+        (await LoadAsync(next.Id)).Status.ShouldBe(EmailDeliveryStatus.Sent);
+    }
+
+    [Fact]
+    public async Task A_row_stays_sent_when_a_later_row_hangs_and_the_processor_is_cancelled()
+    {
+        var first = await SeedAsync();
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        var second = await SeedAsync(to: "hangs@example.com");
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        _sender.HangingAddresses.Add("hangs@example.com");
+
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        var run = _host.Processor.ProcessBatchAsync(stop.Token);
+        await _sender.HangStarted.WaitAsync(TimeSpan.FromSeconds(30), Ct);
+        await stop.CancelAsync();
+
+        (await run).ShouldBe(1, "only the first row was handled before the cancellation");
+        (await LoadAsync(first.Id)).Status.ShouldBe(EmailDeliveryStatus.Sent);
+        var interrupted = await LoadAsync(second.Id);
+        interrupted.Status.ShouldBe(EmailDeliveryStatus.Pending);
+        interrupted.Attempts.ShouldBe(0, "a row cancelled in flight is not counted as a failure");
+
+        _sender.HangingAddresses.Clear();
+        (await _host.Processor.ProcessBatchAsync(Ct)).ShouldBe(1);
+        _sender.Sent.Select(m => m.MessageId).ShouldBe([first.Id, second.Id], "nothing is sent twice");
+    }
+
+    [Fact]
+    public async Task A_row_stays_sent_when_a_later_row_fails()
+    {
+        var first = await SeedAsync();
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        var second = await SeedAsync(to: "refused@example.com");
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        _sender.RefusedAddresses.Add("refused@example.com");
+
+        (await _host.Processor.ProcessBatchAsync(Ct)).ShouldBe(2);
+        _clock.Advance(TimeSpan.FromDays(1));
+        _sender.RefusedAddresses.Clear();
+        (await _host.Processor.ProcessBatchAsync(Ct)).ShouldBe(1, "only the failed row is due again");
+
+        (await LoadAsync(first.Id)).Status.ShouldBe(EmailDeliveryStatus.Sent);
+        _sender.Sent.Select(m => m.MessageId).ShouldBe([first.Id, second.Id]);
+    }
+
+    [Fact]
+    public async Task A_notice_written_through_the_writer_is_rendered_and_sent_from_its_stored_model()
+    {
+        var (userId, address) = await _host.CreateUserAsync(emailConfirmed: true);
+        var draft = new NotificationDraft(
+            userId, NotificationType.OrderPaid, "Thanh toán thành công", "Vé đã sẵn sàng.", "/account/orders/1", "order-paid:e2e",
+            new EmailPlan("order-paid", NotificationTestHost.OrderModel("TR-E2E-0001")));
+
+        (await _host.AddAsync(draft, Ct)).ShouldNotBeNull();
+        (await _host.Processor.ProcessBatchAsync(Ct)).ShouldBe(1);
+
+        var message = _sender.Sent.ShouldHaveSingleItem();
+        message.To.ShouldBe(address);
+        message.Subject.ShouldBe("Thanh toán thành công, đơn hàng TR-E2E-0001");
+        message.HtmlBody.ShouldContain("Xin chào Nguyễn Văn Đạt");
+        message.HtmlBody.ShouldContain("1.250.000 ₫");
     }
 
     private static async Task<int> DrainAsync(NotificationTestHost host)
