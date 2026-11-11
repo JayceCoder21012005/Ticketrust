@@ -138,8 +138,7 @@
     "cta": {
       "label": "Mua vé",
       "opensIn": "Mở bán sau",
-      "remindMe": "Nhắc tôi",
-      "remindSoon": "Tính năng nhắc lịch sắp ra mắt.",
+      "remindHint": "Chúng tôi sẽ nhắn bạn trước giờ mở bán 30 phút.",
       "enterQueue": "Vào phòng chờ",
       "queueHint": "Phòng chờ đã mở. Thứ tự được xếp ngẫu nhiên lúc mở bán.",
       "buy": "Mua vé",
@@ -488,6 +487,13 @@
       "title": "Bạn chưa có thông báo nào",
       "description": "Khi có cập nhật về đơn hàng hoặc sự kiện bạn theo dõi, thông báo sẽ xuất hiện ở đây."
     }
+  },
+  "follow": {
+    "remind": "Nhắc tôi",
+    "following": "Đã bật nhắc nhở",
+    "loading": "Đang tải trạng thái nhắc nhở…",
+    "loadFailed": "Không tải được trạng thái nhắc nhở.",
+    "notFollowable": "Sự kiện này không còn nhận nhắc nhở nữa."
   },
   "mockGateway": {
     "title": "Cổng thanh toán giả lập",

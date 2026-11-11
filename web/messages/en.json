@@ -138,8 +138,7 @@
     "cta": {
       "label": "Buy tickets",
       "opensIn": "On sale in",
-      "remindMe": "Remind me",
-      "remindSoon": "Reminders are coming soon.",
+      "remindHint": "We will message you 30 minutes before the sale opens.",
       "enterQueue": "Join the waiting room",
       "queueHint": "The waiting room is open. Places are drawn at random when the sale opens.",
       "buy": "Buy tickets",
@@ -488,6 +487,13 @@
       "title": "You have no notifications yet",
       "description": "Updates about your orders or the events you follow will show up here."
     }
+  },
+  "follow": {
+    "remind": "Remind me",
+    "following": "Reminder on",
+    "loading": "Loading reminder status…",
+    "loadFailed": "Could not load the reminder status.",
+    "notFollowable": "This event no longer accepts reminders."
   },
   "mockGateway": {
     "title": "Mock payment gateway",

@@ -1,16 +1,10 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { getSession, subscribe } from "@/lib/api/session";
+import { useSessionPresent } from "@/lib/api/use-session-present";
 import { t } from "@/lib/i18n";
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from "./api";
 import { markAllReadInCache, markReadInCache } from "./cache";
 import { notificationKeys, PAGE_SIZE } from "./keys";
-
-/** The in-memory session, so the inbox is only asked for once there is a token (and not for a stale session hint). */
-export function useSessionPresent(): boolean {
-  return useSyncExternalStore(subscribe, () => getSession() !== null, () => false);
-}
 
 /**
  * The inbox, newest first, a page at a time (keyset: the api's `nextCursor`). One cache entry feeds the bell's popover
