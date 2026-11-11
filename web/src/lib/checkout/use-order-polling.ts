@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "@/lib/errors";
 import { isSettled } from "./order-state";
 import { getOrder } from "./orders-api";
@@ -19,12 +19,14 @@ const isGone = (error: unknown) => error instanceof ApiError && (error.status ==
 /**
  * Follows an order until it settles (spec 08 result page): `GET /orders/{id}` every 1.5 s for at most 90 s. A hidden tab
  * neither fetches nor uses up the window (it resumes on return); a failed poll is tried again on the next beat.
- * `refresh` starts a new window, for the "still processing" state.
+ * `refresh` starts a new window, for the "still processing" state. `refetch` reads the order once now, whatever the
+ * beat: for a push from the hub (spec 09) saying the order just changed. It never replaces polling, only goes ahead of it.
  */
 export function useOrderPolling(orderId: string, { fetchOrder = getOrder, intervalMs = POLL_INTERVAL_MS, windowMs = POLL_WINDOW_MS }: Options = {}) {
   const [order, setOrder] = useState<Order | null>(null);
   const [phase, setPhase] = useState<PollPhase>("polling");
   const [round, setRound] = useState(0);
+  const kick = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -39,6 +41,8 @@ export function useOrderPolling(orderId: string, { fetchOrder = getOrder, interv
 
     // One poll at a time: a tab that turns visible while a fetch is still out must not start a second chain.
     let inFlight = false;
+    // A push that arrives while a fetch is out may be newer than that fetch: read again as soon as it lands.
+    let readAgain = false;
 
     const poll = async (): Promise<"continue" | "stop"> => {
       try {
@@ -66,14 +70,23 @@ export function useOrderPolling(orderId: string, { fetchOrder = getOrder, interv
       return "continue";
     };
 
-    const beat = async () => {
-      if (inFlight) return;
-      if (!document.hidden) {
+    const beat = async (force = false) => {
+      if (inFlight) {
+        if (force) readAgain = true;
+        return;
+      }
+
+      if (force || !document.hidden) {
         inFlight = true;
         const next = await poll().finally(() => {
           inFlight = false;
         });
         if (next === "stop") return;
+        if (readAgain) {
+          readAgain = false;
+          void beat(true);
+          return;
+        }
       }
 
       timer = setTimeout(() => void beat(), intervalMs);
@@ -86,10 +99,17 @@ export function useOrderPolling(orderId: string, { fetchOrder = getOrder, interv
       }
     };
 
+    kick.current = () => {
+      if (!active) return;
+      clearTimeout(timer);
+      void beat(true);
+    };
+
     void beat();
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       active = false;
+      kick.current = null;
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
@@ -100,5 +120,7 @@ export function useOrderPolling(orderId: string, { fetchOrder = getOrder, interv
     setRound((n) => n + 1);
   }, []);
 
-  return { order, phase, refresh };
+  const refetch = useCallback(() => kick.current?.(), []);
+
+  return { order, phase, refresh, refetch };
 }

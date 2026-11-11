@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import { mockHub } from "./seat-hub";
+import { mockHub, mockSignalRHub } from "./seat-hub";
 
 /**
  * Seats -> buyer step -> order -> mock gateway -> result, against a scripted api (spec 08). The .NET integration tests
@@ -276,6 +276,33 @@ test("a late payment is explained as a refund with its reason", async ({ context
 
   await expect(page.getByRole("heading", { name: "Đang hoàn tiền" })).toBeVisible();
   await expect(page.getByText(/ghế đã có người khác mua/)).toBeVisible();
+});
+
+test("the user hub's OrderStatusChanged updates the result page at once, without waiting for the next poll", async ({ context, page, baseURL }) => {
+  const { backend } = await arrange(context, page, baseURL!, "AwaitingPayment");
+  const hub = await mockSignalRHub(context, "user");
+  const reads: number[] = [];
+  await context.route(/\/api\/v1\/orders\/o1$/, (route) => {
+    reads.push(Date.now());
+    return route.fallback();
+  });
+  await context.route(/\/api\/v1\/me\/notifications(\?.*)?$/, (route) => route.fulfill({ json: { items: [], nextCursor: null, unreadCount: 0 } }));
+
+  await page.goto("/checkout/o1/result");
+  await expect(page.getByRole("heading", { name: "Đang xác nhận thanh toán" })).toBeVisible();
+  // A message must not overtake the handshake reply.
+  await expect.poll(() => hub.state.handshakes).toBe(1);
+
+  // Just after a poll, so the next beat (1.5 s) is far away: only the push can explain a quick change.
+  const lastRead = reads.length;
+  await expect.poll(() => reads.length).toBeGreaterThan(lastRead);
+  await page.waitForTimeout(200);
+  const before = reads.length;
+  backend.order = { ...backend.order, status: "Paid", ticketCount: 2 };
+  hub.send("OrderStatusChanged", backend.order.id, "Paid");
+
+  await expect(page.getByRole("heading", { name: "Thanh toán thành công" })).toBeVisible({ timeout: 900 });
+  expect(reads.length).toBeGreaterThan(before);
 });
 
 test("the mock gateway page says it is unavailable when the api has no mock gateway", async ({ context, page, baseURL }) => {
