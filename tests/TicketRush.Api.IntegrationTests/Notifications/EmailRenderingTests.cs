@@ -1,5 +1,7 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
+using Scriban.Syntax;
 using TicketRush.Application.Options;
 using TicketRush.Infrastructure.Email;
 
@@ -144,6 +146,53 @@ public sealed partial class EmailRenderingTests
     public void Unknown_template_is_rejected()
     {
         Should.Throw<ArgumentException>(() => _renderer.Render("nope", Model()));
+    }
+
+    [Theory]
+    [MemberData(nameof(Templates))]
+    public void A_model_read_back_from_stored_json_renders_exactly_like_the_original_object(string template)
+    {
+        var original = Model("Nguyễn <Văn> Đạt & Co");
+        var stored = JsonSerializer.Serialize(original);
+        var restored = JsonSerializer.Deserialize<Dictionary<string, string>>(stored)!;
+
+        var fromObject = _renderer.Render(template, original);
+        var fromJson = _renderer.Render(template, restored);
+
+        fromJson.ShouldBe(fromObject);
+    }
+
+    [Fact]
+    public void A_model_missing_a_referenced_member_is_rejected()
+    {
+        Should.Throw<ScriptRuntimeException>(() => _renderer.Render("confirm-email", new { name = "x" }));
+    }
+
+    [Fact]
+    public void A_stored_model_missing_a_referenced_member_is_rejected()
+    {
+        Should.Throw<ScriptRuntimeException>(() => _renderer.Render("confirm-email", new Dictionary<string, string> { ["name"] = "x" }));
+    }
+
+    [Theory]
+    [InlineData("Đêm nhạc\r\nBcc: attacker@example.com")]
+    [InlineData("Đêm nhạc\nBcc: attacker@example.com")]
+    [InlineData("Đêm nhạc\rBcc: attacker@example.com")]
+    public void Line_breaks_in_a_model_value_never_reach_the_subject(string eventTitle)
+    {
+        var email = _renderer.Render("event-cancelled", new
+        {
+            name = "x",
+            eventTitle,
+            orderCode = "TR-1",
+            amount = "1",
+            startsAtText = "t",
+            link = "http://localhost:3000",
+        });
+
+        email.Subject.ShouldBe("Sự kiện đã bị hủy: Đêm nhạc Bcc: attacker@example.com");
+        email.Subject.ShouldNotContain("\r");
+        email.Subject.ShouldNotContain("\n");
     }
 
     [GeneratedRegex("""<img[^>]*\ssrc="([^"]*)""", RegexOptions.IgnoreCase)]

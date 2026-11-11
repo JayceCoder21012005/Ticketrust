@@ -36,10 +36,14 @@ internal sealed class ScribanEmailRenderer(IOptions<FrontendOptions> frontend) :
         var body = Run(parts.Html, values, escapeHtml: true);
         var layout = new ScriptObject { ["body"] = body, ["logoUrl"] = _logoUrl };
         return new RenderedEmail(
-            Run(parts.Subject, values, escapeHtml: false).Trim(),
+            SingleLine(Run(parts.Subject, values, escapeHtml: false)),
             Run(Templates.Value.Layout, layout, escapeHtml: false),
             Run(parts.Text, values, escapeHtml: false));
     }
+
+    /// <summary>A subject is one header line: any line break a model value brought along becomes a space, so a value can never add headers.</summary>
+    private static string SingleLine(string subject) =>
+        subject.Trim().Replace("\r\n", " ", StringComparison.Ordinal).Replace('\r', ' ').Replace('\n', ' ');
 
     private static string CamelCase(MemberInfo member) => char.ToLowerInvariant(member.Name[0]) + member.Name[1..];
 
@@ -50,7 +54,11 @@ internal sealed class ScribanEmailRenderer(IOptions<FrontendOptions> frontend) :
         return template.Render(context);
     }
 
-    /// <summary>Encodes every interpolated value ({{ x }}); literal template text is written as it is.</summary>
+    /// <summary>
+    /// Encodes every interpolated value ({{ x }}); literal template text is written as it is. Only plain interpolation is covered:
+    /// HTML bodies must not use Scriban pipelines or builtins that convert strings (<c>| string.upcase</c>, <c>| string.append</c>, ...),
+    /// because the converted text is no longer passed through here and would reach the HTML unencoded.
+    /// </summary>
     private sealed class EncodingContext(bool escapeHtml) : TemplateContext
     {
         public override string? ObjectToString(object? value, bool nested = false)
@@ -85,6 +93,11 @@ internal sealed class ScribanEmailRenderer(IOptions<FrontendOptions> frontend) :
             }
 
             var lineEnd = text.IndexOf('\n', StringComparison.Ordinal);
+            if (lineEnd < 0)
+            {
+                throw new InvalidOperationException($"Template '{name}.txt' must end its '{SubjectPrefix}' line with a line break.");
+            }
+
             var subject = text[SubjectPrefix.Length..lineEnd];
             return new EmailParts(
                 Parse(subject, name + ".subject"),
