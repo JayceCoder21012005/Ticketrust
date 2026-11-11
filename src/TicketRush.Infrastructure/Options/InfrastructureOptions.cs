@@ -89,3 +89,16 @@ public sealed class CatalogOptions
     [MinLength(32)]
     public string AccessCodePepper { get; set; } = string.Empty;
 }
+
+/// <summary>The email delivery worker (spec 09).</summary>
+public sealed class EmailDeliveryOptions
+{
+    public const string SectionName = "EmailDelivery";
+
+    /// <summary>Deliveries claimed, and sent one after the other, per batch.</summary>
+    [Range(1, 200)]
+    public int BatchSize { get; set; } = 20;
+
+    [Range(typeof(TimeSpan), "00:00:00.050", "00:01:00")]
+    public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(2);
+}

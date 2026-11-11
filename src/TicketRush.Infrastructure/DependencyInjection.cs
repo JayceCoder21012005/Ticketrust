@@ -22,6 +22,7 @@ using TicketRush.Infrastructure.Idempotency;
 using TicketRush.Infrastructure.Identity;
 using TicketRush.Infrastructure.Inventory;
 using TicketRush.Infrastructure.Locking;
+using TicketRush.Infrastructure.Notifications;
 using TicketRush.Infrastructure.Options;
 using TicketRush.Infrastructure.Security;
 using TicketRush.Application.Abstractions.Security;
@@ -73,6 +74,7 @@ public static class DependencyInjection
         services.AddValidatedOptions<OrderExpiryOptions>(OrderExpiryOptions.SectionName);
         services.AddValidatedOptions<CancelledEventSettlementOptions>(CancelledEventSettlementOptions.SectionName);
         services.AddValidatedOptions<OutboxOptions>(OutboxOptions.SectionName);
+        services.AddValidatedOptions<EmailDeliveryOptions>(EmailDeliveryOptions.SectionName);
 
         services.AddSingleton<RedisKeys>();
         services.AddSingleton<IRedisPersistenceProbe, RedisPersistenceProbe>();
@@ -112,6 +114,7 @@ public static class DependencyInjection
 
         PersistDataProtectionKeysToRedis(services);
         AddAccounts(services);
+        AddNotifications(services);
         AddStorage(services, builder.Configuration);
         AddCatalog(services);
         return builder;
@@ -199,6 +202,16 @@ public static class DependencyInjection
         services.AddSingleton<IEmailRenderer, ScribanEmailRenderer>();
         services.AddIntegrationEventHandler<UserRegistered, SendConfirmationEmailHandler>();
         services.AddIntegrationEventHandler<PasswordResetRequested, SendPasswordResetEmailHandler>();
+    }
+
+    /// <summary>Spec 09: the notification writer and the email delivery worker's processor.</summary>
+    private static void AddNotifications(IServiceCollection services)
+    {
+        services.AddScoped<IUserDirectory, UserDirectory>();
+        services.AddScoped<INotificationWriter, NotificationWriter>();
+        services.AddSingleton<EmailDeliveryProcessor>();
+        // Until the realtime hub registers its own notifier (ahead of this line), pushing is a no-op.
+        services.TryAddSingleton<IUserNotifier, NullUserNotifier>();
     }
 
     /// <summary>In-process HybridCache (no L2 yet): single-flight per key protects Postgres from stampedes (C6).</summary>
