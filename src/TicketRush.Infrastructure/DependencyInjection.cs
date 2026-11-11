@@ -42,6 +42,7 @@ using TicketRush.Application.Features.Catalog;
 using TicketRush.Application.Features.Notifications;
 using TicketRush.Application.Abstractions.Catalog;
 using TicketRush.Domain.Events;
+using TicketRush.Domain.Notifications;
 using TicketRush.Domain.Orders;
 
 namespace TicketRush.Infrastructure;
@@ -234,6 +235,8 @@ public static class DependencyInjection
         services.AddScoped<IUserDirectory, UserDirectory>();
         services.AddScoped<INotificationWriter, NotificationWriter>();
         services.AddSingleton<EmailDeliveryProcessor>();
+        services.AddScoped<ReminderPlanner>();
+        services.AddIntegrationEventHandler<ReminderDue, ReminderDueHandler>();
         // IUserNotifier comes from AddTicketRushSignalR, which both hosts call.
     }
 

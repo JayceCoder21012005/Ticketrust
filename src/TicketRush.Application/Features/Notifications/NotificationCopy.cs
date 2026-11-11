@@ -32,4 +32,17 @@ public static class NotificationCopy
     public static (string Title, string Body) ForEventCancelled(string eventTitle, string startsAtText) => (
         "Sự kiện đã bị hủy",
         $"Sự kiện \"{eventTitle}\" dự kiến diễn ra lúc {startsAtText} đã bị hủy. Nếu bạn đã mua vé, tiền sẽ được hoàn lại đầy đủ.");
+
+    /// <summary>For a follower of the event.</summary>
+    /// <param name="whenText">The sale's opening time for <see cref="ReminderKind.SaleOpens30m"/>, the event's start for <see cref="ReminderKind.EventStarts24h"/>, as <see cref="VietnamTimeText"/> writes it.</param>
+    public static (string Title, string Body) ForReminder(ReminderKind kind, string eventTitle, string whenText) => kind switch
+    {
+        ReminderKind.SaleOpens30m => (
+            "Sắp mở bán vé",
+            $"Vé \"{eventTitle}\" sẽ mở bán lúc {whenText}. Hãy chuẩn bị sẵn sàng để không bỏ lỡ."),
+        ReminderKind.EventStarts24h => (
+            "Sự kiện sắp diễn ra",
+            $"Sự kiện \"{eventTitle}\" sẽ diễn ra lúc {whenText}. Hẹn gặp bạn tại sự kiện!"),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "No reminder has this kind."),
+    };
 }

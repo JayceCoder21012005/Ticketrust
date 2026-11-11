@@ -35,6 +35,9 @@ builder.Services.AddHostedService<CancelledEventSettlementService>();
 // Spec 09: sends the queued notification emails (retry with backoff, dead letter); safe on every instance.
 builder.Services.AddHostedService<EmailDeliveryService>();
 
+// Spec 09: reminds followers shortly before a sale opens or an event starts (leader-elected, once a minute).
+builder.Services.AddHostedService<ReminderSchedulerService>();
+
 // Dev/demo only: delivers the mock payment gateway's signed webhooks (spec 08). Off unless Payments:Mock:Enabled.
 if (builder.Configuration.GetValue<bool>($"{MockGatewayOptions.SectionName}:Enabled"))
 {
