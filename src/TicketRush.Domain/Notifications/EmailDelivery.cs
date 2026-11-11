@@ -11,6 +11,9 @@ public sealed class EmailDelivery : Entity
 {
     /// <summary>Column width of <see cref="LastError"/>.</summary>
     public const int MaxErrorLength = 2000;
+
+    /// <summary>Stored as <see cref="LastError"/> when a failure comes with a blank message.</summary>
+    public const string UnknownError = "unknown error";
     public const int MaxToAddressLength = 320;
     public const int MaxTemplateLength = 100;
     public const int MaxDedupeKeyLength = 200;
@@ -96,10 +99,12 @@ public sealed class EmailDelivery : Entity
     /// </summary>
     public void RecordFailure(DateTimeOffset now, string error, TimeSpan delay, bool deadLetter)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(error);
         EnsurePending(nameof(RecordFailure));
         Attempts++;
-        LastError = error.Length <= MaxErrorLength ? error : error[..MaxErrorLength];
+
+        // Some exceptions carry an empty message; recording the failure must never throw or the row would stay due forever.
+        var reason = string.IsNullOrWhiteSpace(error) ? UnknownError : error;
+        LastError = reason.Length <= MaxErrorLength ? reason : reason[..MaxErrorLength];
         if (deadLetter)
         {
             Status = EmailDeliveryStatus.DeadLettered;

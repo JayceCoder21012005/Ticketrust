@@ -62,6 +62,25 @@ public sealed class EmailDeliveryTests
         delivery.LastError!.Length.ShouldBe(EmailDelivery.MaxErrorLength);
     }
 
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    [InlineData("   ", false)]
+    [InlineData(null, true)]
+    [InlineData("", true)]
+    [InlineData("   ", true)]
+    public void EmailDelivery_RecordFailure_with_blank_error_still_records_the_attempt(string? error, bool deadLetter)
+    {
+        var delivery = New();
+
+        delivery.RecordFailure(Now, error!, TimeSpan.FromMinutes(2), deadLetter);
+
+        delivery.Attempts.ShouldBe(1);
+        delivery.LastError.ShouldBe(EmailDelivery.UnknownError);
+        delivery.Status.ShouldBe(deadLetter ? EmailDeliveryStatus.DeadLettered : EmailDeliveryStatus.Pending);
+        delivery.NextAttemptAt.ShouldBe(deadLetter ? Now : Now.AddMinutes(2));
+    }
+
     [Fact]
     public void EmailDelivery_RecordFailure_with_deadLetter_marks_DeadLettered()
     {
@@ -76,7 +95,7 @@ public sealed class EmailDeliveryTests
     }
 
     [Fact]
-    public void EmailDelivery_MarkSent_records_the_time_and_leaves_pending()
+    public void EmailDelivery_MarkSent_sets_status_Sent_and_records_the_time()
     {
         var delivery = New();
         delivery.RecordFailure(Now, "timeout", TimeSpan.FromSeconds(30), deadLetter: false);
