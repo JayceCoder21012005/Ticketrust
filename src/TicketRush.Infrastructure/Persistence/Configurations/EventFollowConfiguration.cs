@@ -15,6 +15,7 @@ internal sealed class EventFollowConfiguration : IEntityTypeConfiguration<EventF
         builder.ToTable("event_follows");
         builder.Ignore(f => f.Id);
         builder.HasKey(f => new { f.UserId, f.EventId });
+        builder.HasIndex(f => f.EventId); // followers of an event: the reminder planner's join and the cancelled-event fan-out
         builder.Property(f => f.UserId).ValueGeneratedNever();
         builder.Property(f => f.EventId).ValueGeneratedNever();
     }

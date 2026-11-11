@@ -19,7 +19,7 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.14")
+                .HasAnnotation("ProductVersion", "10.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
@@ -554,6 +554,9 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
 
                     b.HasKey("UserId", "EventId")
                         .HasName("pk_event_follows");
+
+                    b.HasIndex("EventId")
+                        .HasDatabaseName("ix_event_follows_event_id");
 
                     b.ToTable("event_follows", (string)null);
                 });

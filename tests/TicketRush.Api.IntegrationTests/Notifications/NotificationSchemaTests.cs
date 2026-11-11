@@ -158,4 +158,16 @@ public sealed class NotificationSchemaTests(ContainersFixture containers) : IAsy
         definitions.ShouldContain(d => d.Contains("(user_id)") && d.Contains("WHERE (read_at IS NULL)"));
         definitions.ShouldContain(d => d.Contains("(next_attempt_at)") && d.Contains("WHERE ((status)::text = 'Pending'::text)"));
     }
+
+    [Fact]
+    public async Task Event_follows_are_indexed_by_event_id()
+    {
+        // Serves the reminder planner's join and the cancelled-event fan-out, which both look followers up by event.
+        await using var scope = Scope();
+        var definitions = await Db(scope).Database
+            .SqlQuery<string>($"SELECT indexdef AS \"Value\" FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'event_follows'")
+            .ToListAsync(Ct);
+
+        definitions.ShouldContain(d => d.Contains("btree (event_id)"));
+    }
 }
