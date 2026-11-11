@@ -13,8 +13,8 @@ namespace TicketRush.Application.Features.Notifications;
 /// <summary>
 /// Turns a due reminder into the follower's in-app notice and email (spec 09), then pushes the notice to their open tabs.
 /// Idempotent through <c>reminder:{kind}:{eventId}:{userId}</c>: a redelivery writes nothing and pushes nothing. A missing user,
-/// an event that is no longer Published, or a sale with no opening time left to announce is a no-op, never an error that would
-/// hold up the event's later outbox messages.
+/// an event that is no longer Published, a sale with no opening time left to announce, or a moment that has already passed by
+/// the time the message is handled is a no-op, never an error that would hold up other outbox messages.
 /// </summary>
 public sealed partial class ReminderDueHandler(
     IAppDbContext db,
@@ -30,25 +30,50 @@ public sealed partial class ReminderDueHandler(
 
     public async Task HandleAsync(ReminderDue message, IntegrationEventContext context, CancellationToken ct)
     {
-        var facts = await LoadEventAsync(message.EventId, context.OccurredAt, ct);
-        var whenAt = message.Kind == ReminderKind.SaleOpens30m ? facts?.NextSaleOpensAt : facts?.StartsAt;
-        if (facts is null || whenAt is null)
+        var draft = await PlanNoticeAsync(message, context, ct);
+        if (draft is null)
         {
             return;
         }
 
-        var contact = await users.GetContactAsync(message.UserId, ct);
-        if (contact is null)
-        {
-            return;
-        }
-
-        var draft = BuildDraft(message, facts, VietnamTimeText.Format(whenAt.Value), contact);
         var notificationId = await writer.AddAsync(draft, ct);
         if (notificationId is not null)
         {
             await TryPushAsync(draft, notificationId.Value, ct);
         }
+    }
+
+    /// <returns>The notice to write, or <c>null</c> (logged at debug level, without personal data) when there is nothing true left to say.</returns>
+    private async Task<NotificationDraft?> PlanNoticeAsync(ReminderDue message, IntegrationEventContext context, CancellationToken ct)
+    {
+        var facts = await LoadEventAsync(message.EventId, context.OccurredAt, ct);
+        if (facts is null)
+        {
+            return Skipped(message.Kind, "event is missing or not published");
+        }
+
+        var whenAt = message.Kind == ReminderKind.SaleOpens30m ? facts.NextSaleOpensAt : facts.StartsAt;
+        if (whenAt is null)
+        {
+            return Skipped(message.Kind, "no sale opening left to announce");
+        }
+
+        // The outbox can be behind (a backlog, an outage): a reminder for a moment that has come and gone is noise.
+        if (whenAt <= timeProvider.GetUtcNow())
+        {
+            return Skipped(message.Kind, "the moment has already passed");
+        }
+
+        var contact = await users.GetContactAsync(message.UserId, ct);
+        return contact is null
+            ? Skipped(message.Kind, "user is missing")
+            : BuildDraft(message, facts, VietnamTimeText.Format(whenAt.Value), contact);
+    }
+
+    private NotificationDraft? Skipped(ReminderKind kind, string reason)
+    {
+        LogSkipped(kind, reason);
+        return null;
     }
 
     /// <summary>
@@ -98,6 +123,9 @@ public sealed partial class ReminderDueHandler(
             LogPushFailed(draft.Type, ex.GetType().Name);
         }
     }
+
+    [LoggerMessage(EventId = 9004, Level = LogLevel.Debug, Message = "Skipped a {Kind} reminder: {Reason}")]
+    private partial void LogSkipped(ReminderKind kind, string reason);
 
     [LoggerMessage(EventId = 9003, Level = LogLevel.Warning, Message = "Live push of a {Type} reminder failed ({ExceptionType}); the notice itself is saved")]
     private partial void LogPushFailed(NotificationType type, string exceptionType);

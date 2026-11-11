@@ -40,7 +40,7 @@ public sealed partial class ReminderSchedulerService(
     public async Task<int> RunOnceAsync(CancellationToken ct)
     {
         await using var scope = scopes.CreateAsyncScope();
-        var planned = await scope.ServiceProvider.GetRequiredService<ReminderPlanner>().PlanAsync(_clock.GetUtcNow(), ct);
+        var planned = await scope.ServiceProvider.GetRequiredService<IReminderPlanner>().PlanAsync(_clock.GetUtcNow(), ct);
         Interlocked.Increment(ref _tickCount);
         if (planned > 0)
         {

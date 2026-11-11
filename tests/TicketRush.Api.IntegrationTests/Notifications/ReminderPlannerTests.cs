@@ -69,12 +69,31 @@ public sealed class ReminderPlannerTests(ContainersFixture containers) : IAsyncL
 
         var message = (await _world.ReminderMessagesAsync(Ct)).ShouldHaveSingleItem();
         message.Type.ShouldBe("ReminderDue");
-        message.AggregateId.ShouldBe(evt.Id);
+        message.AggregateId.ShouldBeNull("reminders share no ordering, so the dispatcher can claim them all at once");
         message.OccurredAt.ShouldBe(Now);
         message.ProcessedAt.ShouldBeNull();
         message.NextAttemptAt.ShouldBe(Now);
         JsonSerializer.Deserialize<ReminderDue>(message.Payload, DomainEventTypeRegistry.SerializerOptions)
             .ShouldBe(new ReminderDue(follower, evt.Id, ReminderKind.SaleOpens30m));
+    }
+
+    [Fact]
+    public async Task A_failure_while_announcing_leaves_no_reminder_recorded_and_the_next_run_emits_everything_once()
+    {
+        var evt = await _world.EventAsync(EventStatus.Published, Now.AddHours(12), Ct, Now.AddMinutes(10));
+        await _world.FollowManyAsync(evt.Id, 25, Ct);
+        _world.Commands.FailOnCommandContaining = "INSERT INTO outbox_messages";
+
+        await Should.ThrowAsync<InvalidOperationException>(() => _world.PlanAsync(Ct));
+
+        (await _world.DispatchesAsync(Ct)).ShouldBeEmpty("the dispatch rows rolled back with the failed announcement");
+        (await _world.ReminderMessagesAsync(Ct)).ShouldBeEmpty();
+
+        _world.Commands.FailOnCommandContaining = null;
+        (await _world.PlanAsync(Ct)).ShouldBe(50);
+        (await _world.PlanAsync(Ct)).ShouldBe(0);
+        (await _world.DispatchesAsync(Ct)).Count.ShouldBe(50);
+        (await _world.ReminderMessagesAsync(Ct)).Count.ShouldBe(50);
     }
 
     [Fact]
@@ -238,14 +257,84 @@ public sealed class ReminderPlannerTests(ContainersFixture containers) : IAsyncL
     }
 
     [Fact]
-    public async Task Scheduler_runs_only_on_the_leader()
+    public async Task Scheduler_tick_plans_through_the_real_planner()
     {
         var evt = await _world.EventAsync(EventStatus.Published, Now.AddHours(12), Ct, Now.AddMinutes(10));
         await _world.FollowManyAsync(evt.Id, 3, Ct);
-        var scopes = _world.Host.Services.GetRequiredService<IServiceScopeFactory>();
+        var scheduler = new ReminderSchedulerService(
+            _world.Host.Services.GetRequiredService<IServiceScopeFactory>(),
+            _world.Host.Services.GetRequiredService<IDistributedLock>(),
+            _world.Clock,
+            NullLogger<ReminderSchedulerService>.Instance);
+
+        (await scheduler.RunOnceAsync(Ct)).ShouldBe(6);
+        (await scheduler.RunOnceAsync(Ct)).ShouldBe(0);
+
+        (await _world.DispatchesAsync(Ct)).Count.ShouldBe(6);
+        scheduler.TickCount.ShouldBe(2);
+    }
+
+    /// <summary>A planner that cannot fail, and notices if two ticks ever overlap (across both instances, which share it).</summary>
+    private sealed class CountingPlanner(ConcurrencyGauge gauge) : IReminderPlanner
+    {
+        private int _ticks;
+
+        public int Ticks => _ticks;
+
+        public async Task<int> PlanAsync(DateTimeOffset now, CancellationToken ct)
+        {
+            gauge.Enter();
+            try
+            {
+                Interlocked.Increment(ref _ticks);
+                await Task.Delay(20, CancellationToken.None); // real time: wide enough for an overlap to show
+                return 0;
+            }
+            finally
+            {
+                gauge.Exit();
+            }
+        }
+    }
+
+    private sealed class ConcurrencyGauge
+    {
+        private int _running;
+        private int _max;
+
+        public int Max => Volatile.Read(ref _max);
+
+        public void Enter()
+        {
+            var now = Interlocked.Increment(ref _running);
+            int seen;
+            while ((seen = Volatile.Read(ref _max)) < now && Interlocked.CompareExchange(ref _max, now, seen) != seen)
+            {
+            }
+        }
+
+        public void Exit() => Interlocked.Decrement(ref _running);
+    }
+
+    private static ReminderSchedulerService SchedulerWith(IReminderPlanner planner, IDistributedLock locks, TimeProvider clock) =>
+        new(
+            new ServiceCollection().AddScoped(_ => planner).BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
+            locks,
+            clock,
+            NullLogger<ReminderSchedulerService>.Instance);
+
+    [Fact]
+    public async Task Scheduler_runs_only_on_the_leader()
+    {
+        // Two instances compete for the real Redis lock. Their planner cannot fail (a failing tick would release the lock and
+        // let the other instance lead, which is correct behaviour but not what this test is about), so exactly one of them
+        // leads for as long as the test runs, ticking once per minute of the fake clock, and never two ticks at the same time.
         var locks = _world.Host.Services.GetRequiredService<IDistributedLock>();
-        var a = new ReminderSchedulerService(scopes, locks, _world.Clock, NullLogger<ReminderSchedulerService>.Instance);
-        var b = new ReminderSchedulerService(scopes, locks, _world.Clock, NullLogger<ReminderSchedulerService>.Instance);
+        var gauge = new ConcurrencyGauge();
+        var plannerA = new CountingPlanner(gauge);
+        var plannerB = new CountingPlanner(gauge);
+        var a = SchedulerWith(plannerA, locks, _world.Clock);
+        var b = SchedulerWith(plannerB, locks, _world.Clock);
 
         await a.StartAsync(Ct);
         await b.StartAsync(Ct);
@@ -254,8 +343,9 @@ public sealed class ReminderPlannerTests(ContainersFixture containers) : IAsyncL
             await WaitUntilAsync(() => a.TickCount + b.TickCount >= 1, "a leader ran a tick");
             var (leader, follower) = a.TickCount >= b.TickCount ? (a, b) : (b, a);
 
-            // The leader ticks again every minute; the follower retries for the lock every few seconds and never gets it.
-            // The clock is advanced until the tick happens (not once): the leader may not have reached its delay yet.
+            // Small steps, each followed by a short real wait: the leader's next tick is one minute away, the follower
+            // retries for the lock every few seconds. The clock is advanced until the tick happens, not once, because the
+            // leader may not have reached its delay yet.
             for (var tick = 2; tick <= 4; tick++)
             {
                 await WaitUntilAsync(
@@ -267,9 +357,23 @@ public sealed class ReminderPlannerTests(ContainersFixture containers) : IAsyncL
                     $"the leader's tick {tick}");
             }
 
-            follower.TickCount.ShouldBe(0);
-            (await _world.DispatchesAsync(Ct)).Count.ShouldBe(6, "3 followers x 2 kinds, written once");
-            (await _world.ReminderMessagesAsync(Ct)).Count.ShouldBe(6);
+            follower.TickCount.ShouldBe(0, "the follower never got the lock while the leader was alive");
+
+            // Leadership moves when the leader goes away.
+            await leader.StopAsync(Ct);
+            await WaitUntilAsync(
+                () =>
+                {
+                    _world.Clock.Advance(TimeSpan.FromMinutes(1));
+                    return follower.TickCount >= 1;
+                },
+                "the follower took over");
+            await follower.StopAsync(Ct);
+
+            // Read only once both have stopped, so no tick is half done: every executed plan was counted as a tick.
+            plannerA.Ticks.ShouldBe((int)a.TickCount);
+            plannerB.Ticks.ShouldBe((int)b.TickCount);
+            gauge.Max.ShouldBe(1, "two ticks never ran at the same time");
         }
         finally
         {
@@ -280,7 +384,7 @@ public sealed class ReminderPlannerTests(ContainersFixture containers) : IAsyncL
 
     private static async Task WaitUntilAsync(Func<bool> condition, string what)
     {
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(60);
         while (!condition())
         {
             if (DateTime.UtcNow > deadline)

@@ -29,11 +29,12 @@ public sealed class ReminderDueTests(ContainersFixture containers) : IAsyncLifet
 
     // ---------------------------------------------------------------- fixtures
 
-    private async Task HandleAsync(ReminderDue message, CancellationToken ct)
+    /// <param name="plannedAt">When the reminder was planned (the message's OccurredAt); defaults to the clock's current time.</param>
+    private async Task HandleAsync(ReminderDue message, CancellationToken ct, DateTimeOffset? plannedAt = null)
     {
         await using var scope = _world.Host.Scope();
         var handler = scope.ServiceProvider.GetRequiredService<ReminderDueHandler>();
-        await handler.HandleAsync(message, new IntegrationEventContext(Guid.NewGuid(), _world.Clock.GetUtcNow(), 1), ct);
+        await handler.HandleAsync(message, new IntegrationEventContext(Guid.NewGuid(), plannedAt ?? _world.Clock.GetUtcNow(), 1), ct);
     }
 
     private async Task<List<Notification>> NotificationsAsync()
@@ -161,6 +162,76 @@ public sealed class ReminderDueTests(ContainersFixture containers) : IAsyncLifet
         await HandleAsync(new ReminderDue(userId, evt.Id, ReminderKind.SaleOpens30m), Ct);
 
         (await NotificationsAsync()).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_start_reminder_handled_after_the_event_started_writes_nothing()
+    {
+        var (userId, _) = await _world.Host.CreateUserAsync(emailConfirmed: true);
+        var evt = await _world.EventAsync(EventStatus.Published, Now.AddHours(12), Ct);
+        var message = new ReminderDue(userId, evt.Id, ReminderKind.EventStarts24h);
+
+        _world.Clock.Advance(TimeSpan.FromHours(12));
+        await HandleAsync(message, Ct, plannedAt: Now);
+        _world.Clock.Advance(TimeSpan.FromHours(1));
+        await HandleAsync(message, Ct, plannedAt: Now);
+
+        (await NotificationsAsync()).ShouldBeEmpty("exactly at the start, and after it, the moment has passed");
+        (await DeliveriesAsync()).ShouldBeEmpty();
+        _world.Notifier.Items.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_sale_reminder_handled_after_the_sale_opened_writes_nothing()
+    {
+        var (userId, _) = await _world.Host.CreateUserAsync(emailConfirmed: true);
+        var evt = await _world.EventAsync(EventStatus.Published, Now.AddDays(10), Ct, Now.AddMinutes(10));
+        var message = new ReminderDue(userId, evt.Id, ReminderKind.SaleOpens30m);
+
+        _world.Clock.Advance(TimeSpan.FromMinutes(10));
+        await HandleAsync(message, Ct, plannedAt: Now);
+        _world.Clock.Advance(TimeSpan.FromMinutes(3));
+        await HandleAsync(message, Ct, plannedAt: Now);
+
+        (await NotificationsAsync()).ShouldBeEmpty();
+        (await DeliveriesAsync()).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_reminder_handled_just_before_its_moment_is_still_written()
+    {
+        var (userId, _) = await _world.Host.CreateUserAsync(emailConfirmed: true);
+        var evt = await _world.EventAsync(EventStatus.Published, Now.AddHours(12), Ct, Now.AddMinutes(10));
+
+        _world.Clock.Advance(TimeSpan.FromMinutes(10) - TimeSpan.FromSeconds(1));
+        await HandleAsync(new ReminderDue(userId, evt.Id, ReminderKind.SaleOpens30m), Ct, plannedAt: Now);
+
+        (await NotificationsAsync()).ShouldHaveSingleItem().Type.ShouldBe(NotificationType.SaleOpensSoon);
+    }
+
+    [Fact]
+    public async Task A_fan_out_to_hundreds_of_followers_drains_in_a_bounded_number_of_batches()
+    {
+        // Reminders carry no aggregate id: the dispatcher claims a whole batch of them at once. With the event's id on each,
+        // only one per batch was claimable and 300 followers needed 300 batches.
+        const int Followers = 300;
+        var evt = await _world.EventAsync(EventStatus.Published, Now.AddDays(10), Ct, Now.AddMinutes(10));
+        await _world.SeedFollowingUsersAsync(evt.Id, Followers, Ct);
+        (await _world.PlanAsync(Ct)).ShouldBe(Followers);
+
+        var batches = 0;
+        while (await _world.Host.Outbox.ProcessBatchAsync(Ct) > 0)
+        {
+            batches++;
+        }
+
+        var batchSize = _world.Host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<OutboxOptions>>().Value.BatchSize;
+        batches.ShouldBeLessThanOrEqualTo(((Followers + batchSize - 1) / batchSize) + 2);
+        var messages = await _world.ReminderMessagesAsync(Ct);
+        messages.Count.ShouldBe(Followers);
+        messages.ShouldAllBe(m => m.ProcessedAt != null && m.LastError == null);
+        (await NotificationsAsync()).Count.ShouldBe(Followers);
+        (await DeliveriesAsync()).Count.ShouldBe(Followers);
     }
 
     [Fact]

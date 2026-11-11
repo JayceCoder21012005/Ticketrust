@@ -28,26 +28,38 @@ public sealed class CommandRecorder : DbCommandInterceptor
 
     public IReadOnlyCollection<string> Commands => _commands;
 
+    /// <summary>Failure injection: a command whose text contains this fails before it reaches Postgres.</summary>
+    public string? FailOnCommandContaining { get; set; }
+
     public void Clear() => _commands.Clear();
+
+    private void Record(DbCommand command)
+    {
+        _commands.Enqueue(command.CommandText);
+        if (FailOnCommandContaining is { } marker && command.CommandText.Contains(marker, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Injected failure for a command containing: " + marker);
+        }
+    }
 
     public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
     {
-        _commands.Enqueue(command.CommandText);
+        Record(command);
         return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
     }
 
     public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
         DbCommand command, CommandEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
     {
-        _commands.Enqueue(command.CommandText);
+        Record(command);
         return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
     }
 
     public override ValueTask<InterceptionResult<object>> ScalarExecutingAsync(
         DbCommand command, CommandEventData eventData, InterceptionResult<object> result, CancellationToken cancellationToken = default)
     {
-        _commands.Enqueue(command.CommandText);
+        Record(command);
         return base.ScalarExecutingAsync(command, eventData, result, cancellationToken);
     }
 }

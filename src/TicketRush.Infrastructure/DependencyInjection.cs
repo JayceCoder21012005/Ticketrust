@@ -236,6 +236,7 @@ public static class DependencyInjection
         services.AddScoped<INotificationWriter, NotificationWriter>();
         services.AddSingleton<EmailDeliveryProcessor>();
         services.AddScoped<ReminderPlanner>();
+        services.AddScoped<IReminderPlanner>(provider => provider.GetRequiredService<ReminderPlanner>());
         services.AddIntegrationEventHandler<ReminderDue, ReminderDueHandler>();
         // IUserNotifier comes from AddTicketRushSignalR, which both hosts call.
     }

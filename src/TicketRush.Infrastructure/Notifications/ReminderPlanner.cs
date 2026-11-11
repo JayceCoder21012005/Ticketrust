@@ -6,6 +6,13 @@ using TicketRush.Infrastructure.Persistence;
 
 namespace TicketRush.Infrastructure.Notifications;
 
+/// <summary>What the scheduler needs from the planner (so the scheduler's leader election can be tested with a planner that cannot fail).</summary>
+public interface IReminderPlanner
+{
+    /// <returns>The number of reminders this call recorded.</returns>
+    Task<int> PlanAsync(DateTimeOffset now, CancellationToken ct);
+}
+
 /// <summary>
 /// One scheduler tick (spec 09): records the reminders the followers of Published events are now owed, and announces each
 /// through the outbox. <see cref="ReminderKind.SaleOpens30m"/> when a phase of the event opens in (now, now + 30 min],
@@ -19,8 +26,15 @@ namespace TicketRush.Infrastructure.Notifications;
 /// statements however many followers there are. The rows are inserted in key order, so two planners that collide wait for each
 /// other instead of deadlocking.
 /// </para>
+/// <para>
+/// The outbox rows deliberately have a <c>NULL</c> aggregate id. The dispatcher only claims a message when no older pending
+/// message of the same aggregate exists (<c>older.aggregate_id = m.aggregate_id</c>), so rows sharing the event's id would be
+/// claimed one per batch, each claim scanning the other pending reminders of that event: a fan-out to thousands of followers
+/// would crawl. Reminders need no ordering among themselves or against the event's other messages, and a <c>NULL</c> never
+/// equals anything, so every row is claimable at once.
+/// </para>
 /// </summary>
-public sealed class ReminderPlanner(AppDbContext db)
+public sealed class ReminderPlanner(AppDbContext db) : IReminderPlanner
 {
     /// <summary>How far ahead of a sale opening its followers are reminded.</summary>
     public static readonly TimeSpan SaleLead = TimeSpan.FromMinutes(30);
@@ -30,7 +44,6 @@ public sealed class ReminderPlanner(AppDbContext db)
 
     private sealed record Planned(Guid UserId, Guid EventId, string Kind);
 
-    /// <returns>The number of reminders this call recorded (the ones other planners or earlier ticks recorded are not counted).</returns>
     public async Task<int> PlanAsync(DateTimeOffset now, CancellationToken ct)
     {
         now = now.ToUniversalTime();
@@ -45,7 +58,11 @@ public sealed class ReminderPlanner(AppDbContext db)
         return planned.Count;
     }
 
-    private async Task<List<Planned>> InsertDispatchesAsync(DateTimeOffset now, CancellationToken ct)
+    // The context's snake_case convention maps the returned columns to Planned's properties.
+    private Task<List<Planned>> InsertDispatchesAsync(DateTimeOffset now, CancellationToken ct) =>
+        db.Database.SqlQuery<Planned>(DispatchSql(now)).ToListAsync(ct);
+
+    private static FormattableString DispatchSql(DateTimeOffset now)
     {
         var saleKind = nameof(ReminderKind.SaleOpens30m);
         var startKind = nameof(ReminderKind.EventStarts24h);
@@ -53,9 +70,7 @@ public sealed class ReminderPlanner(AppDbContext db)
         var saleUntil = now + SaleLead;
         var startUntil = now + StartLead;
 
-        // The context's snake_case convention maps the returned columns to Planned's properties.
-        return await db.Database.SqlQuery<Planned>(
-            $"""
+        return $"""
             WITH due AS (
                 SELECT e.id AS event_id, {saleKind} AS kind
                 FROM events e
@@ -74,7 +89,7 @@ public sealed class ReminderPlanner(AppDbContext db)
                 ON CONFLICT DO NOTHING
                 RETURNING user_id, event_id, kind)
             SELECT user_id, event_id, kind FROM inserted
-            """).ToListAsync(ct);
+            """;
     }
 
     /// <summary>One multi-row insert from parallel arrays, so the statement count does not grow with the recipients.</summary>
@@ -84,18 +99,17 @@ public sealed class ReminderPlanner(AppDbContext db)
             Guid.CreateVersion7(),
             DomainEventTypeRegistry.NameOf(typeof(ReminderDue)),
             DomainEventTypeRegistry.Serialize(new ReminderDue(row.UserId, row.EventId, Enum.Parse<ReminderKind>(row.Kind))),
-            row.EventId,
+            aggregateId: null,
             now));
         var ids = messages.ConvertAll(m => m.Id).ToArray();
         var types = messages.ConvertAll(m => m.Type).ToArray();
         var payloads = messages.ConvertAll(m => m.Payload).ToArray();
-        var aggregateIds = planned.ConvertAll(row => row.EventId).ToArray();
 
         await db.Database.ExecuteSqlAsync(
             $"""
             INSERT INTO outbox_messages (id, type, payload, aggregate_id, occurred_at, attempts, next_attempt_at)
-            SELECT m.id, m.type, m.payload::jsonb, m.aggregate_id, {now}, 0, {now}
-            FROM unnest({ids}, {types}, {payloads}, {aggregateIds}) AS m(id, type, payload, aggregate_id)
+            SELECT m.id, m.type, m.payload::jsonb, NULL, {now}, 0, {now}
+            FROM unnest({ids}, {types}, {payloads}) AS m(id, type, payload)
             """,
             ct);
     }

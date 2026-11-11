@@ -121,6 +121,26 @@ public sealed class ReminderTestWorld : IAsyncDisposable
             ct);
     }
 
+    /// <summary>Bulk users with a confirmed address who all follow the event, in two statements (not thousands of entities).</summary>
+    public async Task SeedFollowingUsersAsync(Guid eventId, int count, CancellationToken ct)
+    {
+        await using var scope = Host.Scope();
+        var db = NotificationTestHost.Db(scope);
+        var now = Clock.GetUtcNow();
+        await db.Database.ExecuteSqlAsync(
+            $"""
+            INSERT INTO users (id, user_name, normalized_user_name, email, normalized_email, email_confirmed, full_name,
+                               access_failed_count, lockout_enabled, phone_number_confirmed, two_factor_enabled, created_at, updated_at)
+            SELECT gen_random_uuid(), 'fan-' || g || '@example.com', 'FAN-' || g || '@EXAMPLE.COM', 'fan-' || g || '@example.com',
+                   'FAN-' || g || '@EXAMPLE.COM', true, 'Người hâm mộ ' || g, 0, false, false, false, {now}, {now}
+            FROM generate_series(1, {count}) AS g
+            """,
+            ct);
+        await db.Database.ExecuteSqlAsync(
+            $"INSERT INTO event_follows (user_id, event_id, created_at) SELECT id, {eventId}, {now} FROM users WHERE user_name LIKE 'fan-%'",
+            ct);
+    }
+
     public async Task<int> PlanAsync(CancellationToken ct)
     {
         await using var scope = Host.Scope();
