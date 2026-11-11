@@ -28,6 +28,9 @@ public sealed class RecordingUserNotifier : IUserNotifier
 
     public bool Throws { get; set; }
 
+    /// <summary>When set, the next push cancels this source first and then fails like an aborted call.</summary>
+    public CancellationTokenSource? CancelOnPush { get; set; }
+
     /// <summary>Every push call, including the ones that threw.</summary>
     public int Calls => _calls;
 
@@ -36,6 +39,8 @@ public sealed class RecordingUserNotifier : IUserNotifier
     public Task PushAsync(Guid userId, NotificationItem item, CancellationToken ct)
     {
         Interlocked.Increment(ref _calls);
+        CancelOnPush?.Cancel();
+        ct.ThrowIfCancellationRequested();
         Fail();
         Items.Enqueue((userId, item));
         return Task.CompletedTask;

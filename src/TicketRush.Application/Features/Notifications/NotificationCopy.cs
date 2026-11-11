@@ -26,4 +26,10 @@ public static class NotificationCopy
             $"Đơn {facts.OrderCode} cho \"{facts.EventTitle}\" đã hết hạn giữ chỗ vì chưa được thanh toán. Bạn có thể đặt lại nếu còn vé."),
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "No order notice has this type."),
     };
+
+    /// <summary>For every holder and follower of the event alike, so it promises a refund only to those who bought.</summary>
+    /// <param name="startsAtText">The event's start as <see cref="VietnamTimeText"/> writes it.</param>
+    public static (string Title, string Body) ForEventCancelled(string eventTitle, string startsAtText) => (
+        "Sự kiện đã bị hủy",
+        $"Sự kiện \"{eventTitle}\" dự kiến diễn ra lúc {startsAtText} đã bị hủy. Nếu bạn đã mua vé, tiền sẽ được hoàn lại đầy đủ.");
 }

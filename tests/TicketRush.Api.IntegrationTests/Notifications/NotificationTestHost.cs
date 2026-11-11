@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -90,7 +92,7 @@ public sealed class NotificationTestHost : IAsyncDisposable
 
     private readonly IHost _host;
 
-    public NotificationTestHost(string database, string redis, ScriptedEmailSender sender, FakeTimeProvider clock, int batchSize = 20, CapturingLoggerProvider? logs = null, TimeSpan? sendTimeout = null, IUserNotifier? notifier = null)
+    public NotificationTestHost(string database, string redis, ScriptedEmailSender sender, FakeTimeProvider clock, int batchSize = 20, CapturingLoggerProvider? logs = null, TimeSpan? sendTimeout = null, IUserNotifier? notifier = null, IInterceptor? interceptor = null)
     {
         var builder = Host.CreateApplicationBuilder();
         builder.Configuration.AddInMemoryCollection(TestSettings.For(database, redis));
@@ -106,6 +108,11 @@ public sealed class NotificationTestHost : IAsyncDisposable
         if (notifier is not null)
         {
             builder.Services.AddSingleton(notifier);
+        }
+
+        if (interceptor is not null)
+        {
+            builder.Services.ConfigureDbContext<AppDbContext>(options => options.AddInterceptors(interceptor));
         }
 
         if (logs is not null)

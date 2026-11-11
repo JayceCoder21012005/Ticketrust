@@ -109,6 +109,9 @@ public static class DependencyInjection
         // One handler for the whole cancellation: rooms, then holds, then orders (see its remarks for why not two).
         services.AddSingleton<EventCancellationMetrics>();
         services.AddIntegrationEventHandler<EventCancelled, EventCancelledInventoryHandler>();
+        // After the inventory handler: closing rooms, releasing holds and settling orders is the safety-critical part, so the
+        // outbox (which stops a message at its first failing handler) runs it first.
+        services.AddIntegrationEventHandler<EventCancelled, EventCancelledNotificationHandler>();
         AddOrderNotificationHandlers(services);
         // Order matters: the outbox runs a message's handlers in this order and stops at the first failure (commit first).
         services.AddIntegrationEventHandler<OrderPaid, OrderPaidInventoryCommitHandler>();
