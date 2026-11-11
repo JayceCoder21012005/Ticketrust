@@ -12,6 +12,7 @@ using TicketRush.Infrastructure;
 using TicketRush.Infrastructure.Identity;
 using TicketRush.Infrastructure.Notifications;
 using TicketRush.Infrastructure.Options;
+using TicketRush.Infrastructure.Outbox;
 using TicketRush.Infrastructure.Persistence;
 
 namespace TicketRush.Api.IntegrationTests.Notifications;
@@ -89,7 +90,7 @@ public sealed class NotificationTestHost : IAsyncDisposable
 
     private readonly IHost _host;
 
-    public NotificationTestHost(string database, string redis, ScriptedEmailSender sender, FakeTimeProvider clock, int batchSize = 20, CapturingLoggerProvider? logs = null, TimeSpan? sendTimeout = null)
+    public NotificationTestHost(string database, string redis, ScriptedEmailSender sender, FakeTimeProvider clock, int batchSize = 20, CapturingLoggerProvider? logs = null, TimeSpan? sendTimeout = null, IUserNotifier? notifier = null)
     {
         var builder = Host.CreateApplicationBuilder();
         builder.Configuration.AddInMemoryCollection(TestSettings.For(database, redis));
@@ -102,6 +103,11 @@ public sealed class NotificationTestHost : IAsyncDisposable
             options.BatchSize = batchSize;
             options.SendTimeout = sendTimeout ?? options.SendTimeout;
         });
+        if (notifier is not null)
+        {
+            builder.Services.AddSingleton(notifier);
+        }
+
         if (logs is not null)
         {
             builder.Logging.AddProvider(logs);
@@ -111,6 +117,18 @@ public sealed class NotificationTestHost : IAsyncDisposable
     }
 
     public EmailDeliveryProcessor Processor => _host.Services.GetRequiredService<EmailDeliveryProcessor>();
+
+    public IServiceProvider Services => _host.Services;
+
+    public OutboxProcessor Outbox => _host.Services.GetRequiredService<OutboxProcessor>();
+
+    /// <summary>Delivers every pending outbox message, like the worker would.</summary>
+    public async Task DrainOutboxAsync(CancellationToken ct)
+    {
+        while (await Outbox.ProcessBatchAsync(ct) > 0)
+        {
+        }
+    }
 
     public AsyncServiceScope Scope() => _host.Services.CreateAsyncScope();
 

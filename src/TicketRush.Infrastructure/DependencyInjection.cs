@@ -39,6 +39,7 @@ using TicketRush.Domain.Users;
 using TicketRush.Infrastructure.Email;
 using TicketRush.Infrastructure.Catalog;
 using TicketRush.Application.Features.Catalog;
+using TicketRush.Application.Features.Notifications;
 using TicketRush.Application.Abstractions.Catalog;
 using TicketRush.Domain.Events;
 using TicketRush.Domain.Orders;
@@ -108,6 +109,7 @@ public static class DependencyInjection
         // One handler for the whole cancellation: rooms, then holds, then orders (see its remarks for why not two).
         services.AddSingleton<EventCancellationMetrics>();
         services.AddIntegrationEventHandler<EventCancelled, EventCancelledInventoryHandler>();
+        AddOrderNotificationHandlers(services);
         // Order matters: the outbox runs a message's handlers in this order and stops at the first failure (commit first).
         services.AddIntegrationEventHandler<OrderPaid, OrderPaidInventoryCommitHandler>();
         services.AddIntegrationEventHandler<OrderPaid, OrderPaidLeaveQueueHandler>();
@@ -202,6 +204,19 @@ public static class DependencyInjection
         services.AddSingleton<IEmailRenderer, ScribanEmailRenderer>();
         services.AddIntegrationEventHandler<UserRegistered, SendConfirmationEmailHandler>();
         services.AddIntegrationEventHandler<PasswordResetRequested, SendPasswordResetEmailHandler>();
+    }
+
+    /// <summary>
+    /// Registered before the inventory and queue consumers of <c>OrderPaid</c>: the outbox runs a message's handlers in registration
+    /// order and stops at the first failure, so a failing Redis step must never hold back the buyer's notice.
+    /// </summary>
+    private static void AddOrderNotificationHandlers(IServiceCollection services)
+    {
+        services.AddIntegrationEventHandler<OrderPaid, OrderPaidNotificationHandler>();
+        services.AddIntegrationEventHandler<OrderExpired, OrderExpiredNotificationHandler>();
+        services.AddIntegrationEventHandler<RefundRequested, RefundRequestedNotificationHandler>();
+        services.AddIntegrationEventHandler<OrderRefunded, OrderRefundedNotificationHandler>();
+        services.AddIntegrationEventHandler<PaymentRefunded, PaymentRefundedNotificationHandler>();
     }
 
     /// <summary>Spec 09: the notification writer and the email delivery worker's processor.</summary>

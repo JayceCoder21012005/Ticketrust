@@ -13,6 +13,7 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly, includeInternalTypes: true);
         services.TryAddSingleton(TimeProvider.System);
         AddUseCaseHandlers(services);
+        services.AddScoped<Features.Notifications.OrderNoticeSender>();
         services.TryAddSingleton<Features.Holds.IBestAvailablePicker, Features.Holds.BestAvailableSeatPicker>();
         return services;
     }
