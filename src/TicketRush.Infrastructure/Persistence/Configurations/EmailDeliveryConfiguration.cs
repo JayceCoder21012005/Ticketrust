@@ -19,6 +19,9 @@ internal sealed class EmailDeliveryConfiguration : IEntityTypeConfiguration<Emai
         builder.Property(d => d.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(d => d.LastError).HasMaxLength(EmailDelivery.MaxErrorLength);
 
+        // The default only serves rows written before the column existed (and raw inserts); the entity always sets it.
+        builder.Property(d => d.CreatedAt).HasDefaultValueSql("now()");
+
         builder.HasIndex(d => d.DedupeKey).IsUnique().HasDatabaseName("ux_email_deliveries_dedupe_key");
 
         // Delivery worker scan: pending rows, the one due first up front.

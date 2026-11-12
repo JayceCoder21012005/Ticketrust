@@ -210,6 +210,7 @@ public sealed class EventCancelledNotificationTests(ContainersFixture containers
         var deliveries = await DeliveriesAsync();
         deliveries.Select(d => d.UserId).Order().ShouldBe(new[] { paid, refundPending, holderAndFollower, followerWithMail }.Order(), "email goes only to confirmed addresses");
         deliveries.ShouldAllBe(d => d.Status == EmailDeliveryStatus.Pending && d.Attempts == 0 && d.NextAttemptAt == _clock.GetUtcNow());
+        deliveries.ShouldAllBe(d => d.CreatedAt == _clock.GetUtcNow() && d.ExpiresAt == null, "a cancellation is worth telling however late");
         deliveries.Select(d => d.DedupeKey).Order().ShouldBe(new[] { paid, refundPending, holderAndFollower, followerWithMail }.Select(Key).Order());
     }
 

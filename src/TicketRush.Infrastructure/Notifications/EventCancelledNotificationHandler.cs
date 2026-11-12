@@ -84,10 +84,11 @@ internal sealed partial class EventCancelledNotificationHandler(
                 ON CONFLICT (dedupe_key) DO NOTHING
                 RETURNING id, user_id, created_at, dedupe_key),
             mail AS (
-                INSERT INTO email_deliveries (id, user_id, to_address, template, model, dedupe_key, status, attempts, next_attempt_at)
+                -- No expires_at: a cancellation is worth telling however late.
+                INSERT INTO email_deliveries (id, user_id, to_address, template, model, dedupe_key, status, attempts, next_attempt_at, created_at)
                 SELECT gen_random_uuid(), u.id, u.email, 'event-cancelled',
                        jsonb_build_object('name', u.full_name, 'link', {url}, 'eventTitle', {evt.Title}, 'startsAtText', {startsAtText}),
-                       w.dedupe_key, {pending}, 0, {shape.CreatedAt}
+                       w.dedupe_key, {pending}, 0, {shape.CreatedAt}, {shape.CreatedAt}
                 FROM written w
                 JOIN users u ON u.id = w.user_id
                 WHERE u.email_confirmed AND btrim(coalesce(u.email, '')) <> ''

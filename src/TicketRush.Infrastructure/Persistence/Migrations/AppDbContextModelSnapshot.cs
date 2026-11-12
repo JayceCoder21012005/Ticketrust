@@ -478,11 +478,21 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("attempts");
 
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
                     b.Property<string>("DedupeKey")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("dedupe_key");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
 
                     b.Property<string>("LastError")
                         .HasMaxLength(2000)

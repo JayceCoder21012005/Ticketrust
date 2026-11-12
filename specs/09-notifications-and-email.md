@@ -49,7 +49,7 @@ The waitlist-offer and ticket-transfer rows are not built here. Specs 13 and 14 
 
 ## Implementation notes (what differs from the text above)
 
-- Email goes through a delivery table and a worker: a handler writes the notice and an `email_deliveries` row together, and `EmailDeliveryService` sends the rows (one row per transaction, 30 s send timeout, backoff and dead-lettering after 10 attempts). Handlers never talk to SMTP. `confirm-email` and `reset-password` are the exception: their outbox handlers still send directly, because the token is created at send time. See `docs/runbooks/email-delivery.md`.
+- Email goes through a delivery table and a worker: a handler writes the notice and an `email_deliveries` row together, and `EmailDeliveryService` sends the rows (one row per transaction, 30 s send timeout, backoff for about a day before dead-lettering, immediate dead-letter for errors retrying cannot fix, an outage breaker, reminders that expire unsent once their moment has passed). Handlers never talk to SMTP. `confirm-email` and `reset-password` are the exception: their outbox handlers still send directly, because the token is created at send time. See `docs/runbooks/email-delivery.md`.
 - Reminders: the planner inserts `reminder_dispatches` rows (unique `(user, event, kind)`) and writes the `ReminderDue` outbox messages with a NULL aggregate id, so a fan-out to many followers is not serialised.
 - The "Nhắc tôi" follow button is offered in every open event state (not only before the sale).
 - `OrderExpired` creates an in-app notice only, no email (the spec table has no row for it).

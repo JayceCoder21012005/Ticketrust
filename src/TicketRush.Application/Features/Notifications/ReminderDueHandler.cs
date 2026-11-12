@@ -67,7 +67,7 @@ public sealed partial class ReminderDueHandler(
         var contact = await users.GetContactAsync(message.UserId, ct);
         return contact is null
             ? Skipped(message.Kind, "user is missing")
-            : BuildDraft(message, facts, VietnamTimeText.Format(whenAt.Value), contact);
+            : BuildDraft(message, facts, whenAt.Value, contact);
     }
 
     private NotificationDraft? Skipped(ReminderKind kind, string reason)
@@ -86,15 +86,18 @@ public sealed partial class ReminderDueHandler(
             .Select(e => new EventFacts(e.Slug, e.Title, e.StartsAt, e.Phases.Where(p => p.OpensAt > plannedAt).Min(p => (DateTimeOffset?)p.OpensAt)))
             .SingleOrDefaultAsync(ct);
 
-    private NotificationDraft BuildDraft(ReminderDue message, EventFacts facts, string whenText, UserContact contact)
+    /// <param name="whenAt">The moment reminded of; the email expires then (sent later it would announce the past).</param>
+    private NotificationDraft BuildDraft(ReminderDue message, EventFacts facts, DateTimeOffset whenAt, UserContact contact)
     {
         var sale = message.Kind == ReminderKind.SaleOpens30m;
+        var whenText = VietnamTimeText.Format(whenAt);
         var (title, body) = NotificationCopy.ForReminder(message.Kind, facts.Title, whenText);
         var path = $"/events/{facts.Slug}";
         var link = $"{frontend.Value.BaseUrl.TrimEnd('/')}{path}";
         var email = new EmailPlan(
             sale ? "reminder-sale-opens" : "reminder-event-starts",
-            new { name = contact.FullName, link, eventTitle = facts.Title, startsAtText = whenText });
+            new { name = contact.FullName, link, eventTitle = facts.Title, startsAtText = whenText },
+            ExpiresAt: whenAt);
 
         return new NotificationDraft(
             message.UserId,

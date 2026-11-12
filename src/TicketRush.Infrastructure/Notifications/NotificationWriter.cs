@@ -37,7 +37,7 @@ internal sealed class NotificationWriter(AppDbContext db, IUserDirectory users, 
     private static EmailDelivery? PlanDelivery(NotificationDraft draft, UserContact contact, DateTimeOffset now) =>
         draft.Email is null
             ? null
-            : EmailDelivery.Create(draft.UserId, contact.Email, draft.Email.Template, EmailModelJson.Serialize(draft.Email.Model), draft.DedupeKey, now);
+            : EmailDelivery.Create(draft.UserId, contact.Email, draft.Email.Template, EmailModelJson.Serialize(draft.Email.Model), draft.DedupeKey, now, draft.Email.ExpiresAt);
 
     private async Task<bool> InsertNotificationAsync(Notification n, CancellationToken ct) =>
         await db.Database.ExecuteSqlAsync(
@@ -57,8 +57,8 @@ internal sealed class NotificationWriter(AppDbContext db, IUserDirectory users, 
                 ON CONFLICT (dedupe_key) DO NOTHING
                 RETURNING id)
             -- No ON CONFLICT here on purpose: the delivery shares the notification's dedupe key and is inserted only with it, so only a purged notification could make this raise 23505.
-            INSERT INTO email_deliveries (id, user_id, to_address, template, model, dedupe_key, status, attempts, next_attempt_at)
-            SELECT {d.Id}, {d.UserId}, {d.ToAddress}, {d.Template}, {d.ModelJson}::jsonb, {d.DedupeKey}, {d.Status.ToString()}, {d.Attempts}, {d.NextAttemptAt}
+            INSERT INTO email_deliveries (id, user_id, to_address, template, model, dedupe_key, status, attempts, next_attempt_at, created_at, expires_at)
+            SELECT {d.Id}, {d.UserId}, {d.ToAddress}, {d.Template}, {d.ModelJson}::jsonb, {d.DedupeKey}, {d.Status.ToString()}, {d.Attempts}, {d.NextAttemptAt}, {d.CreatedAt}, {d.ExpiresAt}
             FROM written
             """,
             ct) == 1;

@@ -104,6 +104,9 @@ public sealed class ReminderDueTests(ContainersFixture containers) : IAsyncLifet
         deliveries["reminder-sale-opens"].DedupeKey.ShouldBe(sale.DedupeKey);
         AssertModel(deliveries["reminder-sale-opens"], evt, VietnamTimeText.Format(Now.AddMinutes(10)));
         AssertModel(deliveries["reminder-event-starts"], evt, VietnamTimeText.Format(startsAt));
+        deliveries["reminder-sale-opens"].ExpiresAt.ShouldBe(Now.AddMinutes(10), "sent after the sale opened, it would announce the past");
+        deliveries["reminder-event-starts"].ExpiresAt.ShouldBe(startsAt);
+        deliveries.Values.ShouldAllBe(d => d.CreatedAt == Now);
 
         while (await _world.Host.Processor.ProcessBatchAsync(Ct) > 0)
         {

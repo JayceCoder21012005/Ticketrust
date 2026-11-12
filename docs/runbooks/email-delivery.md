@@ -10,9 +10,36 @@ Two emails do not use this table: `confirm-email` and `reset-password`. Their ou
 
 - `Pending`: waiting for its first send (`attempts = 0`) or for a retry (`attempts > 0`, `next_attempt_at` in the future).
 - `Sent`: the SMTP server accepted it (`sent_at` is set). `last_error` of an earlier failure is kept for the record.
-- `DeadLettered`: failed 10 times (`OutboxRetryPolicy.MaxAttempts`). Nothing ever picks it up again until a person requeues it.
+- `DeadLettered`: parked; nothing ever picks it up again until a person requeues it. `last_error` says why:
+  - it failed 30 times (`EmailDelivery:MaxAttempts`), or
+  - it failed once with an error that retrying cannot fix (see "Permanent errors" below), or
+  - `last_error = 'expired'`: it was never sent, because its moment had passed (see "Expiring emails"). `attempts` is not changed by an expiry.
 
-Retry backoff: 1 s base, doubled per attempt with jitter (between half and the full ceiling), capped at 10 minutes.
+Two columns help to read the table: `created_at` is when the email was queued (rows from before the column existed got the time of the migration), and `expires_at` is the moment after which the email is no longer true, or NULL for an email that is worth sending however late.
+
+### Retry schedule (about a day)
+
+The email worker has its own policy (`EmailRetryPolicy`), not the outbox's: 30 s after the first failure, doubled per failure with jitter (each wait between half and the full ceiling), capped at 1 hour, dead-lettered at the 30th failed attempt. The 29 waits add up to between about 11.5 and 23 hours (typically about 17), so an SMTP outage of hours only delays email. All numbers are settings, validated on start: `EmailDelivery:BaseDelay` (00:00:30), `EmailDelivery:MaxDelay` (01:00:00), `EmailDelivery:MaxAttempts` (30).
+
+### Permanent errors: dead-lettered at once
+
+Retrying cannot help, so the first failure parks the row (`attempts = 1`, Error log `... dead-lettered at once, retrying cannot help: {ErrorType}`):
+
+- it cannot render: unknown template (`ArgumentException`), a stored model that lacks a member the template needs (`ScriptRuntimeException`), a model that is not a flat JSON object of strings (`JsonException`), a broken template file (`InvalidOperationException`);
+- the SMTP server refused this recipient or this message for good: `SmtpCommandException` with a 5xx status for the recipient or the message (for example `550 mailbox unavailable`, `554 rejected`);
+- the stored address cannot be parsed (`ParseException`).
+
+A 5xx refusal of our sender or of the session (`553 sender rejected`, `530 authentication required`) is not treated as permanent: it would fail every email alike, so it counts as a transport failure (next section). Every 4xx is temporary and retried.
+
+### Outage breaker
+
+Transport failures are connection errors (`SocketException`, `IOException`, `SslHandshakeException`), timeouts (`TimeoutException`), protocol errors (`SmtpProtocolException`, `ServiceNotConnectedException`), authentication failures and every 4xx. After 5 of them in a row (`EmailDelivery:OutageFailureThreshold`) the pass ends with the Warning `SMTP looks down ({Failures} transport failures in a row); pausing email delivery`, and the loop pauses 5 s, doubling up to 5 minutes (`EmailDelivery:OutageMaxBackoff`). The rows the pass did not reach are not charged an attempt. The count is kept across passes until a send succeeds, so while SMTP stays down each later pass tries one row (a probe) and pauses again; the first successful send closes the breaker and the backlog goes out at full speed. Other failures (anything not listed above) are retried with backoff without counting towards the breaker.
+
+### Expiring emails
+
+The reminder templates (`reminder-sale-opens`, `reminder-event-starts`) get `expires_at` = the moment they announce (the sale opening, the event start). A row claimed at or after that moment is not sent: it is parked as `DeadLettered` with `last_error = 'expired'`, without an SMTP attempt (Information log `... expired before it could be sent; parked unsent`). The other templates (orders, refunds, cancellation) have no expiry.
+
+### Queries
 
 ```sql
 -- Backlog by status and template
@@ -34,42 +61,56 @@ FROM email_deliveries
 WHERE status = 'Pending' AND attempts > 0
 ORDER BY attempts DESC, next_attempt_at;
 
--- Dead-lettered
-SELECT id, user_id, template, attempts, dedupe_key, left(last_error, 200) AS last_error, next_attempt_at
+-- Dead-lettered because they failed (expired ones left out)
+SELECT id, user_id, template, attempts, dedupe_key, created_at, left(last_error, 200) AS last_error, next_attempt_at
 FROM email_deliveries
-WHERE status = 'DeadLettered'
+WHERE status = 'DeadLettered' AND last_error IS DISTINCT FROM 'expired'
 ORDER BY next_attempt_at DESC;
+
+-- Expired unsent (reminders whose moment had passed): expected after a long outage, nothing to do
+SELECT template, count(*), min(created_at) AS first_queued, max(expires_at) AS last_expiry
+FROM email_deliveries
+WHERE status = 'DeadLettered' AND last_error = 'expired'
+GROUP BY template;
+
+-- Age of the pending backlog
+SELECT template, count(*), now() - min(created_at) AS oldest
+FROM email_deliveries
+WHERE status = 'Pending'
+GROUP BY template;
 ```
 
 `last_error` is `ExceptionType: message`. An SMTP message can quote the recipient address (`550 mailbox x@y.z unavailable`), so `last_error` is personal data: read it in SQL only. Never return it from an API or an admin view (there is none today; the admin screens of spec 15 must leave it out). `to_address` and `model` are personal data too.
 
 ## Requeue a dead-lettered row
 
-First fix the cause (see below), otherwise the row is parked again after 10 more attempts. The `status = 'DeadLettered'` guard makes sure a row that was already sent is never touched; if the update affects 0 rows, re-check before doing anything else.
+First fix the cause (see below), otherwise the row is parked again (at once for a permanent error, after 30 more attempts otherwise). The `status = 'DeadLettered'` guard makes sure a row that was already sent is never touched; if the update affects 0 rows, re-check before doing anything else.
+
+**Never requeue an `expired` row.** It is a reminder of a moment that has passed ("the sale opens at 20:00" sent at 21:00). The `last_error IS DISTINCT FROM 'expired'` guard below keeps those rows out; requeued anyway, the worker would park them again unsent, since `expires_at` has not changed.
 
 ```sql
 -- one row
 UPDATE email_deliveries
 SET status = 'Pending', attempts = 0, next_attempt_at = now()
-WHERE id = '<delivery id>' AND status = 'DeadLettered';
+WHERE id = '<delivery id>' AND status = 'DeadLettered' AND last_error IS DISTINCT FROM 'expired';
 
 -- every dead-lettered row of one template, after fixing that template or its data
 UPDATE email_deliveries
 SET status = 'Pending', attempts = 0, next_attempt_at = now()
-WHERE template = '<template>' AND status = 'DeadLettered';
+WHERE template = '<template>' AND status = 'DeadLettered' AND last_error IS DISTINCT FROM 'expired';
 ```
 
 `last_error` is left in place on purpose. The worker picks the row up within `EmailDelivery:PollInterval` (2 s).
 
-A row that dead-lettered because it cannot render (an unknown template name, or a stored model that lacks a member the template needs; `last_error` starts with `ArgumentException` or `ScriptRuntimeException`) will fail again. Deploy the template or fix the `model` jsonb first.
+A row that dead-lettered because it cannot render (an unknown template name, or a stored model that lacks a member the template needs; `last_error` starts with `ArgumentException`, `ScriptRuntimeException`, `JsonException` or `InvalidOperationException`, `attempts = 1`) will fail again at once. Deploy the template or fix the `model` jsonb first. A recipient refused with a `550`-style error is refused again unless the address was fixed (it is frozen in `to_address` at write time).
 
 ## What an SMTP outage looks like
 
-- Logs (worker, `EmailDeliveryProcessor`): one Warning per failed attempt, `Email delivery {DeliveryId} ({Template}) failed attempt {Attempts}; retry at {NextAttemptAt}: {ErrorType}`, and one Error when a row is parked, `... dead-lettered after {Attempts} attempts: {ErrorType}`. The exception type (for example `SocketException`, `TimeoutException`, `SmtpCommandException`) is logged and nothing else: no address, no body, no exception message, because an SMTP message may quote the address.
+- Logs (worker, `EmailDeliveryProcessor`): one Warning per failed attempt, `Email delivery {DeliveryId} ({Template}) failed attempt {Attempts}; retry at {NextAttemptAt}: {ErrorType}`, one Error when a row is parked, `... dead-lettered after {Attempts} attempts: {ErrorType}`, and, once 5 transport failures in a row were seen, the Warning `SMTP looks down ...; pausing email delivery` once per pass (every 5 s to 5 min while the outage lasts). The exception type (for example `SocketException`, `TimeoutException`, `SmtpCommandException`) is logged and nothing else: no address, no body, no exception message, because an SMTP message may quote the address.
 - A dropped connection or a hanging server surfaces as `TimeoutException`: every send is bounded by `EmailDelivery:SendTimeout` (30 s). The batch loop logs `Email delivery batch failed; retrying shortly` (Error) when the database itself is unavailable, and waits 5 s.
-- Data: `Pending` rows with `attempts > 0` grow and `next_attempt_at` moves out (up to 10 minutes apart). The `Pending` count by `template` is the quickest gauge. There is no dedicated email metric; the `ticketrush.outbox.*` counters only cover outbox messages (account emails, notification handlers).
+- Data: `Pending` rows with `attempts > 0` grow slowly (a handful per pass thanks to the breaker; most of the backlog keeps `attempts = 0`) and `next_attempt_at` moves out (up to 1 hour apart). The `Pending` count by `template` is the quickest gauge. There is no dedicated email metric; the `ticketrush.outbox.*` counters only cover outbox messages (account emails, notification handlers).
 - In-app notices are unaffected: they are written in the handler's transaction and never wait for SMTP. Other notification types are not blocked either, since each row fails and reschedules on its own (`EmailDeliveryTests.Smtp_failure_reschedules_with_backoff_and_does_not_touch_other_deliveries`). A row that fails does not stop the rows after it; each rescheduled row is simply tried again later.
-- Recovery needs no action while rows are still `Pending`: when SMTP is back they go out in `next_attempt_at` order. **Mind the length of the retry window.** The 10 attempts are spread over delays of about 1, 2, 4, ... 256 s (each between half and the full value), so a row is parked after roughly 4 to 8.5 minutes of continuous failure, not hours. An outage longer than that leaves `DeadLettered` rows: requeue them as above once SMTP works.
+- Recovery needs no action while rows are still `Pending`: when SMTP is back the next probe succeeds (within 5 minutes at most), the breaker closes and the rows go out in `next_attempt_at` order. A row is parked only after about 11.5 to 23 hours of its own failures, so only an outage of most of a day leaves failed `DeadLettered` rows (requeue them as above). Reminders whose moment passed during the outage are parked as `expired`: that is intended, do not requeue them.
 
 ## Timeout, transactions and the remaining duplicate window
 

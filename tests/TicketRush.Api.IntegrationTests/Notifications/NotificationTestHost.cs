@@ -37,6 +37,9 @@ public sealed class ScriptedEmailSender : IEmailSender
 
     public TimeSpan Delay { get; set; }
 
+    /// <summary>When it returns an exception for a message, the send throws it (after counting the attempt).</summary>
+    public Func<EmailMessage, Exception?>? FailWith { get; set; }
+
     /// <summary>Every call, including the refused ones.</summary>
     public int Attempts => _attempts;
 
@@ -52,6 +55,11 @@ public sealed class ScriptedEmailSender : IEmailSender
         {
             HangStarted.Release();
             await Task.Delay(Timeout.Infinite, ct);
+        }
+
+        if (FailWith?.Invoke(message) is { } failure)
+        {
+            throw failure;
         }
 
         if (RefusedAddresses.Contains(message.To))

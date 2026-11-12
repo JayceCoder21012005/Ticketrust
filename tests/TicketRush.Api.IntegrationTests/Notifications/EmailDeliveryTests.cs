@@ -1,9 +1,12 @@
+using System.Net.Sockets;
+using MailKit.Net.Smtp;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
 using TicketRush.Api.IntegrationTests.Infrastructure;
-using TicketRush.Application.Abstractions.Messaging;
 using TicketRush.Application.Abstractions.Notifications;
 using TicketRush.Domain.Notifications;
+using TicketRush.Infrastructure.Notifications;
+using TicketRush.Infrastructure.Options;
 
 namespace TicketRush.Api.IntegrationTests.Notifications;
 
@@ -15,6 +18,9 @@ public sealed class EmailDeliveryTests(ContainersFixture containers) : IAsyncLif
     private string _database = null!;
     private NotificationTestHost _host = null!;
     private int _sequence;
+
+    /// <summary>The retry schedule the hosts run with (the defaults).</summary>
+    private static readonly EmailRetryPolicy Policy = EmailRetryPolicy.From(new EmailDeliveryOptions());
 
     public async ValueTask InitializeAsync()
     {
@@ -29,7 +35,7 @@ public sealed class EmailDeliveryTests(ContainersFixture containers) : IAsyncLif
     private NotificationTestHost NewHost(int batchSize = 20, TimeSpan? sendTimeout = null) =>
         new(_database, containers.RedisConnectionString, _sender, _clock, batchSize, _logs, sendTimeout);
 
-    private async Task<EmailDelivery> SeedAsync(string? to = null, string template = "order-paid", string? modelJson = null)
+    private async Task<EmailDelivery> SeedAsync(string? to = null, string template = "order-paid", string? modelJson = null, DateTimeOffset? expiresAt = null)
     {
         var number = Interlocked.Increment(ref _sequence);
         var delivery = EmailDelivery.Create(
@@ -38,7 +44,8 @@ public sealed class EmailDeliveryTests(ContainersFixture containers) : IAsyncLif
             template,
             modelJson ?? System.Text.Json.JsonSerializer.Serialize(NotificationTestHost.OrderModel($"TR-{number:D4}")),
             $"order-paid:{number}",
-            _clock.GetUtcNow());
+            _clock.GetUtcNow(),
+            expiresAt);
         await using var scope = _host.Scope();
         var db = NotificationTestHost.Db(scope);
         db.EmailDeliveries.Add(delivery);
@@ -102,12 +109,12 @@ public sealed class EmailDeliveryTests(ContainersFixture containers) : IAsyncLif
         retry.Attempts.ShouldBe(1);
         retry.SentAt.ShouldBeNull();
         retry.LastError.ShouldStartWith("InvalidOperationException");
-        (retry.NextAttemptAt - _clock.GetUtcNow()).ShouldBeInRange(OutboxRetryPolicy.BaseDelay / 2, OutboxRetryPolicy.BaseDelay);
+        (retry.NextAttemptAt - _clock.GetUtcNow()).ShouldBeInRange(TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(30), "the email policy starts at 30 s");
 
         (await _host.Processor.ProcessBatchAsync(Ct)).ShouldBe(0, "the failed delivery is not due yet");
 
         _sender.RefusedAddresses.Clear();
-        _clock.Advance(OutboxRetryPolicy.BaseDelay);
+        _clock.Advance(TimeSpan.FromSeconds(30));
         (await _host.Processor.ProcessBatchAsync(Ct)).ShouldBe(1);
         (await LoadAsync(failing.Id)).Status.ShouldBe(EmailDeliveryStatus.Sent);
     }
@@ -119,14 +126,14 @@ public sealed class EmailDeliveryTests(ContainersFixture containers) : IAsyncLif
         _sender.RefusedAddresses.Add("refused@example.com");
 
         var previousCeiling = TimeSpan.Zero;
-        for (var attempt = 1; attempt < OutboxRetryPolicy.MaxAttempts; attempt++)
+        for (var attempt = 1; attempt < Policy.MaxAttempts; attempt++)
         {
             (await _host.Processor.ProcessBatchAsync(Ct)).ShouldBe(1);
 
             var loaded = await LoadAsync(delivery.Id);
             loaded.Status.ShouldBe(EmailDeliveryStatus.Pending);
             loaded.Attempts.ShouldBe(attempt);
-            var ceiling = TimeSpan.FromMilliseconds(Math.Min(OutboxRetryPolicy.BaseDelay.TotalMilliseconds * Math.Pow(2, attempt - 1), OutboxRetryPolicy.MaxDelay.TotalMilliseconds));
+            var ceiling = Policy.NextDelay(attempt, random: 1);
             (loaded.NextAttemptAt - _clock.GetUtcNow()).ShouldBeInRange(ceiling / 2, ceiling);
             ceiling.ShouldBeGreaterThanOrEqualTo(previousCeiling);
             previousCeiling = ceiling;
@@ -138,10 +145,11 @@ public sealed class EmailDeliveryTests(ContainersFixture containers) : IAsyncLif
 
         var parked = await LoadAsync(delivery.Id);
         parked.Status.ShouldBe(EmailDeliveryStatus.DeadLettered);
-        parked.Attempts.ShouldBe(OutboxRetryPolicy.MaxAttempts);
-        _clock.Advance(TimeSpan.FromDays(1));
+        parked.Attempts.ShouldBe(Policy.MaxAttempts);
+        (_clock.GetUtcNow() - parked.CreatedAt).ShouldBeGreaterThan(TimeSpan.FromHours(11), "retried for the better part of a day, not minutes");
+        _clock.Advance(TimeSpan.FromDays(2));
         (await _host.Processor.ProcessBatchAsync(Ct)).ShouldBe(0, "a dead-lettered delivery is never retried");
-        _sender.Attempts.ShouldBe(OutboxRetryPolicy.MaxAttempts);
+        _sender.Attempts.ShouldBe(Policy.MaxAttempts);
     }
 
     [Fact]
@@ -170,18 +178,132 @@ public sealed class EmailDeliveryTests(ContainersFixture containers) : IAsyncLif
         (await NotificationTestHost.Db(scope).EmailDeliveries.CountAsync(d => d.Status == EmailDeliveryStatus.Sent, Ct)).ShouldBe(Rows);
     }
 
-    [Fact]
-    public async Task A_delivery_that_cannot_render_is_rescheduled_and_does_not_block_the_others()
+    [Theory]
+    [InlineData("no-such-template", null)]
+    [InlineData("order-paid", "{\"name\":\"Đạt\"}")]
+    [InlineData("order-paid", "[1,2]")]
+    public async Task A_delivery_that_cannot_render_is_dead_lettered_at_once_and_does_not_block_the_others(string template, string? modelJson)
     {
-        var broken = await SeedAsync(template: "no-such-template");
+        var broken = await SeedAsync(template: template, modelJson: modelJson);
         var other = await SeedAsync();
 
         (await _host.Processor.ProcessBatchAsync(Ct)).ShouldBe(2);
 
         (await LoadAsync(other.Id)).Status.ShouldBe(EmailDeliveryStatus.Sent);
-        var retry = await LoadAsync(broken.Id);
+        var parked = await LoadAsync(broken.Id);
+        parked.Status.ShouldBe(EmailDeliveryStatus.DeadLettered, "it would fail the same way every time");
+        parked.Attempts.ShouldBe(1);
+        _sender.Attempts.ShouldBe(1, "nothing was sent for the broken one");
+    }
+
+    [Fact]
+    public async Task A_permanent_smtp_rejection_is_dead_lettered_at_once_but_a_4xx_is_retried()
+    {
+        var rejected = await SeedAsync(to: "gone@example.com");
+        var busy = await SeedAsync(to: "busy@example.com");
+        var malformed = await SeedAsync(to: "not an address");
+        _sender.FailWith = message => message.To switch
+        {
+            "gone@example.com" => new SmtpCommandException(SmtpErrorCode.RecipientNotAccepted, SmtpStatusCode.MailboxUnavailable, "550 no such user"),
+            "busy@example.com" => new SmtpCommandException(SmtpErrorCode.RecipientNotAccepted, SmtpStatusCode.MailboxBusy, "450 try later"),
+            _ => new MimeKit.ParseException("Invalid addr-spec token", 0, 3),
+        };
+
+        (await _host.Processor.ProcessBatchAsync(Ct)).ShouldBe(3);
+
+        var parked = await LoadAsync(rejected.Id);
+        parked.Status.ShouldBe(EmailDeliveryStatus.DeadLettered);
+        parked.Attempts.ShouldBe(1);
+        parked.LastError.ShouldStartWith(nameof(SmtpCommandException));
+        (await LoadAsync(malformed.Id)).Status.ShouldBe(EmailDeliveryStatus.DeadLettered);
+        var retry = await LoadAsync(busy.Id);
         retry.Status.ShouldBe(EmailDeliveryStatus.Pending);
         retry.Attempts.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task An_outage_stops_the_pass_after_a_few_transport_failures_and_charges_no_other_row()
+    {
+        var rows = new List<EmailDelivery>();
+        for (var i = 0; i < 10; i++)
+        {
+            rows.Add(await SeedAsync());
+            _clock.Advance(TimeSpan.FromMilliseconds(1)); // a stable claim order
+        }
+
+        _sender.FailWith = _ => new SocketException((int)SocketError.ConnectionRefused);
+
+        var outcome = await _host.Processor.RunBatchAsync(Ct);
+
+        outcome.OutageSuspected.ShouldBeTrue();
+        outcome.Handled.ShouldBe(new EmailDeliveryOptions().OutageFailureThreshold);
+        _sender.Attempts.ShouldBe(5);
+        var loaded = await Task.WhenAll(rows.Select(r => LoadAsync(r.Id)));
+        loaded.Count(d => d.Attempts == 1).ShouldBe(5);
+        loaded.Count(d => d.Attempts == 0).ShouldBe(5, "the rows the pass never tried keep their whole retry budget");
+        loaded.ShouldAllBe(d => d.Status == EmailDeliveryStatus.Pending);
+
+        // While SMTP is still down, the next pass is only a probe: one more row is charged, not five.
+        var probe = await _host.Processor.RunBatchAsync(Ct);
+        probe.OutageSuspected.ShouldBeTrue();
+        probe.Handled.ShouldBe(1);
+        _sender.Attempts.ShouldBe(6);
+
+        // SMTP is back: the first success closes the breaker and the whole backlog goes out.
+        _sender.FailWith = null;
+        _clock.Advance(TimeSpan.FromMinutes(2));
+        var recovered = await _host.Processor.RunBatchAsync(Ct);
+        recovered.OutageSuspected.ShouldBeFalse();
+        recovered.Handled.ShouldBe(10);
+        _sender.Sent.Select(m => m.MessageId).Order().ShouldBe(rows.Select(r => r.Id).Order());
+    }
+
+    [Fact]
+    public async Task Failures_that_are_not_transport_failures_never_trip_the_breaker()
+    {
+        for (var i = 0; i < 8; i++)
+        {
+            await SeedAsync(to: "refused@example.com");
+        }
+
+        _sender.RefusedAddresses.Add("refused@example.com");
+
+        var outcome = await _host.Processor.RunBatchAsync(Ct);
+
+        outcome.OutageSuspected.ShouldBeFalse();
+        outcome.Handled.ShouldBe(8);
+    }
+
+    [Fact]
+    public async Task An_expired_reminder_is_parked_unsent_and_a_delivery_without_expiry_still_goes_out()
+    {
+        var expired = await SeedAsync(template: "reminder-sale-opens", expiresAt: _clock.GetUtcNow().AddMinutes(30));
+        var lasting = await SeedAsync();
+        _clock.Advance(TimeSpan.FromMinutes(30)); // SMTP was down, or the worker was behind, until the sale opened
+
+        (await _host.Processor.ProcessBatchAsync(Ct)).ShouldBe(2);
+
+        var parked = await LoadAsync(expired.Id);
+        parked.Status.ShouldBe(EmailDeliveryStatus.DeadLettered);
+        parked.LastError.ShouldBe(EmailDelivery.ExpiredError);
+        parked.Attempts.ShouldBe(0, "an expiry is not a failed send");
+        parked.SentAt.ShouldBeNull();
+        _sender.Sent.ShouldHaveSingleItem().MessageId.ShouldBe(lasting.Id);
+        (await LoadAsync(lasting.Id)).Status.ShouldBe(EmailDeliveryStatus.Sent);
+    }
+
+    [Fact]
+    public async Task A_reminder_that_has_not_expired_yet_is_sent()
+    {
+        var reminder = await SeedAsync(template: "reminder-sale-opens", expiresAt: _clock.GetUtcNow().AddMinutes(30));
+        _clock.Advance(TimeSpan.FromMinutes(29));
+
+        (await _host.Processor.ProcessBatchAsync(Ct)).ShouldBe(1);
+
+        var sent = await LoadAsync(reminder.Id);
+        sent.Status.ShouldBe(EmailDeliveryStatus.Sent);
+        sent.ExpiresAt.ShouldBe(NotificationTestHost.Start.AddMinutes(30));
+        sent.CreatedAt.ShouldBe(NotificationTestHost.Start);
     }
 
     [Fact]

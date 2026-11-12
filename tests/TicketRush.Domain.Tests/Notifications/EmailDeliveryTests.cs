@@ -119,4 +119,39 @@ public sealed class EmailDeliveryTests
         Should.Throw<DomainException>(() => parked.MarkSent(Now));
         Should.Throw<DomainException>(() => parked.RecordFailure(Now, "x", TimeSpan.Zero, deadLetter: true));
     }
+
+    [Fact]
+    public void EmailDelivery_create_records_its_creation_time_and_no_expiry_by_default()
+    {
+        var delivery = New();
+
+        delivery.CreatedAt.ShouldBe(Now);
+        delivery.ExpiresAt.ShouldBeNull();
+        delivery.IsExpired(Now.AddYears(1)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void EmailDelivery_with_an_expiry_is_expired_from_that_moment_on()
+    {
+        var delivery = EmailDelivery.Create(Guid.CreateVersion7(), "a@example.com", "reminder-sale-opens", "{}", "reminder:1", Now, Now.AddMinutes(30));
+
+        delivery.ExpiresAt.ShouldBe(Now.AddMinutes(30));
+        delivery.IsExpired(Now.AddMinutes(30).AddTicks(-1)).ShouldBeFalse();
+        delivery.IsExpired(Now.AddMinutes(30)).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void EmailDelivery_MarkExpired_parks_it_without_counting_an_attempt()
+    {
+        var delivery = New();
+        delivery.RecordFailure(Now, "timeout", TimeSpan.FromSeconds(30), deadLetter: false);
+
+        delivery.MarkExpired();
+
+        delivery.Status.ShouldBe(EmailDeliveryStatus.DeadLettered);
+        delivery.LastError.ShouldBe(EmailDelivery.ExpiredError);
+        delivery.Attempts.ShouldBe(1);
+        delivery.SentAt.ShouldBeNull();
+        Should.Throw<DomainException>(() => delivery.MarkExpired()).Code.ShouldBe("email_delivery.illegal_transition");
+    }
 }

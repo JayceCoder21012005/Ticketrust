@@ -71,6 +71,22 @@ public sealed class NotificationWriterTests(ContainersFixture containers) : IAsy
         delivery.Attempts.ShouldBe(0);
         delivery.NextAttemptAt.ShouldBe(NotificationTestHost.Start);
         delivery.ModelJson.ShouldContain("\"orderCode\"");
+        delivery.CreatedAt.ShouldBe(NotificationTestHost.Start);
+        delivery.ExpiresAt.ShouldBeNull("an order email is worth sending however late");
+    }
+
+    [Fact]
+    public async Task An_email_plan_with_an_expiry_stores_it_on_the_delivery()
+    {
+        var (userId, _) = await _host.CreateUserAsync(emailConfirmed: true);
+        var expiresAt = NotificationTestHost.Start.AddMinutes(30);
+
+        await _host.AddAsync(Draft(userId, "reminder:x", new EmailPlan("reminder-sale-opens", NotificationTestHost.OrderModel(), expiresAt)), Ct);
+
+        await using var scope = _host.Scope();
+        var delivery = await NotificationTestHost.Db(scope).EmailDeliveries.AsNoTracking().SingleAsync(Ct);
+        delivery.ExpiresAt.ShouldBe(expiresAt);
+        delivery.CreatedAt.ShouldBe(NotificationTestHost.Start);
     }
 
     [Fact]

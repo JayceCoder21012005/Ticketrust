@@ -146,6 +146,32 @@ public sealed class NotificationSchemaTests(ContainersFixture containers) : IAsy
         (await db.Database.SqlQuery<string>($"SELECT pg_typeof(model)::text AS \"Value\" FROM email_deliveries WHERE id = {delivery.Id}").SingleAsync(Ct)).ShouldBe("jsonb");
     }
 
+    private sealed record ColumnInfo(string ColumnName, string DataType, string IsNullable, string? ColumnDefault);
+
+    [Fact]
+    public async Task Email_deliveries_record_their_age_and_an_optional_expiry()
+    {
+        await using var scope = Scope();
+        var db = Db(scope);
+        var columns = await db.Database
+            .SqlQuery<ColumnInfo>($"""
+                SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'email_deliveries' AND column_name IN ('created_at', 'expires_at')
+                ORDER BY column_name
+                """)
+            .ToListAsync(Ct);
+
+        columns.Count.ShouldBe(2);
+        columns[0].ShouldBe(new ColumnInfo("created_at", "timestamp with time zone", "NO", "now()"), "rows from before the column got the migration time");
+        columns[1].ShouldBe(new ColumnInfo("expires_at", "timestamp with time zone", "YES", null));
+
+        var reminder = EmailDelivery.Create(Guid.CreateVersion7(), "a@example.com", "reminder-sale-opens", "{}", "reminder:x", Now, Now.AddMinutes(30));
+        await SaveAsync(reminder);
+        var loaded = await db.EmailDeliveries.AsNoTracking().SingleAsync(d => d.Id == reminder.Id, Ct);
+        loaded.CreatedAt.ShouldBe(Now);
+        loaded.ExpiresAt.ShouldBe(Now.AddMinutes(30));
+    }
+
     [Fact]
     public async Task Keyset_index_exists()
     {

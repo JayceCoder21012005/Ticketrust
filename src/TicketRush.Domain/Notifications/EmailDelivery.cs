@@ -14,11 +14,14 @@ public sealed class EmailDelivery : Entity
 
     /// <summary>Stored as <see cref="LastError"/> when a failure comes with a blank message.</summary>
     public const string UnknownError = "unknown error";
+
+    /// <summary>Stored as <see cref="LastError"/> when the delivery was parked unsent because its moment had passed (<see cref="MarkExpired"/>).</summary>
+    public const string ExpiredError = "expired";
     public const int MaxToAddressLength = 320;
     public const int MaxTemplateLength = 100;
     public const int MaxDedupeKeyLength = 200;
 
-    private EmailDelivery(Guid userId, string toAddress, string template, string modelJson, string dedupeKey, DateTimeOffset now)
+    private EmailDelivery(Guid userId, string toAddress, string template, string modelJson, string dedupeKey, DateTimeOffset now, DateTimeOffset? expiresAt)
         : base(Guid.CreateVersion7())
     {
         UserId = userId;
@@ -28,6 +31,8 @@ public sealed class EmailDelivery : Entity
         DedupeKey = dedupeKey;
         Status = EmailDeliveryStatus.Pending;
         NextAttemptAt = now;
+        CreatedAt = now;
+        ExpiresAt = expiresAt;
     }
 
     // Required by EF Core.
@@ -64,7 +69,17 @@ public sealed class EmailDelivery : Entity
 
     public DateTimeOffset? SentAt { get; private set; }
 
-    public static EmailDelivery Create(Guid userId, string toAddress, string template, string modelJson, string dedupeKey, DateTimeOffset now)
+    /// <summary>When the email was queued: how old a backlog is, whatever its retries did to <see cref="NextAttemptAt"/>.</summary>
+    public DateTimeOffset CreatedAt { get; private set; }
+
+    /// <summary>
+    /// The moment after which the email is no longer true (a reminder of a sale opening that has already opened), or <c>null</c> for
+    /// an email that is worth sending however late.
+    /// </summary>
+    public DateTimeOffset? ExpiresAt { get; private set; }
+
+    /// <param name="expiresAt">See <see cref="ExpiresAt"/>; <c>null</c> = never expires.</param>
+    public static EmailDelivery Create(Guid userId, string toAddress, string template, string modelJson, string dedupeKey, DateTimeOffset now, DateTimeOffset? expiresAt = null)
     {
         var address = toAddress?.Trim();
         var templateName = template?.Trim();
@@ -81,7 +96,7 @@ public sealed class EmailDelivery : Entity
                 "An email delivery needs a user, an address, a template name, a model and a dedupe key within the column widths.");
         }
 
-        return new EmailDelivery(userId, address, templateName, modelJson, key, now);
+        return new EmailDelivery(userId, address, templateName, modelJson, key, now, expiresAt);
     }
 
     /// <summary>Pending → Sent.</summary>
@@ -113,6 +128,19 @@ public sealed class EmailDelivery : Entity
         {
             NextAttemptAt = now + delay;
         }
+    }
+
+    public bool IsExpired(DateTimeOffset now) => ExpiresAt is { } expiresAt && expiresAt <= now;
+
+    /// <summary>
+    /// Pending → DeadLettered without a send: what it says is no longer true. Not a failed attempt (<see cref="Attempts"/> is
+    /// unchanged); <see cref="LastError"/> becomes <see cref="ExpiredError"/>, which tells it apart from a delivery that failed.
+    /// </summary>
+    public void MarkExpired()
+    {
+        EnsurePending(nameof(MarkExpired));
+        Status = EmailDeliveryStatus.DeadLettered;
+        LastError = ExpiredError;
     }
 
     private void EnsurePending(string method)
