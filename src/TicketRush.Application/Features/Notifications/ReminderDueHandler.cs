@@ -13,8 +13,9 @@ namespace TicketRush.Application.Features.Notifications;
 /// <summary>
 /// Turns a due reminder into the follower's in-app notice and email (spec 09), then pushes the notice to their open tabs.
 /// Idempotent through <c>reminder:{kind}:{eventId}:{userId}</c>: a redelivery writes nothing and pushes nothing. A missing user,
-/// an event that is no longer Published, a sale with no opening time left to announce, or a moment that has already passed by
-/// the time the message is handled is a no-op, never an error that would hold up other outbox messages.
+/// a user who unfollowed the event after the reminder was planned, an event that is no longer Published, a sale with no opening
+/// time left to announce, or a moment that has already passed by the time the message is handled is a no-op, never an error
+/// that would hold up other outbox messages.
 /// </summary>
 public sealed partial class ReminderDueHandler(
     IAppDbContext db,
@@ -46,6 +47,12 @@ public sealed partial class ReminderDueHandler(
     /// <returns>The notice to write, or <c>null</c> (logged at debug level, without personal data) when there is nothing true left to say.</returns>
     private async Task<NotificationDraft?> PlanNoticeAsync(ReminderDue message, IntegrationEventContext context, CancellationToken ct)
     {
+        // The planner only plans for followers, but the outbox can be behind: "Nhắc tôi" turned off since then means no reminder.
+        if (!await db.EventFollows.AnyAsync(f => f.UserId == message.UserId && f.EventId == message.EventId, ct))
+        {
+            return Skipped(message.Kind, "the user no longer follows the event");
+        }
+
         var facts = await LoadEventAsync(message.EventId, context.OccurredAt, ct);
         if (facts is null)
         {

@@ -214,6 +214,7 @@ describe("EventCta", () => {
       const { unmount } = render(<EventCta event={event} priceFrom={800_000} />);
       await flush();
       expect(screen.getByText(/trước giờ mở bán 30 phút/)).toBeInTheDocument();
+      expect(screen.getByText(/24 giờ trước khi sự kiện diễn ra/)).toBeInTheDocument();
       unmount();
 
       at(Date.parse(opensAt) + MIN);

@@ -138,7 +138,7 @@
     "cta": {
       "label": "Buy tickets",
       "opensIn": "On sale in",
-      "remindHint": "We will message you 30 minutes before the sale opens.",
+      "remindHint": "We will message you 30 minutes before the sale opens and 24 hours before the event starts.",
       "enterQueue": "Join the waiting room",
       "queueHint": "The waiting room is open. Places are drawn at random when the sale opens.",
       "buy": "Buy tickets",

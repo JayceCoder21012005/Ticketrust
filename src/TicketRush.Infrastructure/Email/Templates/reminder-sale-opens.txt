@@ -2,9 +2,11 @@ Subject: Sắp mở bán vé: {{ eventTitle }}
 
 Xin chào {{ name }},
 
-Đợt mở bán vé của sự kiện {{ eventTitle }} sẽ bắt đầu lúc {{ startsAtText }}, chỉ còn khoảng 30 phút nữa.
+Sự kiện {{ eventTitle }} sắp mở bán vé: đợt mở bán bắt đầu lúc {{ startsAtText }}.
 
 Mở trang sự kiện:
 {{ link }}
 
 Vé thường được bán rất nhanh, hãy vào sẵn trang sự kiện để không bỏ lỡ.
+
+Bạn nhận email này vì đã bật Nhắc tôi cho sự kiện này. Hãy tắt Nhắc tôi trên trang sự kiện nếu không muốn nhận nữa.

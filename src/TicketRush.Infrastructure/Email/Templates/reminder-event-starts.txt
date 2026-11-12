@@ -7,4 +7,4 @@ Sự kiện {{ eventTitle }} sẽ diễn ra lúc {{ startsAtText }}, tức là t
 Xem chi tiết sự kiện:
 {{ link }}
 
-Chúc bạn có một buổi trải nghiệm thật vui.
+Bạn nhận email này vì đã bật Nhắc tôi cho sự kiện này. Hãy tắt Nhắc tôi trên trang sự kiện nếu không muốn nhận nữa.

@@ -30,9 +30,17 @@ public sealed class ReminderDueTests(ContainersFixture containers) : IAsyncLifet
     // ---------------------------------------------------------------- fixtures
 
     /// <param name="plannedAt">When the reminder was planned (the message's OccurredAt); defaults to the clock's current time.</param>
-    private async Task HandleAsync(ReminderDue message, CancellationToken ct, DateTimeOffset? plannedAt = null)
+    /// <param name="following">Whether the user still follows the event when the message is handled (the planner only plans for followers).</param>
+    private async Task HandleAsync(ReminderDue message, CancellationToken ct, DateTimeOffset? plannedAt = null, bool following = true)
     {
         await using var scope = _world.Host.Scope();
+        if (following)
+        {
+            await NotificationTestHost.Db(scope).Database.ExecuteSqlAsync(
+                $"INSERT INTO event_follows (user_id, event_id, created_at) VALUES ({message.UserId}, {message.EventId}, {_world.Clock.GetUtcNow()}) ON CONFLICT DO NOTHING",
+                ct);
+        }
+
         var handler = scope.ServiceProvider.GetRequiredService<ReminderDueHandler>();
         await handler.HandleAsync(message, new IntegrationEventContext(Guid.NewGuid(), plannedAt ?? _world.Clock.GetUtcNow(), 1), ct);
     }
@@ -210,6 +218,39 @@ public sealed class ReminderDueTests(ContainersFixture containers) : IAsyncLifet
         await HandleAsync(new ReminderDue(userId, evt.Id, ReminderKind.SaleOpens30m), Ct, plannedAt: Now);
 
         (await NotificationsAsync()).ShouldHaveSingleItem().Type.ShouldBe(NotificationType.SaleOpensSoon);
+    }
+
+    [Fact]
+    public async Task A_reminder_for_a_user_who_no_longer_follows_the_event_writes_nothing()
+    {
+        var (userId, _) = await _world.Host.CreateUserAsync(emailConfirmed: true);
+        var evt = await _world.EventAsync(EventStatus.Published, Now.AddHours(12), Ct);
+
+        await HandleAsync(new ReminderDue(userId, evt.Id, ReminderKind.EventStarts24h), Ct, following: false);
+
+        (await NotificationsAsync()).ShouldBeEmpty();
+        (await DeliveriesAsync()).ShouldBeEmpty();
+        _world.Notifier.Items.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Unfollowing_while_the_reminder_waits_in_the_outbox_cancels_it()
+    {
+        var (userId, _) = await _world.Host.CreateUserAsync(emailConfirmed: true);
+        var evt = await _world.EventAsync(EventStatus.Published, Now.AddHours(12), Ct, Now.AddMinutes(10));
+        await _world.FollowAsync(userId, evt.Id, Ct);
+        (await _world.PlanAsync(Ct)).ShouldBe(2);
+
+        await using (var scope = _world.Host.Scope())
+        {
+            await NotificationTestHost.Db(scope).EventFollows.Where(f => f.UserId == userId && f.EventId == evt.Id).ExecuteDeleteAsync(Ct);
+        }
+
+        await _world.Host.DrainOutboxAsync(Ct);
+
+        (await NotificationsAsync()).ShouldBeEmpty("the user turned the reminders off before they went out");
+        (await DeliveriesAsync()).ShouldBeEmpty();
+        (await _world.ReminderMessagesAsync(Ct)).ShouldAllBe(m => m.ProcessedAt != null && m.LastError == null, "a skipped reminder is handled, not failed");
     }
 
     [Fact]

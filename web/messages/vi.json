@@ -138,7 +138,7 @@
     "cta": {
       "label": "Mua vé",
       "opensIn": "Mở bán sau",
-      "remindHint": "Chúng tôi sẽ nhắn bạn trước giờ mở bán 30 phút.",
+      "remindHint": "Chúng tôi sẽ nhắn bạn trước giờ mở bán 30 phút và 24 giờ trước khi sự kiện diễn ra.",
       "enterQueue": "Vào phòng chờ",
       "queueHint": "Phòng chờ đã mở. Thứ tự được xếp ngẫu nhiên lúc mở bán.",
       "buy": "Mua vé",

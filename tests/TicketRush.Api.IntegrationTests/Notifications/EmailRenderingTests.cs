@@ -114,6 +114,34 @@ public sealed partial class EmailRenderingTests
         email.Html.ShouldContain($"?a=1&amp;b=2");
     }
 
+    private const string ReminderFooter = "Bạn nhận email này vì đã bật Nhắc tôi cho sự kiện này. Hãy tắt Nhắc tôi trên trang sự kiện nếu không muốn nhận nữa.";
+
+    [Theory]
+    [InlineData("reminder-sale-opens")]
+    [InlineData("reminder-event-starts")]
+    public void Reminders_say_why_they_were_sent_and_promise_nothing_untrue(string template)
+    {
+        var email = _renderer.Render(template, Model());
+
+        foreach (var part in new[] { email.Html, email.Text })
+        {
+            part.ShouldContain(ReminderFooter, Case.Sensitive, "both parts tell a follower how to stop the reminders");
+            part.ShouldContain("20:00, 15/11/2026");
+            // A follow made inside the 30-minute window is reminded later; and followers may hold no ticket.
+            part.ShouldNotContain("khoảng 30 phút");
+            part.ShouldNotContain("Chúc bạn có một buổi trải nghiệm");
+        }
+    }
+
+    [Fact]
+    public void The_sale_reminder_says_the_sale_opens_soon()
+    {
+        var email = _renderer.Render("reminder-sale-opens", Model());
+
+        email.Text.ShouldContain("sắp mở bán");
+        email.Html.ShouldContain("sắp mở bán");
+    }
+
     [Fact]
     public void Only_the_five_html_significant_characters_are_escaped()
     {
