@@ -217,7 +217,11 @@ public static class DependencyInjection
     /// Accepted trade-off: the reverse also holds, so a deterministic failure inside a notification handler (a DomainException from
     /// <c>Notification.Create</c>, an email model that cannot be serialized) would hold back the inventory commit through the retries
     /// until the message is dead-lettered. The risk is low: titles, bodies and links are built from bounded values (an event title is
-    /// at most 200 characters, the link is a fixed path) and live pushes are swallowed. The commit is also recoverable by the reconciler.
+    /// at most 200 characters, the link is a fixed path) and live pushes are swallowed (and only sent after the batch commits). Only
+    /// part of what the later handlers do is repaired by other means while they wait: for live events the inventory reconciler's
+    /// full pass (every 5 min) rebuilds the sold set, the GA remaining counts and the per-user bought counts from the database. It
+    /// does nothing for events that are not live, and nothing repairs the queue leave (<c>OrderPaidLeaveQueueHandler</c>) but the
+    /// message itself.
     /// </para>
     /// </summary>
     private static void AddOrderNotificationHandlers(IServiceCollection services)
