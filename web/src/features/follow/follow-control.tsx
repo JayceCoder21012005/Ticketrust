@@ -1,14 +1,13 @@
 "use client";
 
 import { QueryClient, QueryClientContext, QueryClientProvider } from "@tanstack/react-query";
-import { Bell, BellRing } from "lucide-react";
 import { use, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { getSession, refreshAccessToken, subscribe } from "@/lib/api/session";
 import { useDropCacheOnUserChange } from "@/lib/api/use-drop-cache-on-user-change";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { RemindLink, RemindPlaceholder, type FollowSize, type FollowVariant } from "./follow-ui";
+import { FollowFace, iconNaming, RemindLink, RemindPlaceholder, type FollowSize, type FollowVariant } from "./follow-ui";
 import { useFollow } from "./use-follow";
 
 type ControlProps = { eventId: string; path: string; size: FollowSize; variant: FollowVariant; className?: string };
@@ -65,30 +64,32 @@ function Toggle({ eventId, size, variant, className }: Omit<ControlProps, "path"
   const { following, toggle, closed, message, loadFailed, reload } = useFollow(eventId);
   const loading = following === undefined;
 
+  // Beside the buy button in the mobile bar there is no room for a line of text: there it floats above the bell instead.
+  const note = size === "icon" ? "absolute bottom-full right-0 z-10 mb-2 w-max max-w-[min(18rem,80vw)] rounded-md border bg-popover p-2 shadow-md" : "";
+
   return (
-    <div className={cn("flex flex-col gap-2", className)}>
+    <div className={cn("flex flex-col gap-2", size === "icon" && "relative", className)}>
       <Button
         type="button"
         variant={following ? "secondary" : variant}
         size={size}
         aria-busy={loading && !loadFailed ? true : undefined}
         disabled={loading || closed}
-        title={loading && !loadFailed ? t("follow.loading") : undefined}
+        {...iconNaming(size, following, loading && !loadFailed ? t("follow.loading") : undefined)}
         onClick={toggle}
         className={cn(loading && !loadFailed && "animate-pulse")}
       >
-        {following ? <BellRing aria-hidden /> : <Bell aria-hidden />}
-        {following ? t("follow.following") : t("follow.remind")}
+        <FollowFace following={following ?? false} size={size} />
       </Button>
       {loadFailed ? (
-        <p role="alert" className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+        <p role="alert" className={cn("flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground", note)}>
           {t("follow.loadFailed")}
           <Button type="button" variant="link" size="xs" onClick={reload} className="h-auto p-0 text-xs">
             {t("common.retry")}
           </Button>
         </p>
       ) : message ? (
-        <p role="alert" className="text-xs text-danger">
+        <p role="alert" className={cn("text-xs text-danger", note)}>
           {message}
         </p>
       ) : null}

@@ -279,6 +279,51 @@ describe("FollowButton signed in", () => {
     expect(api.getFollowing).toHaveBeenCalledTimes(2);
   });
 
+  describe("icon-only (the mobile bar)", () => {
+    const renderIcon = (client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) =>
+      render(<QueryClientProvider client={client}><FollowButton eventId="e1" returnTo={PAGE} size="icon" variant="ghost" /></QueryClientProvider>);
+
+    it("shows only the bell, named and titled with the current label, and keeps switching it", async () => {
+      const user = userEvent.setup();
+      serve(false);
+      renderIcon();
+
+      const button = await ready("Nhắc tôi");
+      expect(button).toHaveAttribute("aria-label", "Nhắc tôi");
+      expect(button).toHaveAttribute("title", "Nhắc tôi");
+      expect(button).toHaveAttribute("data-size", "icon");
+      expect(button).not.toHaveTextContent(/\S/);
+      expect(button.querySelector("svg")).not.toBeNull();
+
+      await user.click(button);
+
+      const on = await ready("Đã bật nhắc nhở");
+      expect(on).toHaveAttribute("title", "Đã bật nhắc nhở");
+      expect(on).not.toHaveTextContent(/\S/);
+    });
+
+    it("is an icon-only placeholder while the state loads", async () => {
+      api.getFollowing.mockReturnValue(new Promise(() => {}));
+      renderIcon();
+
+      const placeholder = await screen.findByRole("button", { name: "Nhắc tôi" });
+      expect(placeholder).toBeDisabled();
+      expect(placeholder).toHaveAttribute("data-size", "icon");
+      expect(placeholder).not.toHaveTextContent(/\S/);
+    });
+
+    it("is an icon-only login link for a visitor", () => {
+      signOutCookie();
+      act(() => clearSession());
+      render(<FollowButton eventId="e1" returnTo={PAGE} size="icon" variant="ghost" />);
+
+      const link = screen.getByRole("link", { name: "Nhắc tôi" });
+      expect(link).toHaveAttribute("href", loginRedirectUrl(PAGE));
+      expect(link).toHaveAttribute("title", "Nhắc tôi");
+      expect(link).not.toHaveTextContent(/\S/);
+    });
+  });
+
   it("does not ask the api for a state without a live session (stale hint)", async () => {
     act(() => clearSession());
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 401 })));

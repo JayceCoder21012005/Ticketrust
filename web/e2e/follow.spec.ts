@@ -185,3 +185,56 @@ for (const colorScheme of ["light", "dark"] as const) {
     });
   }
 }
+
+/**
+ * The mobile sticky bar on the narrowest phone we support (final review I4): the follow toggle is the bell alone there, so the
+ * bar never scrolls sideways and the main action keeps its full label at the thumb's end, followed or not, in every state
+ * that offers both. SoldOut comes from a scripted availability (every tier at 0).
+ */
+test.describe("the mobile bar at 320 px", () => {
+  test.use({ viewport: { width: 320, height: 640 } });
+
+  const states = [
+    ["OnSale", ON_SALE_PATH, "link", "Mua vé"],
+    ["PreQueue", "/events/vu-cat-tuong-inner-space", "link", "Vào phòng chờ"],
+    ["SoldOut", ON_SALE_PATH, "button", "Hết vé — Vào danh sách chờ"],
+  ] as const;
+
+  for (const colorScheme of ["light", "dark"] as const) {
+    for (const [state, path, role, primary] of states) {
+      for (const following of [false, true]) {
+        test(`${state}, ${following ? "following" : "not following"}: no sideways scroll, the main action fully visible (${colorScheme})`, async ({ context, page, baseURL }) => {
+          await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
+          await arrange(context, baseURL!, { following });
+          if (state === "SoldOut") {
+            await context.route(/\/api\/v1\/events\/[^/]+\/availability$/, (route) =>
+              route.fulfill({ json: { serverNow: new Date().toISOString(), version: 0, unavailable: [], tiers: [{ tierId: "t-sold-out", remaining: 0 }] } }),
+            );
+          }
+
+          await page.goto(path);
+          const bar = page.getByRole("region", { name: "Mua vé" });
+          const bell = bar.getByRole("button", { name: following ? "Đã bật nhắc nhở" : "Nhắc tôi" });
+          await expect(bell).toBeEnabled();
+          await expect(bell).toHaveAttribute("title", following ? "Đã bật nhắc nhở" : "Nhắc tôi");
+          const main = bar.getByRole(role, { name: primary });
+          await expect(main).toBeVisible();
+
+          const width = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
+          expect(width.scroll).toBeLessThanOrEqual(width.inner);
+          const box = (await main.boundingBox())!;
+          const bellBox = (await bell.boundingBox())!;
+          expect(box.x).toBeGreaterThanOrEqual(0);
+          expect(box.x + box.width).toBeLessThanOrEqual(320);
+          expect(box.y + box.height).toBeLessThanOrEqual(640);
+          expect(bellBox.x + bellBox.width).toBeLessThanOrEqual(box.x); // the bell first, the main action at the thumb's end
+          expect(await main.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true); // its label is not clipped
+
+          const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+          const serious = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+          expect(serious, JSON.stringify(serious.map((v) => ({ id: v.id, nodes: v.nodes.slice(0, 3).map((n) => n.target) })), null, 2)).toEqual([]);
+        });
+      }
+    }
+  }
+});

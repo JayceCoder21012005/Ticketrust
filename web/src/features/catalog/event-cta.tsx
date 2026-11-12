@@ -166,8 +166,9 @@ function CtaAction({ state, slug, eventId, compact = false }: { state: CtaState 
   const queue = `/events/${slug}/queue`;
   const returnTo = `/events/${slug}`;
   // "Nhắc tôi" (spec 09): a login link for visitors, the follow toggle for signed-in ones. In every open state; it is the
-  // main action only while nothing can be bought yet, otherwise a quiet one beside the buy action, never above it.
-  const secondaryFollow = FOLLOWABLE.has(state.kind) ? <FollowButton eventId={eventId} returnTo={returnTo} size={compact ? "sm" : "default"} variant="ghost" className={compact ? "shrink-0" : "w-full"} /> : null;
+  // main action only while nothing can be bought yet, otherwise a quiet one beside the buy action, never above it. In the
+  // mobile bar it is the bell alone (named by its label): a labelled one beside "Hết vé — Vào danh sách chờ" overflows at 320 px.
+  const secondaryFollow = FOLLOWABLE.has(state.kind) ? <FollowButton eventId={eventId} returnTo={returnTo} size={compact ? "icon" : "default"} variant="ghost" className={compact ? "shrink-0" : "w-full"} /> : null;
 
   /** The state's main action; in the bar the follow button goes first (left), so the buy button stays at the thumb's end. */
   const withFollow = (primary: ReactNode, hint?: ReactNode) =>

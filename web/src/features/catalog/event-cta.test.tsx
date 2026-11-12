@@ -180,14 +180,33 @@ describe("EventCta", () => {
       expect(screen.queryByRole("button", { name: /Nhắc tôi|Đã bật nhắc nhở/ })).not.toBeInTheDocument();
     });
 
-    it("sits before the buy button in the mobile bar, so buying stays at the thumb's end", async () => {
-      startDeviceClock(0);
-      at(Date.parse(opensAt) + MIN);
+    it.each([
+      ["OnSale", 10, () => at(Date.parse(opensAt) + MIN), "link", "Mua vé"],
+      ["PreQueue", 10, () => at(Date.parse(opensAt) - 10 * MIN), "link", "Vào phòng chờ"],
+      ["SoldOut", 0, () => at(Date.parse(opensAt) + MIN), "button", "Hết vé — Vào danh sách chờ"],
+    ] as const)("is an icon before the %s action in the mobile bar, so the main action keeps its label at the thumb's end", async (_state, remaining, arrange, role, primary) => {
+      startDeviceClock(0, remaining);
+      arrange();
       render(<EventCta event={event} priceFrom={800_000} variant="bar" />);
       await flush();
 
-      const buy = screen.getByRole("link", { name: "Mua vé" });
-      expect(follow()!.compareDocumentPosition(buy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      const main = screen.getByRole(role, { name: primary });
+      const bell = follow()!;
+      expect(bell.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(bell).toHaveAttribute("aria-label", "Nhắc tôi");
+      expect(bell).toHaveAttribute("data-size", "icon");
+      expect(bell).not.toHaveTextContent(/\S/);
+      expect(main).toHaveTextContent(primary);
+    });
+
+    it("keeps its label in the panel", async () => {
+      startDeviceClock(0);
+      at(Date.parse(opensAt) + MIN);
+      render(<EventCta event={event} priceFrom={800_000} />);
+      await flush();
+
+      expect(follow()).toHaveTextContent("Nhắc tôi");
+      expect(follow()).not.toHaveAttribute("data-size", "icon");
     });
 
     it("keeps the reminder hint (30 minutes before the sale) to the state where that reminder is still to come", async () => {
