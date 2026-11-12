@@ -421,6 +421,89 @@
       "ended": "Đã diễn ra",
       "cancelled": "Đã huỷ",
       "voided": "Vé đã vô hiệu"
+    },
+    "wallet": {
+      "title": "Vé điện tử",
+      "loading": "Đang tải vé…",
+      "back": "Vé của tôi",
+      "loadFailed": "Không tải được vé.",
+      "notFound": {
+        "title": "Không tìm thấy vé",
+        "description": "Vé không tồn tại hoặc không thuộc tài khoản của bạn.",
+        "action": "Về vé của tôi"
+      },
+      "qrSection": "Mã vào cửa",
+      "qrLabel": "Mã QR vào cửa, đổi mỗi 15 giây",
+      "qrLoading": "Đang tạo mã QR…",
+      "qrEncoderFailed": "Không tải được bộ tạo mã QR. Hãy tải lại trang.",
+      "rotates": "Mã tự đổi mỗi 15 giây, ảnh chụp màn hình sẽ không dùng được.",
+      "ring": {
+        "label": "Thời gian đến mã mới",
+        "value": "Còn {seconds} giây"
+      },
+      "clock": "Giờ hiện tại",
+      "brightness": "Tăng độ sáng màn hình để quét mã nhanh hơn.",
+      "insecure": {
+        "title": "Cần kết nối an toàn (HTTPS) để hiển thị mã",
+        "description": "Hãy mở lại trang bằng địa chỉ bắt đầu với https://."
+      },
+      "codeFailed": {
+        "title": "Không tạo được mã QR",
+        "description": "Hãy tải lại trang. Nếu vẫn lỗi, liên hệ hỗ trợ."
+      },
+      "keyFailed": {
+        "title": "Không tải được mã QR",
+        "network": "Không có kết nối mạng. Hãy kiểm tra kết nối rồi thử lại.",
+        "busy": "Hệ thống đang bận. Vui lòng thử lại sau giây lát.",
+        "other": "Đã có lỗi xảy ra. Vui lòng thử lại."
+      },
+      "rateLimited": {
+        "title": "Bạn mở mã QR quá nhiều lần",
+        "retryIn": "Thử lại sau {seconds} giây",
+        "announce": "Mã QR sẽ tự tải lại sau ít phút."
+      },
+      "overlay": {
+        "checkedIn": {
+          "title": "Đã check-in",
+          "description": "Vé này đã được dùng để vào cửa."
+        },
+        "listed": {
+          "title": "Đang rao bán",
+          "description": "Vé đang được rao bán lại nên mã QR tạm ẩn. Huỷ rao bán để dùng lại vé."
+        },
+        "voided": {
+          "title": "Đã huỷ",
+          "description": "Vé này đã bị huỷ và không còn hiệu lực."
+        },
+        "ended": {
+          "title": "Sự kiện đã kết thúc",
+          "description": "Mã QR không còn hiển thị sau khi sự kiện kết thúc."
+        },
+        "notDisplayable": {
+          "title": "Không thể hiển thị mã QR",
+          "description": "Trạng thái vé vừa thay đổi. Đang cập nhật…"
+        }
+      },
+      "seat": {
+        "heading": "Thông tin chỗ ngồi",
+        "section": "Khu",
+        "row": "Hàng",
+        "number": "Ghế",
+        "standing": "Vé đứng",
+        "tier": "Hạng vé",
+        "holder": "Người sở hữu"
+      },
+      "siblings": {
+        "label": "Các vé trong đơn",
+        "previous": "Vé trước",
+        "next": "Vé sau",
+        "position": "Vé {index} trên {count}",
+        "hint": "Vuốt hoặc dùng phím mũi tên để xem vé khác."
+      },
+      "calendar": {
+        "add": "Thêm vào lịch",
+        "openTicket": "Mở vé: {url}"
+      }
     }
   },
   "orders": {

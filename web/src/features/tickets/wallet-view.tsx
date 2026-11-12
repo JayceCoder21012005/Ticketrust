@@ -1,0 +1,257 @@
+"use client";
+
+import { ArrowLeft, CalendarDays, MapPin, Sun, TicketX } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useEffectEvent, useRef, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { useAuth } from "@/components/auth/auth-provider";
+import { EmptyState } from "@/components/shared/empty-state";
+import { ErrorState } from "@/components/shared/error-state";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useWakeLock } from "@/features/queue/use-queue-effects";
+import { loginRedirectUrl } from "@/lib/api/session";
+import { ApiError, toFriendlyMessage } from "@/lib/errors";
+import { formatEventDate, formatTimeRange } from "@/lib/format";
+import { t } from "@/lib/i18n";
+import type { TicketDetail } from "@/lib/tickets/types";
+import { useTicket } from "@/lib/tickets/use-tickets";
+import { AddToCalendar } from "./add-to-calendar";
+import { RotatingQr } from "./rotating-qr";
+import { SeatInfo } from "./seat-info";
+import { siblingsOf, SiblingNav, walletHref } from "./sibling-nav";
+import { StatusOverlay, type OverlayKind } from "./status-overlay";
+import { useQrKey, type QrKeyState } from "./use-qr-key";
+import { useServerOffset } from "./use-server-offset";
+
+const TICKETS_HREF = "/account/tickets";
+
+/** A horizontal drag at least this long (and mostly horizontal) moves to the next or previous ticket. */
+const SWIPE_PX = 60;
+
+/** What the QR slot shows for the ticket as loaded: a code only for a valid ticket of an event still to come or running. */
+function displayOf(ticket: TicketDetail, offsetMs: number): "qr" | OverlayKind {
+  if (ticket.status === "Listed") return "listed";
+  if (ticket.status === "CheckedIn") return "checkedIn";
+  if (ticket.status === "Voided" || ticket.event.status === "Cancelled") return "voided";
+  if (ticket.event.status === "Ended" || Date.parse(ticket.event.endsAt) <= Date.now() + offsetMs) return "ended";
+  return "qr";
+}
+
+/**
+ * `/tickets/[id]` (spec 10): the ticket "wallet" screen. proxy.ts sends visitors without a session hint to login; this
+ * covers a hint that outlived its session and a 401 the silent refresh could not fix. The api answers 404 for an
+ * unknown ticket and for someone else's alike.
+ */
+export function WalletView({ ticketId }: { ticketId: string }) {
+  const router = useRouter();
+  const { status } = useAuth();
+  const query = useTicket(ticketId);
+  const expired = query.error instanceof ApiError && query.error.status === 401;
+
+  useEffect(() => {
+    if (status === "anonymous" || expired) router.replace(loginRedirectUrl(walletHref(ticketId)));
+  }, [status, expired, ticketId, router]);
+
+  // A loaded ticket stays on screen when a later refetch fails.
+  if (query.data) return <Wallet ticket={query.data} onStale={() => void query.refetch()} />;
+  if (query.isError && !expired) {
+    return query.error instanceof ApiError && query.error.status === 404 ? (
+      <NotFound />
+    ) : (
+      <Frame>
+        <ErrorState title={t("tickets.wallet.loadFailed")} description={toFriendlyMessage(query.error)} onRetry={() => void query.refetch()} />
+      </Frame>
+    );
+  }
+
+  return <WalletSkeleton />;
+}
+
+function Frame({ children }: { children: ReactNode }) {
+  return <div className="mx-auto flex w-full max-w-md flex-col gap-5 px-4 py-6">{children}</div>;
+}
+
+function BackLink() {
+  return (
+    <Button asChild variant="ghost" size="sm" className="-ml-2 self-start">
+      <Link href={TICKETS_HREF}>
+        <ArrowLeft aria-hidden />
+        {t("tickets.wallet.back")}
+      </Link>
+    </Button>
+  );
+}
+
+function NotFound() {
+  return (
+    <Frame>
+      <EmptyState
+        icon={TicketX}
+        title={t("tickets.wallet.notFound.title")}
+        description={t("tickets.wallet.notFound.description")}
+        action={
+          <Button asChild>
+            <Link href={TICKETS_HREF}>{t("tickets.wallet.notFound.action")}</Link>
+          </Button>
+        }
+      />
+    </Frame>
+  );
+}
+
+type WalletProps = {
+  ticket: TicketDetail;
+  /** Reloads the ticket: the api refused a key, so the status we have is out of date. */
+  onStale: () => void;
+};
+
+function Wallet({ ticket, onStale }: WalletProps) {
+  const router = useRouter();
+  const offsetMs = useServerOffset();
+  const display = displayOf(ticket, offsetMs);
+  const key = useQrKey(ticket.id, display === "qr");
+  const heading = useRef<HTMLHeadingElement>(null);
+  const swipe = useRef<{ id: number; x: number; y: number } | null>(null);
+  const { previous, next } = siblingsOf(ticket.orderTicketIds, ticket.id);
+  const refused = key.status === "refused" ? key.code : null;
+
+  // The new ticket's content after a route change (or the first load) gets focus, so the arrow keys work at once.
+  useEffect(() => heading.current?.focus(), []);
+  // Keeps the screen on while the code is shown at the gate (where supported; released on leave).
+  useWakeLock(key.status === "ready");
+
+  const reload = useEffectEvent(onStale);
+  useEffect(() => {
+    if (refused === "not_displayable") reload();
+  }, [refused]);
+
+  if (refused === "not_found") return <NotFound />;
+
+  const go = (id: string | null) => id && router.replace(walletHref(id), { scroll: false });
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.key === "ArrowLeft" && previous) {
+      event.preventDefault();
+      go(previous);
+    } else if (event.key === "ArrowRight" && next) {
+      event.preventDefault();
+      go(next);
+    }
+  };
+
+  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    swipe.current = event.pointerType === "mouse" ? null : { id: event.pointerId, x: event.clientX, y: event.clientY };
+  };
+  const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    const start = swipe.current;
+    swipe.current = null;
+    if (!start || start.id !== event.pointerId) return;
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    if (Math.abs(dx) < SWIPE_PX || Math.abs(dx) < 2 * Math.abs(dy)) return;
+    go(dx < 0 ? next : previous);
+  };
+
+  const showsCode = display === "qr" && key.status === "ready";
+
+  return (
+    <div
+      data-testid="wallet"
+      onKeyDown={onKeyDown}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerCancel={() => (swipe.current = null)}
+      className="mx-auto flex w-full max-w-md touch-pan-y flex-col gap-5 px-4 py-6"
+    >
+      <BackLink />
+      <header className="flex flex-col gap-2">
+        <h1 ref={heading} tabIndex={-1} className="break-words text-2xl font-bold tracking-tight outline-none">
+          {ticket.event.title}
+        </h1>
+        <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
+          <CalendarDays aria-hidden className="mt-0.5 size-4 shrink-0" />
+          <span>{`${formatEventDate(ticket.event.startsAt)} · ${formatTimeRange(ticket.event.startsAt, ticket.event.endsAt)}`}</span>
+        </p>
+        <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
+          <MapPin aria-hidden className="mt-0.5 size-4 shrink-0" />
+          <span className="min-w-0 break-words">{`${ticket.event.venueName}, ${ticket.event.city}`}</span>
+        </p>
+      </header>
+      <SiblingNav ids={ticket.orderTicketIds} currentId={ticket.id} />
+      <section aria-label={t("tickets.wallet.qrSection")} className="flex flex-col items-center">
+        {display === "qr" ? <CodeSlot ticket={ticket} keyState={key} offsetMs={offsetMs} /> : <StatusOverlay kind={display} />}
+      </section>
+      {showsCode ? (
+        <p className="flex items-start gap-2 rounded-xl bg-muted/60 px-4 py-3 text-sm">
+          <Sun aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
+          <span>{t("tickets.wallet.brightness")}</span>
+        </p>
+      ) : null}
+      <SeatInfo seat={ticket.seat} tierName={ticket.tierName} holderName={ticket.holderName} />
+      <AddToCalendar ticket={ticket} />
+    </div>
+  );
+}
+
+const failureCopy = (failure: string) => (failure === "network" || failure === "busy" ? failure : "other");
+
+/** The QR slot of a displayable ticket, through the life of its `qr-key` request. */
+function CodeSlot({ ticket, keyState, offsetMs }: { ticket: TicketDetail; keyState: QrKeyState & { retry: () => void }; offsetMs: number }) {
+  switch (keyState.status) {
+    case "ready":
+      return <RotatingQr ticketId={ticket.id} secret={keyState.secret} offsetMs={offsetMs} />;
+    case "refused":
+      return <StatusOverlay kind="notDisplayable" />;
+    case "rateLimited":
+      return (
+        <div className="flex aspect-square w-full max-w-80 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed bg-muted/40 p-6 text-center">
+          <h2 className="text-lg font-semibold">{t("tickets.wallet.rateLimited.title")}</h2>
+          {/* The countdown is not a live region; the status below is read once. */}
+          <p className="text-2xl font-bold tabular-nums">{t("tickets.wallet.rateLimited.retryIn", "vi", { seconds: keyState.retryAfter })}</p>
+          <p role="status" className="text-sm text-muted-foreground">
+            {t("tickets.wallet.rateLimited.announce")}
+          </p>
+        </div>
+      );
+    case "error":
+      return (
+        <ErrorState
+          className="w-full"
+          title={t("tickets.wallet.keyFailed.title")}
+          description={t(`tickets.wallet.keyFailed.${failureCopy(keyState.failure)}`)}
+          onRetry={keyState.retry}
+        />
+      );
+    default:
+      return (
+        <div className="aspect-square w-full max-w-80">
+          <Skeleton className="size-full rounded-2xl" />
+          <p role="status" className="sr-only">
+            {t("tickets.wallet.qrLoading")}
+          </p>
+        </div>
+      );
+  }
+}
+
+export function WalletSkeleton() {
+  return (
+    <Frame>
+      <p role="status" className="sr-only">
+        {t("tickets.wallet.loading")}
+      </p>
+      <div aria-busy className="flex flex-col items-center gap-5">
+        <Skeleton className="h-8 w-3/4 self-start" />
+        <Skeleton className="h-4 w-1/2 self-start" />
+        <Skeleton className="aspect-square w-full max-w-80 rounded-2xl" />
+        <div className="grid w-full grid-cols-3 gap-2">
+          <Skeleton className="h-20" />
+          <Skeleton className="h-20" />
+          <Skeleton className="h-20" />
+        </div>
+      </div>
+    </Frame>
+  );
+}

@@ -421,6 +421,89 @@
       "ended": "Ended",
       "cancelled": "Cancelled",
       "voided": "Ticket voided"
+    },
+    "wallet": {
+      "title": "E-ticket",
+      "loading": "Loading ticket…",
+      "back": "My tickets",
+      "loadFailed": "Could not load the ticket.",
+      "notFound": {
+        "title": "Ticket not found",
+        "description": "This ticket does not exist or does not belong to your account.",
+        "action": "Back to my tickets"
+      },
+      "qrSection": "Entry code",
+      "qrLabel": "Entry QR code, changes every 15 seconds",
+      "qrLoading": "Generating QR code…",
+      "qrEncoderFailed": "Could not load the QR generator. Please reload the page.",
+      "rotates": "The code changes every 15 seconds, so a screenshot will not work.",
+      "ring": {
+        "label": "Time until the next code",
+        "value": "{seconds} seconds left"
+      },
+      "clock": "Current time",
+      "brightness": "Turn up your screen brightness so the code scans faster.",
+      "insecure": {
+        "title": "A secure (HTTPS) connection is needed to show the code",
+        "description": "Reopen the page with an address starting with https://."
+      },
+      "codeFailed": {
+        "title": "Could not generate the QR code",
+        "description": "Reload the page. If it keeps failing, contact support."
+      },
+      "keyFailed": {
+        "title": "Could not load the QR code",
+        "network": "No network connection. Check your connection and try again.",
+        "busy": "The system is busy. Please try again in a moment.",
+        "other": "Something went wrong. Please try again."
+      },
+      "rateLimited": {
+        "title": "You opened the QR code too many times",
+        "retryIn": "Retrying in {seconds} seconds",
+        "announce": "The QR code will reload by itself shortly."
+      },
+      "overlay": {
+        "checkedIn": {
+          "title": "Checked in",
+          "description": "This ticket has already been used to enter."
+        },
+        "listed": {
+          "title": "Listed for resale",
+          "description": "This ticket is listed for resale, so its QR code is hidden. Cancel the listing to use it again."
+        },
+        "voided": {
+          "title": "Cancelled",
+          "description": "This ticket has been cancelled and is no longer valid."
+        },
+        "ended": {
+          "title": "The event has ended",
+          "description": "The QR code is no longer shown after the event ends."
+        },
+        "notDisplayable": {
+          "title": "The QR code cannot be shown",
+          "description": "The ticket's status just changed. Updating…"
+        }
+      },
+      "seat": {
+        "heading": "Seat details",
+        "section": "Section",
+        "row": "Row",
+        "number": "Seat",
+        "standing": "Standing",
+        "tier": "Tier",
+        "holder": "Holder"
+      },
+      "siblings": {
+        "label": "Tickets in this order",
+        "previous": "Previous ticket",
+        "next": "Next ticket",
+        "position": "Ticket {index} of {count}",
+        "hint": "Swipe or use the arrow keys to see other tickets."
+      },
+      "calendar": {
+        "add": "Add to calendar",
+        "openTicket": "Open ticket: {url}"
+      }
     }
   },
   "orders": {

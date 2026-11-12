@@ -6,6 +6,7 @@ type DateInput = Date | string | number;
 
 const vnd = new Intl.NumberFormat(LOCALE, { style: "currency", currency: "VND" });
 const time = new Intl.DateTimeFormat(LOCALE, { timeZone: TIME_ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const clock = new Intl.DateTimeFormat(LOCALE, { timeZone: TIME_ZONE, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
 const date = new Intl.DateTimeFormat(LOCALE, { timeZone: TIME_ZONE, day: "2-digit", month: "2-digit", year: "numeric" });
 const eventDate = new Intl.DateTimeFormat(LOCALE, {
   timeZone: TIME_ZONE,
@@ -22,6 +23,11 @@ export function formatVnd(amount: number): string {
 
 export function formatTime(value: DateInput): string {
   return time.format(new Date(value));
+}
+
+/** `19:00:07`: the wallet's live clock (Vietnam time). */
+export function formatClock(value: DateInput): string {
+  return clock.format(new Date(value));
 }
 
 export function formatDateTime(value: DateInput): string {
