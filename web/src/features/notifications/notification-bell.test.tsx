@@ -165,7 +165,10 @@ describe("NotificationBell", () => {
   it("Mark_all_read_clears_the_badge", async () => {
     const user = userEvent.setup();
     api.listNotifications.mockResolvedValue(notificationPage(notifications(3), 3));
-    api.markAllNotificationsRead.mockResolvedValue(undefined);
+    // The server remembers: the refetch after the mutation settles sees everything read.
+    api.markAllNotificationsRead.mockImplementation(async () => {
+      api.listNotifications.mockResolvedValue(notificationPage(notifications(3).map((n) => ({ ...n, read: true }))));
+    });
     renderBell();
 
     await user.click(await bellButton("3 thông báo chưa đọc"));

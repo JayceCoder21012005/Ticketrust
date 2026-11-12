@@ -82,7 +82,10 @@ describe("NotificationsPage", () => {
     const user = userEvent.setup();
     const target = notification(1);
     api.listNotifications.mockResolvedValue(notificationPage([target]));
-    api.markNotificationRead.mockResolvedValue(undefined);
+    // The server remembers: the refetch after the mutation settles sees the row read.
+    api.markNotificationRead.mockImplementation(async () => {
+      api.listNotifications.mockResolvedValue(notificationPage([{ ...target, read: true }]));
+    });
     renderPage();
 
     await user.click(await screen.findByRole("link", { name: /Thanh toán thành công 1/ }));
@@ -95,7 +98,9 @@ describe("NotificationsPage", () => {
   it("marks everything read", async () => {
     const user = userEvent.setup();
     api.listNotifications.mockResolvedValue(notificationPage(notifications(2)));
-    api.markAllNotificationsRead.mockResolvedValue(undefined);
+    api.markAllNotificationsRead.mockImplementation(async () => {
+      api.listNotifications.mockResolvedValue(notificationPage(notifications(2).map((n) => ({ ...n, read: true }))));
+    });
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Đánh dấu tất cả đã đọc" }));

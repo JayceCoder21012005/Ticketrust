@@ -119,6 +119,40 @@ describe("UserHubProvider", () => {
     expect(sonner).toHaveBeenCalledWith(pushed.title, expect.objectContaining({ description: pushed.body }));
   });
 
+  it("shows one toast per notification id: a push delivered twice replaces its own toast", async () => {
+    mount(null);
+    await waitFor(() => expect(feed.options).toBeDefined());
+    const pushed = notification(7);
+
+    act(() => feed.options!.onNotification(pushed));
+    act(() => feed.options!.onNotification(pushed));
+
+    const ids = vi.mocked(sonner).mock.calls.map((call) => (call[1] as { id?: unknown }).id);
+    expect(ids).toEqual([pushed.id, pushed.id]);
+  });
+
+  it("ignores a late push of the previous user once the connection was replaced", async () => {
+    const mine = vi.fn();
+    const { client } = mount(<Subscriber orderId="o1" onStatus={mine} />);
+    await waitFor(() => expect(feed.options).toBeDefined());
+    const previous = feed.options!;
+
+    act(() => setSession(session("u2")));
+    await waitFor(() => expect(feed.connect).toHaveBeenCalledTimes(2));
+    const fetches = api.listNotifications.mock.calls.length;
+    act(() => {
+      previous.onNotification(notification(9));
+      previous.onOrderStatus("o1", "Paid");
+      previous.onResync();
+    });
+
+    expect(sonner).not.toHaveBeenCalled();
+    expect(mine).not.toHaveBeenCalled();
+    const items = client.getQueryData<{ pages: { items: { id: string }[] }[] }>(["notifications", "list"])?.pages.flatMap((p) => p.items) ?? [];
+    expect(items.map((i) => i.id)).not.toContain(notification(9).id);
+    expect(api.listNotifications.mock.calls.length).toBe(fetches);
+  });
+
   it("opens the notification's page from the toast", async () => {
     mount(null);
     await waitFor(() => expect(feed.options).toBeDefined());

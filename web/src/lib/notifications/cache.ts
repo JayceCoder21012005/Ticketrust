@@ -29,6 +29,12 @@ export function addNotification(client: QueryClient, item: NotificationItem): vo
 
   const next = { ...old, pages: [{ ...first, items: [item, ...first.items] }, ...rest] };
   client.setQueryData<InboxData>(notificationKeys.list, setCount(next, unreadCountOf(old) + 1));
+
+  // A fetch still out may have been answered before this row existed and would overwrite it when it lands: start a new one
+  // (invalidating cancels the old), so the last word comes from after the push.
+  if (client.isFetching({ queryKey: notificationKeys.list }) > 0) {
+    void client.invalidateQueries({ queryKey: notificationKeys.list });
+  }
 }
 
 /** Optimistic "read": only an item that is still unread lowers the count. */

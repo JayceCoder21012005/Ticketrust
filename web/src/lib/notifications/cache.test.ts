@@ -1,5 +1,5 @@
-import { QueryClient, type InfiniteData } from "@tanstack/react-query";
-import { beforeEach, describe, expect, it } from "vitest";
+import { InfiniteQueryObserver, QueryClient, type InfiniteData } from "@tanstack/react-query";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { addNotification, markAllReadInCache, markReadInCache, unreadCountOf } from "./cache";
 import { notificationKeys } from "./keys";
 import type { NotificationItem, NotificationPage } from "./types";
@@ -28,6 +28,29 @@ describe("notification cache", () => {
 
     expect(read()!.pages[0]!.items.map((i) => i.id)).toEqual(["n2", "n1"]);
     expect(unreadCountOf(read())).toBe(2);
+  });
+
+  it("keeps a push that lands while the list is being fetched, even when the slower response predates it", async () => {
+    let resolveStale!: (page: NotificationPage) => void;
+    const queryFn = vi.fn(async (): Promise<NotificationPage> => {
+      if (queryFn.mock.calls.length === 1) {
+        return new Promise<NotificationPage>((resolve) => (resolveStale = resolve));
+      }
+
+      return { items: [item(2), item(1)], nextCursor: null, unreadCount: 2 }; // the server has the pushed row by now
+    });
+    client.setQueryData(notificationKeys.list, data([{ items: [item(1)], nextCursor: null, unreadCount: 1 }]));
+    const observer = new InfiniteQueryObserver(client, { queryKey: notificationKeys.list, queryFn, initialPageParam: undefined as string | undefined, getNextPageParam: () => undefined, staleTime: Infinity });
+    const unsubscribe = observer.subscribe(() => undefined);
+
+    void observer.refetch();
+    addNotification(client, item(2)); // the push arrives while the refetch is out
+    resolveStale({ items: [item(1)], nextCursor: null, unreadCount: 1 }); // answered before the push was written
+    await vi.waitFor(() => expect(client.isFetching()).toBe(0));
+
+    expect(read()!.pages[0]!.items.map((i) => i.id)).toEqual(["n2", "n1"]);
+    expect(unreadCountOf(read())).toBe(2);
+    unsubscribe();
   });
 
   it("leaves an empty cache alone: the first load will include it", () => {

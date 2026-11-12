@@ -23,7 +23,10 @@ export function useNotifications() {
   });
 }
 
-/** Optimistic: the badge and the row change at once; if the api refuses, the inbox is fetched again to show the truth. */
+/**
+ * Optimistic: the badge and the row change at once; if the api refuses, the change is shown as failed. Either way the inbox is
+ * fetched again once the request has settled, so a push or refetch that landed in between cannot leave a stale count.
+ */
 export function useMarkRead() {
   const client = useQueryClient();
 
@@ -35,8 +38,8 @@ export function useMarkRead() {
     },
     onError: () => {
       toast.error(t("notifications.markReadFailed"));
-      void client.invalidateQueries({ queryKey: notificationKeys.list });
     },
+    onSettled: () => client.invalidateQueries({ queryKey: notificationKeys.list }),
   });
 }
 
@@ -51,7 +54,7 @@ export function useMarkAllRead() {
     },
     onError: () => {
       toast.error(t("notifications.markAllFailed"));
-      void client.invalidateQueries({ queryKey: notificationKeys.list });
     },
+    onSettled: () => client.invalidateQueries({ queryKey: notificationKeys.list }),
   });
 }

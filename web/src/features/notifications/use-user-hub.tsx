@@ -45,7 +45,8 @@ export function UserHubProvider({ children }: { children: ReactNode }) {
   const onNotification = useEffectEvent((item: NotificationItem) => {
     addNotification(queryClient, item);
     const href = safeLink(item.link);
-    toast(item.title, { description: item.body, ...(href ? { action: { label: t("notifications.toastView"), onClick: () => router.push(href) } } : {}) });
+    // Keyed by the notification: a push delivered twice (a reconnect, two server paths) replaces its own toast.
+    toast(item.title, { id: item.id, description: item.body, ...(href ? { action: { label: t("notifications.toastView"), onClick: () => router.push(href) } } : {}) });
   });
 
   const onOrderStatus = useEffectEvent((orderId: string, status: string) => {
@@ -61,13 +62,17 @@ export function UserHubProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // The old connection keeps delivering until stop() has finished: after a user switch a late push for the previous user
+    // must not reach the new user's cache, toasts or order listeners.
+    let active = true;
     const feed = connectUserFeed({
       accessToken: async () => getAccessToken() ?? (await refreshAccessToken()) ?? "",
-      onNotification,
-      onOrderStatus,
-      onResync,
+      onNotification: (item) => active && onNotification(item),
+      onOrderStatus: (orderId, status) => active && onOrderStatus(orderId, status),
+      onResync: () => active && onResync(),
     });
     return () => {
+      active = false;
       void feed.stop();
     };
   }, [userId]);
