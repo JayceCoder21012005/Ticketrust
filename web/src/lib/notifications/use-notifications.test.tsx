@@ -22,15 +22,22 @@ beforeEach(() => vi.resetAllMocks());
 describe("the read mutations", () => {
   // A push or a refetch can land between the optimistic change and the api's answer; refetching once the answer is in makes the
   // inbox converge on the server's state either way.
-  it.each([
-    ["mark one read", () => useMarkRead(), (m: { mutateAsync: (v?: unknown) => Promise<unknown> }) => m.mutateAsync("n1"), api.markNotificationRead],
-    ["mark all read", () => useMarkAllRead(), (m: { mutateAsync: (v?: unknown) => Promise<unknown> }) => m.mutateAsync(), api.markAllNotificationsRead],
-  ] as const)("%s refetches the inbox once it has settled, after a success too", async (_name, hook, run, call) => {
-    call.mockResolvedValue(undefined);
+  it("mark one read refetches the inbox once it has settled, after a success too", async () => {
+    api.markNotificationRead.mockResolvedValue(undefined);
     const { invalidate, wrapper } = setup();
-    const { result } = renderHook(hook, { wrapper });
+    const { result } = renderHook(() => useMarkRead(), { wrapper });
 
-    await act(() => run(result.current as never));
+    await act(() => result.current.mutateAsync("n1"));
+
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: notificationKeys.list }));
+  });
+
+  it("mark all read refetches the inbox once it has settled, after a success too", async () => {
+    api.markAllNotificationsRead.mockResolvedValue(undefined);
+    const { invalidate, wrapper } = setup();
+    const { result } = renderHook(() => useMarkAllRead(), { wrapper });
+
+    await act(() => result.current.mutateAsync());
 
     await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: notificationKeys.list }));
   });
