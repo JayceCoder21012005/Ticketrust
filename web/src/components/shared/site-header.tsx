@@ -1,5 +1,6 @@
 import { Search, Ticket } from "lucide-react";
 import Link from "next/link";
+import { NotificationBell } from "@/features/notifications/notification-bell";
 import { t } from "@/lib/i18n";
 import { AccountLink } from "./account-link";
 import { ThemeToggle } from "./theme-toggle";
@@ -35,6 +36,7 @@ export function SiteHeader() {
         </form>
         <nav className="ml-auto flex items-center gap-1 sm:ml-0">
           <ThemeToggle />
+          <NotificationBell />
           <AccountLink />
         </nav>
       </div>

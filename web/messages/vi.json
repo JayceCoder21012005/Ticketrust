@@ -138,8 +138,7 @@
     "cta": {
       "label": "Mua vé",
       "opensIn": "Mở bán sau",
-      "remindMe": "Nhắc tôi",
-      "remindSoon": "Tính năng nhắc lịch sắp ra mắt.",
+      "remindHint": "Chúng tôi sẽ nhắn bạn trước giờ mở bán 30 phút và 24 giờ trước khi sự kiện diễn ra.",
       "enterQueue": "Vào phòng chờ",
       "queueHint": "Phòng chờ đã mở. Thứ tự được xếp ngẫu nhiên lúc mở bán.",
       "buy": "Mua vé",
@@ -465,6 +464,36 @@
       },
       "deadline": "Hạn giữ chỗ: {time}"
     }
+  },
+  "notifications": {
+    "title": "Thông báo",
+    "description": "Cập nhật về đơn hàng, hoàn tiền và các sự kiện bạn theo dõi.",
+    "open": "Thông báo",
+    "unreadLabel": "{count} thông báo chưa đọc",
+    "viewAll": "Xem tất cả",
+    "markAllRead": "Đánh dấu tất cả đã đọc",
+    "markAllFailed": "Không đánh dấu được. Vui lòng thử lại.",
+    "markReadFailed": "Không đánh dấu được thông báo là đã đọc.",
+    "loading": "Đang tải thông báo…",
+    "loadFailed": "Không tải được thông báo.",
+    "unread": "Chưa đọc",
+    "list": "Danh sách thông báo",
+    "loadMore": "Tải thêm",
+    "loadingMore": "Đang tải…",
+    "loadMoreFailed": "Không tải thêm được thông báo. Vui lòng thử lại.",
+    "loadedMore": "Đã tải thêm {count} thông báo, đang hiển thị {total}.",
+    "toastView": "Xem",
+    "empty": {
+      "title": "Bạn chưa có thông báo nào",
+      "description": "Khi có cập nhật về đơn hàng hoặc sự kiện bạn theo dõi, thông báo sẽ xuất hiện ở đây."
+    }
+  },
+  "follow": {
+    "remind": "Nhắc tôi",
+    "following": "Đã bật nhắc nhở",
+    "loading": "Đang tải trạng thái nhắc nhở…",
+    "loadFailed": "Không tải được trạng thái nhắc nhở.",
+    "notFollowable": "Sự kiện này không còn nhận nhắc nhở nữa."
   },
   "mockGateway": {
     "title": "Cổng thanh toán giả lập",

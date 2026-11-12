@@ -9,6 +9,8 @@ using TicketRush.Api.Features.Auth;
 using TicketRush.Api.Features.Catalog;
 using TicketRush.Api.Features.Organizer;
 using TicketRush.Api.Features.Holds;
+using TicketRush.Api.Features.Follows;
+using TicketRush.Api.Features.Notifications;
 using TicketRush.Api.Features.Orders;
 using TicketRush.Api.Features.Payments;
 using TicketRush.Api.Features.Queue;
@@ -93,11 +95,14 @@ public static class ApiServiceCollectionExtensions
         v1.MapQueueEndpoints();
         v1.MapHoldEndpoints();
         v1.MapOrderEndpoints();
+        v1.MapNotificationEndpoints();
+        v1.MapFollowEndpoints();
         v1.MapMockGatewayEndpoints();
         v1.MapPaymentWebhookEndpoints();
         v1.MapLocalStorageEndpoints();
 
         app.MapHub<EventsHub>(EventsHub.Path);
+        app.MapHub<UserHub>(UserHub.Path);
         return app;
     }
 }

@@ -8,6 +8,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useUserHub } from "@/features/notifications/use-user-hub";
 import { loginRedirectUrl } from "@/lib/api/session";
 import { recallEvent } from "@/lib/checkout/event-memory";
 import { isPastDeadline, refundReasonKey, resultKindOf, type ResultKind } from "@/lib/checkout/order-state";
@@ -38,7 +39,12 @@ export function ResultView({ orderId }: { orderId: string }) {
 }
 
 function PollingResult({ orderId }: { orderId: string }) {
-  const { order, phase, refresh } = useOrderPolling(orderId);
+  const { order, phase, refresh, refetch } = useOrderPolling(orderId);
+
+  // The user hub (buyer layout) says the moment the order changes (spec 09): read it now instead of at the next beat.
+  // Polling stays as it was: with no hub, or one that never connects, nothing is pushed and the beats do the work.
+  const { subscribeOrderStatus } = useUserHub();
+  useEffect(() => subscribeOrderStatus(orderId, refetch), [subscribeOrderStatus, orderId, refetch]);
 
   if (phase === "error" && !order) {
     return <Missing />;

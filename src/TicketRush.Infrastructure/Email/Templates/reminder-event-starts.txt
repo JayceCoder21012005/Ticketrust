@@ -1,0 +1,10 @@
+Subject: Sắp diễn ra: {{ eventTitle }}
+
+Xin chào {{ name }},
+
+Sự kiện {{ eventTitle }} sẽ diễn ra lúc {{ startsAtText }}, tức là trong vòng 24 giờ tới.
+
+Xem chi tiết sự kiện:
+{{ link }}
+
+Bạn nhận email này vì đã bật Nhắc tôi cho sự kiện này. Hãy tắt Nhắc tôi trên trang sự kiện nếu không muốn nhận nữa.

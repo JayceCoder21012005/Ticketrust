@@ -22,6 +22,7 @@ using TicketRush.Infrastructure.Idempotency;
 using TicketRush.Infrastructure.Identity;
 using TicketRush.Infrastructure.Inventory;
 using TicketRush.Infrastructure.Locking;
+using TicketRush.Infrastructure.Notifications;
 using TicketRush.Infrastructure.Options;
 using TicketRush.Infrastructure.Security;
 using TicketRush.Application.Abstractions.Security;
@@ -38,8 +39,10 @@ using TicketRush.Domain.Users;
 using TicketRush.Infrastructure.Email;
 using TicketRush.Infrastructure.Catalog;
 using TicketRush.Application.Features.Catalog;
+using TicketRush.Application.Features.Notifications;
 using TicketRush.Application.Abstractions.Catalog;
 using TicketRush.Domain.Events;
+using TicketRush.Domain.Notifications;
 using TicketRush.Domain.Orders;
 
 namespace TicketRush.Infrastructure;
@@ -73,6 +76,7 @@ public static class DependencyInjection
         services.AddValidatedOptions<OrderExpiryOptions>(OrderExpiryOptions.SectionName);
         services.AddValidatedOptions<CancelledEventSettlementOptions>(CancelledEventSettlementOptions.SectionName);
         services.AddValidatedOptions<OutboxOptions>(OutboxOptions.SectionName);
+        services.AddValidatedOptions<EmailDeliveryOptions>(EmailDeliveryOptions.SectionName);
 
         services.AddSingleton<RedisKeys>();
         services.AddSingleton<IRedisPersistenceProbe, RedisPersistenceProbe>();
@@ -106,12 +110,17 @@ public static class DependencyInjection
         // One handler for the whole cancellation: rooms, then holds, then orders (see its remarks for why not two).
         services.AddSingleton<EventCancellationMetrics>();
         services.AddIntegrationEventHandler<EventCancelled, EventCancelledInventoryHandler>();
+        // After the inventory handler: closing rooms, releasing holds and settling orders is the safety-critical part, so the
+        // outbox (which stops a message at its first failing handler) runs it first.
+        services.AddIntegrationEventHandler<EventCancelled, EventCancelledNotificationHandler>();
+        AddOrderNotificationHandlers(services);
         // Order matters: the outbox runs a message's handlers in this order and stops at the first failure (commit first).
         services.AddIntegrationEventHandler<OrderPaid, OrderPaidInventoryCommitHandler>();
         services.AddIntegrationEventHandler<OrderPaid, OrderPaidLeaveQueueHandler>();
 
         PersistDataProtectionKeysToRedis(services);
         AddAccounts(services);
+        AddNotifications(services);
         AddStorage(services, builder.Configuration);
         AddCatalog(services);
         return builder;
@@ -196,8 +205,44 @@ public static class DependencyInjection
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddSingleton<IAccessTokenIssuer, JwtAccessTokenIssuer>();
         services.AddSingleton<IEmailSender, SmtpEmailSender>();
+        services.AddSingleton<IEmailRenderer, ScribanEmailRenderer>();
         services.AddIntegrationEventHandler<UserRegistered, SendConfirmationEmailHandler>();
         services.AddIntegrationEventHandler<PasswordResetRequested, SendPasswordResetEmailHandler>();
+    }
+
+    /// <summary>
+    /// Registered before the inventory and queue consumers of <c>OrderPaid</c>: the outbox runs a message's handlers in registration
+    /// order and stops at the first failure, so a failing Redis step must never hold back the buyer's notice.
+    /// <para>
+    /// Accepted trade-off: the reverse also holds, so a deterministic failure inside a notification handler (a DomainException from
+    /// <c>Notification.Create</c>, an email model that cannot be serialized) would hold back the inventory commit through the retries
+    /// until the message is dead-lettered. The risk is low: titles, bodies and links are built from bounded values (an event title is
+    /// at most 200 characters, the link is a fixed path) and live pushes are swallowed (and only sent after the batch commits). Only
+    /// part of what the later handlers do is repaired by other means while they wait: for live events the inventory reconciler's
+    /// full pass (every 5 min) rebuilds the sold set, the GA remaining counts and the per-user bought counts from the database. It
+    /// does nothing for events that are not live, and nothing repairs the queue leave (<c>OrderPaidLeaveQueueHandler</c>) but the
+    /// message itself.
+    /// </para>
+    /// </summary>
+    private static void AddOrderNotificationHandlers(IServiceCollection services)
+    {
+        services.AddIntegrationEventHandler<OrderPaid, OrderPaidNotificationHandler>();
+        services.AddIntegrationEventHandler<OrderExpired, OrderExpiredNotificationHandler>();
+        services.AddIntegrationEventHandler<RefundRequested, RefundRequestedNotificationHandler>();
+        services.AddIntegrationEventHandler<OrderRefunded, OrderRefundedNotificationHandler>();
+        services.AddIntegrationEventHandler<PaymentRefunded, PaymentRefundedNotificationHandler>();
+    }
+
+    /// <summary>Spec 09: the notification writer and the email delivery worker's processor.</summary>
+    private static void AddNotifications(IServiceCollection services)
+    {
+        services.AddScoped<IUserDirectory, UserDirectory>();
+        services.AddScoped<INotificationWriter, NotificationWriter>();
+        services.AddSingleton<EmailDeliveryProcessor>();
+        services.AddScoped<ReminderPlanner>();
+        services.AddScoped<IReminderPlanner>(provider => provider.GetRequiredService<ReminderPlanner>());
+        services.AddIntegrationEventHandler<ReminderDue, ReminderDueHandler>();
+        // IUserNotifier comes from AddTicketRushSignalR, which both hosts call.
     }
 
     /// <summary>In-process HybridCache (no L2 yet): single-flight per key protects Postgres from stampedes (C6).</summary>

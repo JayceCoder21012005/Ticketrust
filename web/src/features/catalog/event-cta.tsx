@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Price } from "@/components/shared/price";
 import { Button } from "@/components/ui/button";
+import { FollowButton } from "@/features/follow/follow-button";
 import { fetchAvailability, type TimedAvailability } from "@/lib/catalog/browser";
 import { computeCtaState, type CtaState } from "@/lib/catalog/cta-state";
 import type { EventDetail } from "@/lib/catalog/types";
@@ -110,7 +111,7 @@ export function EventCta({ event, priceFrom, variant = "panel", className }: Eve
             </span>
           ) : null}
         </div>
-        <CtaAction state={state} slug={event.slug} compact />
+        <CtaAction state={state} slug={event.slug} eventId={event.id} compact />
       </div>
     );
   }
@@ -134,7 +135,7 @@ export function EventCta({ event, priceFrom, variant = "panel", className }: Eve
           </p>
         </div>
       ) : null}
-      <CtaAction state={state} slug={event.slug} />
+      <CtaAction state={state} slug={event.slug} eventId={event.id} />
     </div>
   );
 }
@@ -151,7 +152,10 @@ const DISABLED: Partial<Record<CtaState["kind"], { label: string; hint?: string 
   NotScheduled: { label: "catalog.cta.notScheduled", hint: "catalog.cta.notScheduledHint" },
 };
 
-function CtaAction({ state, slug, compact = false }: { state: CtaState | null; slug: string; compact?: boolean }) {
+/** States in which the event can still be followed (reminders: the sale opening, the event starting). */
+const FOLLOWABLE: ReadonlySet<CtaState["kind"]> = new Set(["Upcoming", "PreQueue", "OnSale", "SoldOut"]);
+
+function CtaAction({ state, slug, eventId, compact = false }: { state: CtaState | null; slug: string; eventId: string; compact?: boolean }) {
   const size = compact ? "default" : "lg";
   const full = compact ? "shrink-0" : "w-full";
 
@@ -160,46 +164,60 @@ function CtaAction({ state, slug, compact = false }: { state: CtaState | null; s
   }
 
   const queue = `/events/${slug}/queue`;
+  const returnTo = `/events/${slug}`;
+  // "Nhắc tôi" (spec 09): a login link for visitors, the follow toggle for signed-in ones. In every open state; it is the
+  // main action only while nothing can be bought yet, otherwise a quiet one beside the buy action, never above it. In the
+  // mobile bar it is the bell alone (named by its label): a labelled one beside "Hết vé — Vào danh sách chờ" overflows at 320 px.
+  const secondaryFollow = FOLLOWABLE.has(state.kind) ? <FollowButton eventId={eventId} returnTo={returnTo} size={compact ? "icon" : "default"} variant="ghost" className={compact ? "shrink-0" : "w-full"} /> : null;
+
+  /** The state's main action; in the bar the follow button goes first (left), so the buy button stays at the thumb's end. */
+  const withFollow = (primary: ReactNode, hint?: ReactNode) =>
+    compact ? (
+      <div className="flex shrink-0 items-center gap-1">
+        {secondaryFollow}
+        {primary}
+      </div>
+    ) : (
+      <div className="flex w-full flex-col gap-2">
+        {primary}
+        {hint}
+        {secondaryFollow}
+      </div>
+    );
 
   switch (state.kind) {
     case "OnSale":
-      return (
+      return withFollow(
         <Button asChild size={size} className={full}>
           {/* Instant phases go through the waiting room too: it admits at once and hands out the admission /seats needs. */}
           <Link href={queue} prefetch={false}>
             {t("catalog.cta.buy")}
           </Link>
-        </Button>
+        </Button>,
       );
     case "PreQueue":
-      return (
-        <div className={cn("flex flex-col gap-2", full)}>
-          <Button asChild size={size} className={full}>
-            <Link href={queue} prefetch={false}>
-              {t("catalog.cta.enterQueue")}
-            </Link>
-          </Button>
-          {compact ? null : <p className="text-xs text-muted-foreground">{t("catalog.cta.queueHint")}</p>}
-        </div>
+      return withFollow(
+        <Button asChild size={size} className={full}>
+          <Link href={queue} prefetch={false}>
+            {t("catalog.cta.enterQueue")}
+          </Link>
+        </Button>,
+        compact ? null : <p className="text-xs text-muted-foreground">{t("catalog.cta.queueHint")}</p>,
       );
     case "Upcoming":
       return (
         <div className={cn("flex flex-col gap-2", full)}>
-          <Button variant="outline" size={size} className={full} disabled>
-            {t("catalog.cta.remindMe")}
-          </Button>
-          {compact ? null : <p className="text-xs text-muted-foreground">{t("catalog.cta.remindSoon")}</p>}
+          <FollowButton eventId={eventId} returnTo={returnTo} size={size} className={full} />
+          {compact ? null : <p className="text-xs text-muted-foreground">{t("catalog.cta.remindHint")}</p>}
         </div>
       );
     default: {
       const copy = DISABLED[state.kind]!;
-      return (
-        <div className={cn("flex flex-col gap-2", full)}>
-          <Button variant="secondary" size={size} className={full} disabled>
-            {t(copy.label)}
-          </Button>
-          {copy.hint && !compact ? <p className="text-xs text-muted-foreground">{t(copy.hint)}</p> : null}
-        </div>
+      return withFollow(
+        <Button variant="secondary" size={size} className={full} disabled>
+          {t(copy.label)}
+        </Button>,
+        copy.hint && !compact ? <p className="text-xs text-muted-foreground">{t(copy.hint)}</p> : null,
       );
     }
   }

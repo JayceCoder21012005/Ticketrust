@@ -28,7 +28,8 @@ nhanh và **không bao giờ bán trùng một ghế**. Toàn bộ đặc tả n
 | [06](specs/06-virtual-waiting-room.md) | Phòng chờ: hàng đợi ngẫu nhiên trước giờ mở bán, nhận người theo tốc độ, admission token gắn với tài khoản, trạng thái phòng theo kho vé. Còn CAPTCHA (12), waitlist (13) | 🟡 Gần xong |
 | [07](specs/07-seat-selection-and-hold.md) | Chọn ghế trên sơ đồ trực tiếp, giữ ghế 8 phút bằng Lua nguyên tử trên Redis, cập nhật thời gian thực qua SignalR | ✅ Hoàn thành |
 | [08](specs/08-checkout-and-payment.md) | Thanh toán: đơn hàng từ lượt giữ ghế, cổng thanh toán giả lập (ký webhook, chống gửi trùng, thanh toán trễ), phát vé đúng một lần, hoàn tiền tự động, các trang checkout và `/account/orders`. Đã chạy k6 `load-tests/sale.js` trên stack compose (50 người mua đồng thời, 0 vi phạm bất biến) | ✅ Hoàn thành |
-| [09](specs/09-notifications-and-email.md) – [17](specs/17-load-testing-and-observability.md) | Email, vé điện tử… (spec 17 mới có kịch bản bán vé và bộ kiểm tra bất biến trong `load-tests/`) | ⏳ Chưa làm |
+| [09](specs/09-notifications-and-email.md) | Thông báo và email: chuông thông báo, trang `/account/notifications`, toast thời gian thực qua SignalR, email giao qua bảng `email_deliveries` và worker (thử lại, dead-letter), 8 mẫu email tiếng Việt kiểm tra bằng Mailpit, nút "Nhắc tôi" và nhắc lịch (mở bán trước 30 phút, sự kiện trước 24 giờ). Xem [runbook email](docs/runbooks/email-delivery.md). Còn lại cho spec 13 và 14: thông báo waitlist và chuyển vé | ✅ Hoàn thành |
+| [10](specs/10-e-tickets-and-rotating-qr.md) – [17](specs/17-load-testing-and-observability.md) | Vé điện tử… (spec 17 mới có kịch bản bán vé và bộ kiểm tra bất biến trong `load-tests/`) | ⏳ Chưa làm |
 
 ## Yêu cầu
 
@@ -227,7 +228,7 @@ lỗ hổng high/critical.
 | `web/` | Next.js 16; `/api/*` được chuyển tiếp sang `api` (cùng origin) |
 | `tests/` | Unit, architecture và integration test (.NET) |
 | `load-tests/` | Kịch bản k6 bán vé, truy vấn SQL kiểm tra bất biến, compose overlay cho load test |
-| `docs/runbooks/` | Quy trình vận hành (ví dụ hoàn tiền bị treo: [parked-refunds.md](docs/runbooks/parked-refunds.md)) |
+| `docs/runbooks/` | Quy trình vận hành (hoàn tiền bị treo: [parked-refunds.md](docs/runbooks/parked-refunds.md); giao email: [email-delivery.md](docs/runbooks/email-delivery.md)) |
 | `specs/` | Đặc tả cho từng phần, từ 00 đến 17 |
 
 ## Triển khai production

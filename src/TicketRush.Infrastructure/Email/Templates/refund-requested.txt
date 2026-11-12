@@ -1,0 +1,10 @@
+Subject: Đã nhận yêu cầu hoàn tiền, đơn hàng {{ orderCode }}
+
+Xin chào {{ name }},
+
+Chúng tôi đã nhận được yêu cầu hoàn tiền cho đơn hàng {{ orderCode }} của sự kiện {{ eventTitle }}. Số tiền dự kiến hoàn lại là {{ amount }}.
+
+Xem đơn hàng:
+{{ link }}
+
+Chúng tôi sẽ thông báo cho bạn ngay khi khoản hoàn tiền được xử lý xong.

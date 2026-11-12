@@ -69,10 +69,24 @@ export async function login(credentials: { email: string; password: string }, fe
  * presenting the same refresh token twice is treated as theft and ends the session (spec 03).
  */
 export function refreshAccessToken(fetchImpl: Fetch = fetch): Promise<string | null> {
-  inFlightRefresh ??= doRefresh(fetchImpl).finally(() => {
+  inFlightRefresh ??= acrossTabs(() => doRefresh(fetchImpl)).finally(() => {
     inFlightRefresh = null;
   });
   return inFlightRefresh;
+}
+
+const REFRESH_LOCK = "tr-refresh";
+
+/**
+ * The single flight above only covers one tab. Two tabs refreshing at once (two public pages restoring their session, say)
+ * would present the same refresh cookie twice: the server rotates it for the first and treats the second as reuse, revoking
+ * the whole token family and signing the user out everywhere (spec 03). A Web Lock shared by the origin's tabs serialises
+ * the refreshes, so the second tab waits and then sends the cookie the first one already rotated. Without the API (older
+ * browsers) this runs unguarded, as before. The underlying gap (no grace window for a just-rotated token) is spec 03's.
+ */
+function acrossTabs<T>(run: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator === "undefined" ? undefined : navigator.locks;
+  return typeof locks?.request === "function" ? locks.request(REFRESH_LOCK, run) : run();
 }
 
 export async function logout(fetchImpl: Fetch = fetch): Promise<void> {

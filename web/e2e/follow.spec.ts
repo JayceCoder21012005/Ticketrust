@@ -1,0 +1,240 @@
+import AxeBuilder from "@axe-core/playwright";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+
+/**
+ * The "Nhắc tôi" button of the event page (spec 09) against a scripted follow endpoint: the .NET integration tests cover the
+ * real one. Same `context.route` pattern as notifications.spec.ts. The event is one whose sale has not opened yet (the
+ * button is part of that CTA state); the mock api (port 3199) tells us its GUID.
+ */
+const SLUG = "ha-anh-tuan-chan-troi-ruc-ro";
+const EVENT_PATH = `/events/${SLUG}`;
+// The sale of this one opened days ago: the CTA is "Mua vé" and the follow button is its quiet companion.
+const ON_SALE_PATH = "/events/son-tung-mtp-live";
+const MOCK_API = "http://localhost:3199";
+const MIN = 60_000;
+
+const user = {
+  accessToken: "e2e-buyer-token",
+  expiresAt: new Date(Date.now() + 10 * MIN).toISOString(),
+  user: { id: "u1", email: "an@example.com", fullName: "Nguyễn An", phoneNumber: null, avatarUrl: null, emailConfirmed: true, roles: ["Customer"] },
+};
+
+type Follow = { following: boolean; calls: string[]; ids: Set<string>; failNext: { status: number; code: string } | null };
+
+/** Signs the visitor in (hint cookie + refresh) and scripts `/events/{id}/follow`; the state lives in the route handler. */
+async function arrange(context: BrowserContext, baseURL: string, { following = false }: { following?: boolean } = {}) {
+  const follow: Follow = { following, calls: [], ids: new Set(), failNext: null };
+  await context.addCookies([{ name: "tr_session", value: "1", url: baseURL }]);
+  await context.route("**/api/v1/auth/refresh", (route) => route.fulfill({ json: user }));
+  await context.route(/\/api\/v1\/me\/notifications(\?.*)?$/, (route) => route.fulfill({ json: { items: [], nextCursor: null, unreadCount: 0 } }));
+  await context.route(/\/api\/v1\/events\/[^/]+\/follow$/, async (route) => {
+    const request = route.request();
+    follow.calls.push(request.method());
+    follow.ids.add(new URL(request.url()).pathname.split("/").at(-2)!);
+    if (request.method() === "GET") return route.fulfill({ json: { following: follow.following } });
+    if (follow.failNext) {
+      const { status, code } = follow.failNext;
+      follow.failNext = null;
+      return route.fulfill({ status, contentType: "application/problem+json", body: JSON.stringify({ status, code, title: code }) });
+    }
+
+    follow.following = request.method() === "POST";
+    return route.fulfill({ status: 204 });
+  });
+  return follow;
+}
+
+async function eventId(page: Page): Promise<string> {
+  const response = await page.request.get(`${MOCK_API}/api/v1/events/${SLUG}`);
+  return ((await response.json()) as { id: string }).id;
+}
+
+// The panel (desktop) and the sticky bar (mobile) both render the button; the viewport shows one of them.
+const remind = (page: Page) => page.locator("button:visible", { hasText: "Nhắc tôi" });
+const reminding = (page: Page) => page.locator("button:visible", { hasText: "Đã bật nhắc nhở" });
+
+test("an anonymous visitor gets a link to login that brings them back to the event", async ({ page }) => {
+  await page.goto(EVENT_PATH);
+
+  const link = page.getByRole("link", { name: "Nhắc tôi" }).locator("visible=true");
+  await expect(link).toBeVisible();
+  await link.click();
+
+  await expect(page).toHaveURL(/\/login\?returnUrl=%2Fevents%2Fha-anh-tuan-chan-troi-ruc-ro$/);
+});
+
+test("follow, reload keeps the state, unfollow", async ({ context, page, baseURL }) => {
+  const follow = await arrange(context, baseURL!);
+  await page.goto(EVENT_PATH);
+
+  await expect(remind(page)).toBeEnabled();
+  await remind(page).click();
+  await expect.poll(() => follow.following).toBe(true);
+
+  await page.reload();
+  await expect(reminding(page)).toBeEnabled();
+
+  await reminding(page).click();
+  await expect.poll(() => follow.following).toBe(false);
+
+  await page.reload();
+  await expect(remind(page)).toBeEnabled();
+  expect(follow.calls.filter((method) => method !== "GET")).toEqual(["POST", "DELETE"]);
+  expect([...follow.ids]).toEqual([await eventId(page)]);
+});
+
+test("with the sale open, follow still works beside the buy button and does not replace it", async ({ context, page, baseURL }) => {
+  const follow = await arrange(context, baseURL!);
+  await page.goto(ON_SALE_PATH);
+
+  await expect(page.getByRole("link", { name: "Mua vé" }).locator("visible=true")).toBeVisible();
+  await expect(remind(page)).toBeEnabled();
+  await remind(page).click();
+  await expect(reminding(page)).toBeVisible();
+  await expect.poll(() => follow.following).toBe(true);
+
+  await page.reload();
+  await expect(reminding(page)).toBeEnabled();
+  await expect(page.getByRole("link", { name: "Mua vé" }).locator("visible=true")).toBeVisible();
+
+  await reminding(page).click();
+  await expect(remind(page)).toBeVisible();
+  await expect.poll(() => follow.following).toBe(false);
+});
+
+test("no follow button once the event has ended", async ({ context, page, baseURL }) => {
+  await arrange(context, baseURL!);
+  await page.goto("/events/jazz-night-saigon");
+
+  await expect(page.getByText("Sự kiện đã kết thúc").locator("visible=true").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Nhắc tôi" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Nhắc tôi" })).toHaveCount(0);
+});
+
+test("is operable by keyboard", async ({ context, page, baseURL }) => {
+  const follow = await arrange(context, baseURL!);
+  await page.goto(EVENT_PATH);
+
+  await expect(remind(page)).toBeEnabled();
+  await remind(page).focus();
+  await page.keyboard.press("Enter");
+
+  await expect(reminding(page)).toBeFocused();
+  await expect.poll(() => follow.following).toBe(true);
+});
+
+test("puts the button back and says so when the api refuses", async ({ context, page, baseURL }) => {
+  const follow = await arrange(context, baseURL!);
+  follow.failNext = { status: 503, code: "system.busy" };
+  await page.goto(EVENT_PATH);
+
+  await expect(remind(page)).toBeEnabled();
+  await remind(page).click();
+
+  await expect(page.getByRole("alert").filter({ hasText: "Hệ thống đang bận" }).locator("visible=true")).toBeVisible();
+  await expect(remind(page)).toBeEnabled();
+});
+
+test("an event that can no longer be followed disables the button and says why", async ({ context, page, baseURL }) => {
+  const follow = await arrange(context, baseURL!);
+  follow.failNext = { status: 409, code: "event.not_followable" };
+  await page.goto(EVENT_PATH);
+
+  await expect(remind(page)).toBeEnabled();
+  await remind(page).click();
+
+  await expect(page.getByRole("alert").filter({ hasText: "không còn nhận nhắc nhở" }).locator("visible=true")).toBeVisible();
+  await expect(remind(page)).toBeDisabled();
+});
+
+for (const colorScheme of ["light", "dark"] as const) {
+  for (const [state, path] of [
+    ["signed out", EVENT_PATH],
+    ["not following", EVENT_PATH],
+    ["following", EVENT_PATH],
+    ["refused", EVENT_PATH],
+    ["signed out, sale open", ON_SALE_PATH],
+    ["not following, sale open", ON_SALE_PATH],
+    ["following, sale open", ON_SALE_PATH],
+  ] as const) {
+    test(`the event page has no serious accessibility violations with the button ${state} (${colorScheme})`, async ({ context, page, baseURL }) => {
+      await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
+      const signedOut = state.startsWith("signed out");
+      if (!signedOut) {
+        const follow = await arrange(context, baseURL!, { following: state.startsWith("following") });
+        if (state === "refused") follow.failNext = { status: 409, code: "event.not_followable" };
+      }
+
+      await page.goto(path);
+      if (signedOut) {
+        await expect(page.getByRole("link", { name: "Nhắc tôi" }).locator("visible=true")).toBeVisible();
+      } else if (state.startsWith("following")) {
+        await expect(reminding(page)).toBeEnabled();
+      } else {
+        await expect(remind(page)).toBeEnabled();
+      }
+
+      if (state === "refused") {
+        await remind(page).click();
+        await expect(page.getByRole("alert").filter({ hasText: "không còn nhận nhắc nhở" }).locator("visible=true")).toBeVisible();
+      }
+
+      const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+      const serious = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+      expect(serious, JSON.stringify(serious.map((v) => ({ id: v.id, nodes: v.nodes.slice(0, 3).map((n) => n.target) })), null, 2)).toEqual([]);
+    });
+  }
+}
+
+/**
+ * The mobile sticky bar on the narrowest phone we support (final review I4): the follow toggle is the bell alone there, so the
+ * bar never scrolls sideways and the main action keeps its full label at the thumb's end, followed or not, in every state
+ * that offers both. SoldOut comes from a scripted availability (every tier at 0).
+ */
+test.describe("the mobile bar at 320 px", () => {
+  test.use({ viewport: { width: 320, height: 640 } });
+
+  const states = [
+    ["OnSale", ON_SALE_PATH, "link", "Mua vé"],
+    ["PreQueue", "/events/vu-cat-tuong-inner-space", "link", "Vào phòng chờ"],
+    ["SoldOut", ON_SALE_PATH, "button", "Hết vé — Vào danh sách chờ"],
+  ] as const;
+
+  for (const colorScheme of ["light", "dark"] as const) {
+    for (const [state, path, role, primary] of states) {
+      for (const following of [false, true]) {
+        test(`${state}, ${following ? "following" : "not following"}: no sideways scroll, the main action fully visible (${colorScheme})`, async ({ context, page, baseURL }) => {
+          await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
+          await arrange(context, baseURL!, { following });
+          if (state === "SoldOut") {
+            await context.route(/\/api\/v1\/events\/[^/]+\/availability$/, (route) =>
+              route.fulfill({ json: { serverNow: new Date().toISOString(), version: 0, unavailable: [], tiers: [{ tierId: "t-sold-out", remaining: 0 }] } }),
+            );
+          }
+
+          await page.goto(path);
+          const bar = page.getByRole("region", { name: "Mua vé" });
+          const bell = bar.getByRole("button", { name: following ? "Đã bật nhắc nhở" : "Nhắc tôi" });
+          await expect(bell).toBeEnabled();
+          await expect(bell).toHaveAttribute("title", following ? "Đã bật nhắc nhở" : "Nhắc tôi");
+          const main = bar.getByRole(role, { name: primary });
+          await expect(main).toBeVisible();
+
+          const width = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
+          expect(width.scroll).toBeLessThanOrEqual(width.inner);
+          const box = (await main.boundingBox())!;
+          const bellBox = (await bell.boundingBox())!;
+          expect(box.x).toBeGreaterThanOrEqual(0);
+          expect(box.x + box.width).toBeLessThanOrEqual(320);
+          expect(box.y + box.height).toBeLessThanOrEqual(640);
+          expect(bellBox.x + bellBox.width).toBeLessThanOrEqual(box.x); // the bell first, the main action at the thumb's end
+          expect(await main.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true); // its label is not clipped
+
+          const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+          const serious = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+          expect(serious, JSON.stringify(serious.map((v) => ({ id: v.id, nodes: v.nodes.slice(0, 3).map((n) => n.target) })), null, 2)).toEqual([]);
+        });
+      }
+    }
+  }
+});

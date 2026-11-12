@@ -89,3 +89,50 @@ public sealed class CatalogOptions
     [MinLength(32)]
     public string AccessCodePepper { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// The email delivery worker (spec 09). The retry schedule is its own, not the outbox's: an SMTP outage of hours must only delay
+/// email, so the defaults (30 s doubling to 1 h, 30 attempts) keep a delivery alive for most of a day.
+/// </summary>
+public sealed class EmailDeliveryOptions : IValidatableObject
+{
+    public const string SectionName = "EmailDelivery";
+
+    /// <summary>Deliveries handled per <c>ProcessBatchAsync</c> call, one transaction each.</summary>
+    [Range(1, 200)]
+    public int BatchSize { get; set; } = 20;
+
+    [Range(typeof(TimeSpan), "00:00:00.050", "00:01:00")]
+    public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>Longest one render-and-send may take; past it the delivery counts as failed and is rescheduled.</summary>
+    [Range(typeof(TimeSpan), "00:00:00.050", "00:10:00")]
+    public TimeSpan SendTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>Wait after the first failed send; it doubles per failure (with jitter) up to <see cref="MaxDelay"/>.</summary>
+    [Range(typeof(TimeSpan), "00:00:01", "01:00:00")]
+    public TimeSpan BaseDelay { get; set; } = TimeSpan.FromSeconds(30);
+
+    [Range(typeof(TimeSpan), "00:00:01", "1.00:00:00")]
+    public TimeSpan MaxDelay { get; set; } = TimeSpan.FromHours(1);
+
+    /// <summary>Failed sends after which a delivery is dead-lettered.</summary>
+    [Range(1, 100)]
+    public int MaxAttempts { get; set; } = 30;
+
+    /// <summary>Consecutive transport failures (connection, timeout, protocol, 4xx) that end a pass: SMTP itself is probably down.</summary>
+    [Range(1, 100)]
+    public int OutageFailureThreshold { get; set; } = 5;
+
+    /// <summary>Longest pause of the worker loop while SMTP looks down; the pause doubles from 5 s up to this.</summary>
+    [Range(typeof(TimeSpan), "00:00:05", "01:00:00")]
+    public TimeSpan OutageMaxBackoff { get; set; } = TimeSpan.FromMinutes(5);
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (MaxDelay < BaseDelay)
+        {
+            yield return new ValidationResult("EmailDelivery:MaxDelay must not be shorter than EmailDelivery:BaseDelay.", [nameof(MaxDelay), nameof(BaseDelay)]);
+        }
+    }
+}

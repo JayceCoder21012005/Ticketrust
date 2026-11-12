@@ -138,8 +138,7 @@
     "cta": {
       "label": "Buy tickets",
       "opensIn": "On sale in",
-      "remindMe": "Remind me",
-      "remindSoon": "Reminders are coming soon.",
+      "remindHint": "We will message you 30 minutes before the sale opens and 24 hours before the event starts.",
       "enterQueue": "Join the waiting room",
       "queueHint": "The waiting room is open. Places are drawn at random when the sale opens.",
       "buy": "Buy tickets",
@@ -465,6 +464,36 @@
       },
       "deadline": "Hold deadline: {time}"
     }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "description": "Updates about your orders, refunds and the events you follow.",
+    "open": "Notifications",
+    "unreadLabel": "{count} unread notifications",
+    "viewAll": "View all",
+    "markAllRead": "Mark all as read",
+    "markAllFailed": "Could not mark them as read. Please try again.",
+    "markReadFailed": "Could not mark the notification as read.",
+    "loading": "Loading notifications…",
+    "loadFailed": "Could not load notifications.",
+    "unread": "Unread",
+    "list": "Notification list",
+    "loadMore": "Load more",
+    "loadingMore": "Loading…",
+    "loadMoreFailed": "Could not load more notifications. Please try again.",
+    "loadedMore": "Loaded {count} more notifications, showing {total}.",
+    "toastView": "View",
+    "empty": {
+      "title": "You have no notifications yet",
+      "description": "Updates about your orders or the events you follow will show up here."
+    }
+  },
+  "follow": {
+    "remind": "Remind me",
+    "following": "Reminder on",
+    "loading": "Loading reminder status…",
+    "loadFailed": "Could not load the reminder status.",
+    "notFollowable": "This event no longer accepts reminders."
   },
   "mockGateway": {
     "title": "Mock payment gateway",

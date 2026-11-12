@@ -19,9 +19,10 @@ export function AccountLink() {
   if (signedIn) {
     return (
       <Button asChild size="sm" variant="ghost">
-        <Link href="/account">
+        <Link href="/account" title={t("common.account")}>
           <CircleUser aria-hidden />
-          {t("common.account")}
+          {/* Icon only on the narrowest phones: with the bell beside it, the label pushed the header past 320 px. */}
+          <span className="sr-only sm:not-sr-only">{t("common.account")}</span>
         </Link>
       </Button>
     );
