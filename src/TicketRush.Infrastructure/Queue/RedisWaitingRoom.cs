@@ -99,6 +99,9 @@ public sealed class RedisWaitingRoom(
                 || await db.SetContainsAsync(keys.QueueOpening(sale.PhaseId), id);
         });
 
+    public Task<bool> IsDoneAsync(SaleWindow sale, Guid userId, CancellationToken ct) =>
+        GuardAsync(async () => await redis.GetDatabase().SetContainsAsync(keys.QueueDone(sale.PhaseId), userId.ToString()));
+
     public Task<bool> IsActiveAsync(Guid phaseId, Guid userId, CancellationToken ct) =>
         GuardAsync(async () =>
         {

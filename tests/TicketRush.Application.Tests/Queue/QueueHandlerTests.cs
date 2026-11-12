@@ -178,11 +178,222 @@ public sealed class QueueHandlerTests
     public async Task Leave_removes_the_user_from_the_selected_phase()
     {
         var phase = Phase(TimeSpan.FromMinutes(-1));
-        var handler = new LeaveQueueHandler(_sales, _room, _time);
+        var handler = LeaveHandler();
 
         var result = await handler.HandleAsync(User, EventId, TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         await _room.Received(1).LeaveAsync(phase, User, Arg.Any<CancellationToken>());
+    }
+
+    private LeaveQueueHandler LeaveHandler() => new(_sales, _room, Microsoft.Extensions.Options.Options.Create(new QueueOptions()), _time);
+
+    /// <summary>A presale that is open now and a general sale whose pre-queue window (30 min) is running or not.</summary>
+    private (SaleWindow Open, SaleWindow Next) Adjacent(TimeSpan nextOpensIn, string? openHash = null, string? nextHash = null)
+    {
+        var now = _time.GetUtcNow();
+        var open = new SaleWindow(EventId, Guid.NewGuid(), now.AddHours(-1), now + nextOpensIn, true);
+        var next = new SaleWindow(EventId, Guid.NewGuid(), now + nextOpensIn, now + nextOpensIn + TimeSpan.FromHours(2), true);
+        _sales.GetAsync(EventId, Arg.Any<CancellationToken>())
+            .Returns(new EventSales(EventId, [new SalePhaseInfo(open, openHash), new SalePhaseInfo(next, nextHash)]));
+        return (open, next);
+    }
+
+    private static JoinQueueCommand Join(string? code = null) => new(User, EventId, true, code);
+
+    [Fact]
+    public async Task A_new_joiner_inside_the_next_phases_window_is_queued_for_the_next_phase()
+    {
+        var (open, next) = Adjacent(TimeSpan.FromMinutes(20));
+
+        var result = await JoinHandler().HandleAsync(Join(), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        await _room.Received(1).JoinAsync(next, User, Arg.Any<CancellationToken>());
+        await _room.DidNotReceive().JoinAsync(open, User, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_member_of_the_open_phase_keeps_it_when_the_next_window_starts()
+    {
+        var (open, next) = Adjacent(TimeSpan.FromMinutes(20));
+        _room.IsMemberAsync(open, User, Arg.Any<CancellationToken>()).Returns(true);
+
+        var result = await StatusHandler().HandleAsync(User, EventId, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        await _room.Received().StatusAsync(open, User, Arg.Any<CancellationToken>());
+        await _room.DidNotReceive().StatusAsync(next, User, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_member_of_the_open_phase_who_rejoins_inside_the_window_is_not_moved_and_needs_no_code()
+    {
+        var (open, next) = Adjacent(TimeSpan.FromMinutes(20), openHash: GoodHash, nextHash: GoodHash);
+        _room.IsMemberAsync(open, User, Arg.Any<CancellationToken>()).Returns(true);
+
+        var result = await JoinHandler().HandleAsync(Join(), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        await _room.Received(1).JoinAsync(open, User, Arg.Any<CancellationToken>());
+        await _room.DidNotReceive().JoinAsync(next, User, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Leave_inside_the_window_frees_the_room_the_user_is_in()
+    {
+        var (open, next) = Adjacent(TimeSpan.FromMinutes(20));
+        _room.IsMemberAsync(open, User, Arg.Any<CancellationToken>()).Returns(true);
+
+        (await LeaveHandler().HandleAsync(User, EventId, TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
+
+        await _room.Received(1).LeaveAsync(open, User, Arg.Any<CancellationToken>());
+        await _room.DidNotReceive().LeaveAsync(next, User, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_member_of_the_next_phase_stays_there_for_status_leave_and_rejoin()
+    {
+        var (open, next) = Adjacent(TimeSpan.FromMinutes(20));
+        _room.IsMemberAsync(open, User, Arg.Any<CancellationToken>()).Returns(false);
+        _room.IsMemberAsync(next, User, Arg.Any<CancellationToken>()).Returns(true);
+        var ct = TestContext.Current.CancellationToken;
+
+        (await StatusHandler().HandleAsync(User, EventId, ct)).IsSuccess.ShouldBeTrue();
+        (await JoinHandler().HandleAsync(Join(), ct)).IsSuccess.ShouldBeTrue();
+        (await LeaveHandler().HandleAsync(User, EventId, ct)).IsSuccess.ShouldBeTrue();
+
+        await _room.Received().StatusAsync(next, User, Arg.Any<CancellationToken>());
+        await _room.DidNotReceive().StatusAsync(open, User, Arg.Any<CancellationToken>());
+        await _room.Received(1).JoinAsync(next, User, Arg.Any<CancellationToken>());
+        await _room.Received(1).LeaveAsync(next, User, Arg.Any<CancellationToken>());
+        await _room.DidNotReceive().LeaveAsync(open, User, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task The_next_phases_access_code_is_the_one_checked_for_a_new_joiner()
+    {
+        var (open, next) = Adjacent(TimeSpan.FromMinutes(20), openHash: "hash-of-the-presale-code", nextHash: GoodHash);
+        var ct = TestContext.Current.CancellationToken;
+
+        (await JoinHandler().HandleAsync(Join("presale-code"), ct)).Error!.Code.ShouldBe("queue.invalid_access_code");
+        await _room.DidNotReceiveWithAnyArgs().JoinAsync(default!, default, ct);
+
+        (await JoinHandler().HandleAsync(Join(GoodCode), ct)).IsSuccess.ShouldBeTrue();
+        await _room.Received(1).JoinAsync(next, User, Arg.Any<CancellationToken>());
+        await _room.DidNotReceive().JoinAsync(open, User, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_next_phase_without_a_code_does_not_ask_for_the_open_phases_code()
+    {
+        var (_, next) = Adjacent(TimeSpan.FromMinutes(20), openHash: GoodHash);
+
+        var result = await JoinHandler().HandleAsync(Join(), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        await _room.Received(1).JoinAsync(next, User, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Single_phase_events_behave_as_before_and_never_ask_the_room_about_membership()
+    {
+        Phase(TimeSpan.FromMinutes(-1));
+        var ct = TestContext.Current.CancellationToken;
+
+        (await StatusHandler().HandleAsync(User, EventId, ct)).IsSuccess.ShouldBeTrue();
+        (await JoinHandler().HandleAsync(Join(), ct)).IsSuccess.ShouldBeTrue();
+        (await LeaveHandler().HandleAsync(User, EventId, ct)).IsSuccess.ShouldBeTrue();
+
+        await _room.DidNotReceiveWithAnyArgs().IsMemberAsync(default!, default, ct);
+    }
+
+    [Fact]
+    public async Task An_open_phase_with_a_far_next_phase_is_one_candidate_and_asks_no_membership_question()
+    {
+        var (open, _) = Adjacent(TimeSpan.FromMinutes(45));
+        var ct = TestContext.Current.CancellationToken;
+
+        (await StatusHandler().HandleAsync(User, EventId, ct)).IsSuccess.ShouldBeTrue();
+
+        await _room.DidNotReceiveWithAnyArgs().IsMemberAsync(default!, default, ct);
+        await _room.Received(1).StatusAsync(open, User, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Inside_the_window_a_status_poll_costs_at_most_one_extra_membership_check_for_a_member_of_the_open_phase()
+    {
+        var (open, _) = Adjacent(TimeSpan.FromMinutes(20));
+        _room.IsMemberAsync(open, User, Arg.Any<CancellationToken>()).Returns(true);
+        var ct = TestContext.Current.CancellationToken;
+
+        await StatusHandler().HandleAsync(User, EventId, ct);
+
+        await _room.ReceivedWithAnyArgs(1).IsMemberAsync(default!, default, ct);
+    }
+
+    [Fact]
+    public async Task A_user_who_left_the_open_phase_still_gets_that_rooms_status_inside_the_window()
+    {
+        var (open, next) = Adjacent(TimeSpan.FromMinutes(20));
+        _room.IsDoneAsync(open, User, Arg.Any<CancellationToken>()).Returns(true);
+        _room.StatusAsync(open, User, Arg.Any<CancellationToken>())
+            .Returns(new ClaimResult(RoomStatus.Open, 7, 0, 7, 0, false, false, true, false, null, null));
+
+        var result = await StatusHandler().HandleAsync(User, EventId, TestContext.Current.CancellationToken);
+
+        result.Value.Status.ShouldBe(QueueClientStatus.Expired);
+        await _room.DidNotReceive().StatusAsync(next, User, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_user_who_is_only_done_in_the_open_phase_joins_the_next_phase_as_a_new_joiner()
+    {
+        var (open, next) = Adjacent(TimeSpan.FromMinutes(20));
+        _room.IsDoneAsync(open, User, Arg.Any<CancellationToken>()).Returns(true);
+
+        var result = await JoinHandler().HandleAsync(Join(), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        await _room.Received(1).JoinAsync(next, User, Arg.Any<CancellationToken>());
+        await _room.DidNotReceive().JoinAsync(open, User, Arg.Any<CancellationToken>());
+        await _room.DidNotReceiveWithAnyArgs().IsDoneAsync(default!, default, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Active_membership_of_the_next_phase_wins_over_done_in_the_open_phase()
+    {
+        var (open, next) = Adjacent(TimeSpan.FromMinutes(20));
+        _room.IsDoneAsync(open, User, Arg.Any<CancellationToken>()).Returns(true);
+        _room.IsMemberAsync(next, User, Arg.Any<CancellationToken>()).Returns(true);
+
+        (await LeaveHandler().HandleAsync(User, EventId, TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
+
+        await _room.Received(1).LeaveAsync(next, User, Arg.Any<CancellationToken>());
+        await _room.DidNotReceiveWithAnyArgs().IsDoneAsync(default!, default, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Leave_for_a_user_who_is_only_done_in_the_open_phase_targets_that_room()
+    {
+        var (open, next) = Adjacent(TimeSpan.FromMinutes(20));
+        _room.IsDoneAsync(open, User, Arg.Any<CancellationToken>()).Returns(true);
+
+        (await LeaveHandler().HandleAsync(User, EventId, TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
+
+        await _room.Received(1).LeaveAsync(open, User, Arg.Any<CancellationToken>());
+        await _room.DidNotReceive().LeaveAsync(next, User, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Single_candidate_paths_never_ask_the_done_question_either()
+    {
+        Phase(TimeSpan.FromMinutes(-1));
+        var ct = TestContext.Current.CancellationToken;
+
+        await StatusHandler().HandleAsync(User, EventId, ct);
+        await LeaveHandler().HandleAsync(User, EventId, ct);
+
+        await _room.DidNotReceiveWithAnyArgs().IsDoneAsync(default!, default, ct);
     }
 }

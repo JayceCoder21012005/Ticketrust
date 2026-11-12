@@ -439,6 +439,8 @@ public sealed class OrderPaidConsumersTests(ContainersFixture containers) : IAsy
 
         public Task<bool> IsMemberAsync(SaleWindow sale, Guid userId, CancellationToken ct) => throw Down();
 
+        public Task<bool> IsDoneAsync(SaleWindow sale, Guid userId, CancellationToken ct) => throw Down();
+
         public Task LeaveAsync(SaleWindow sale, Guid userId, CancellationToken ct) => throw Down();
 
         public Task<bool> IsActiveAsync(Guid phaseId, Guid userId, CancellationToken ct) => throw Down();

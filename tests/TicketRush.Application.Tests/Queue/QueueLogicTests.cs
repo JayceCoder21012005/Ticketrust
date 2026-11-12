@@ -89,6 +89,88 @@ public sealed class QueueLogicTests
         PhaseSelector.Select([], Now).ShouldBeNull();
     }
 
+    private static readonly TimeSpan PreQueue = TimeSpan.FromMinutes(30);
+
+    [Fact]
+    public void Join_target_is_the_open_phase_when_no_next_phase_is_near()
+    {
+        var open = Window(TimeSpan.FromMinutes(-5));
+        var far = Window(TimeSpan.FromHours(3));
+
+        PhaseSelector.SelectJoinTarget([open, far], Now, PreQueue)!.PhaseId.ShouldBe(open.PhaseId);
+        PhaseSelector.SelectJoinTarget([open], Now, PreQueue)!.PhaseId.ShouldBe(open.PhaseId);
+    }
+
+    [Fact]
+    public void Join_target_is_the_next_phase_when_its_pre_queue_window_is_running()
+    {
+        var open = Window(TimeSpan.FromMinutes(-5));
+        var next = Window(TimeSpan.FromMinutes(20));
+
+        PhaseSelector.SelectJoinTarget([open, next], Now, PreQueue)!.PhaseId.ShouldBe(next.PhaseId);
+    }
+
+    [Fact]
+    public void Join_target_stays_open_when_next_phase_is_just_outside_the_window()
+    {
+        var open = Window(TimeSpan.FromMinutes(-5));
+        var next = Window(PreQueue + TimeSpan.FromSeconds(1));
+
+        PhaseSelector.SelectJoinTarget([open, next], Now, PreQueue)!.PhaseId.ShouldBe(open.PhaseId);
+    }
+
+    [Fact]
+    public void Join_target_at_exactly_the_window_boundary_is_the_next_phase()
+    {
+        var open = Window(TimeSpan.FromMinutes(-5));
+        var next = Window(PreQueue);
+
+        PhaseSelector.SelectJoinTarget([open, next], Now, PreQueue)!.PhaseId.ShouldBe(next.PhaseId);
+    }
+
+    [Fact]
+    public void Join_target_ignores_a_next_phase_without_a_queue()
+    {
+        var open = Window(TimeSpan.FromMinutes(-5));
+        var noQueue = Window(TimeSpan.FromMinutes(10), queue: false);
+
+        PhaseSelector.SelectJoinTarget([open, noQueue], Now, PreQueue)!.PhaseId.ShouldBe(open.PhaseId);
+    }
+
+    [Fact]
+    public void Join_target_picks_the_earliest_of_several_upcoming_phases()
+    {
+        var open = Window(TimeSpan.FromMinutes(-5));
+        var second = Window(TimeSpan.FromMinutes(25));
+        var first = Window(TimeSpan.FromMinutes(15));
+
+        PhaseSelector.SelectJoinTarget([second, open, first], Now, PreQueue)!.PhaseId.ShouldBe(first.PhaseId);
+    }
+
+    [Fact]
+    public void Join_target_without_an_open_phase_matches_the_existing_selector()
+    {
+        var closed = Window(TimeSpan.FromDays(-3), TimeSpan.FromDays(1));
+        var soonest = Window(TimeSpan.FromMinutes(10));
+        var later = Window(TimeSpan.FromDays(2));
+
+        PhaseSelector.SelectJoinTarget([closed, later, soonest], Now, PreQueue)!.PhaseId.ShouldBe(soonest.PhaseId);
+        PhaseSelector.SelectJoinTarget([closed], Now, PreQueue)!.PhaseId.ShouldBe(closed.PhaseId);
+        PhaseSelector.SelectJoinTarget([], Now, PreQueue).ShouldBeNull();
+    }
+
+    [Fact]
+    public void Room_candidates_are_open_then_next_only_inside_the_window_else_the_single_phase_of_the_moment()
+    {
+        var open = Window(TimeSpan.FromMinutes(-5));
+        var near = Window(TimeSpan.FromMinutes(20));
+        var far = Window(TimeSpan.FromHours(3));
+
+        PhaseSelector.RoomCandidates([open, near], Now, PreQueue).Select(w => w.PhaseId).ShouldBe([open.PhaseId, near.PhaseId]);
+        PhaseSelector.RoomCandidates([open, far], Now, PreQueue).Select(w => w.PhaseId).ShouldBe([open.PhaseId]);
+        PhaseSelector.RoomCandidates([], Now, PreQueue).ShouldBeEmpty();
+    }
+
     [Fact]
     public void Waiting_response_has_position_ahead_and_eta_from_the_observed_rate()
     {

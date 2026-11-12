@@ -25,6 +25,59 @@ internal static class QueueSales
             : sales.Phases.First(p => p.Window.PhaseId == selected.PhaseId);
     }
 
+    /// <summary>
+    /// The phase of the event this user's room is about (design rule 2). A user who is already in a room keeps it;
+    /// only someone in none gets the join target. Without competing phases there is one candidate and no Redis call.
+    /// Two passes over the candidates: active membership first, then (<paramref name="includeDone"/>, for status and
+    /// leave) the room the user left or expired from, so they still see Expired there. A join is never "done"-aware:
+    /// someone who finished the open phase is a new joiner for the next one.
+    /// </summary>
+    public static async Task<Result<SalePhaseInfo>> ResolveForUserAsync(
+        ISaleWindowProvider provider,
+        IWaitingRoom room,
+        QueueOptions options,
+        Guid eventId,
+        Guid userId,
+        DateTimeOffset now,
+        bool includeDone,
+        CancellationToken ct)
+    {
+        if (await provider.GetAsync(eventId, ct) is not { } sales)
+        {
+            return EventErrors.NotFound;
+        }
+
+        var windows = sales.Phases.Select(p => p.Window).ToList();
+        var preQueue = TimeSpan.FromMinutes(options.PreQueueMinutes);
+        var candidates = PhaseSelector.RoomCandidates(windows, now, preQueue);
+        if (candidates.Count == 0)
+        {
+            return QueueErrors.NotOpen;
+        }
+
+        var chosen = candidates.Count == 1 ? candidates[0] : await FirstRoomOfAsync(candidates, w => room.IsMemberAsync(w, userId, ct));
+        if (chosen is null && includeDone)
+        {
+            chosen = await FirstRoomOfAsync(candidates, w => room.IsDoneAsync(w, userId, ct));
+        }
+
+        chosen ??= PhaseSelector.SelectJoinTarget(windows, now, preQueue)!;
+        return sales.Phases.First(p => p.Window.PhaseId == chosen.PhaseId);
+    }
+
+    private static async Task<SaleWindow?> FirstRoomOfAsync(IReadOnlyList<SaleWindow> candidates, Func<SaleWindow, Task<bool>> isIn)
+    {
+        foreach (var candidate in candidates)
+        {
+            if (await isIn(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
     public static async Task<Result<T>> GuardAsync<T>(Func<Task<Result<T>>> action)
     {
         try
@@ -55,7 +108,7 @@ public sealed class JoinQueueHandler(
             }
 
             var now = time.GetUtcNow();
-            var resolved = await QueueSales.ResolveAsync(sales, command.EventId, now, ct);
+            var resolved = await QueueSales.ResolveForUserAsync(sales, room, options.Value, command.EventId, command.UserId, now, includeDone: false, ct);
             if (resolved.IsFailure)
             {
                 return resolved.Error;
@@ -108,7 +161,7 @@ public sealed class GetQueueStatusHandler(
         QueueSales.GuardAsync(async () =>
         {
             var now = time.GetUtcNow();
-            var resolved = await QueueSales.ResolveAsync(sales, eventId, now, ct);
+            var resolved = await QueueSales.ResolveForUserAsync(sales, room, options.Value, eventId, userId, now, includeDone: true, ct);
             if (resolved.IsFailure)
             {
                 return resolved.Error;
@@ -122,18 +175,19 @@ public sealed class GetQueueStatusHandler(
         });
 }
 
-public sealed class LeaveQueueHandler(ISaleWindowProvider sales, IWaitingRoom room, TimeProvider time)
+public sealed class LeaveQueueHandler(ISaleWindowProvider sales, IWaitingRoom room, IOptions<QueueOptions> options, TimeProvider time)
 {
     public async Task<Result> HandleAsync(Guid userId, Guid eventId, CancellationToken ct)
     {
-        var resolved = await QueueSales.ResolveAsync(sales, eventId, time.GetUtcNow(), ct);
-        if (resolved.IsFailure)
-        {
-            return resolved.Error;
-        }
-
         try
         {
+            // The membership check can reach Redis, so resolving happens inside the guard.
+            var resolved = await QueueSales.ResolveForUserAsync(sales, room, options.Value, eventId, userId, time.GetUtcNow(), includeDone: true, ct);
+            if (resolved.IsFailure)
+            {
+                return resolved.Error;
+            }
+
             await room.LeaveAsync(resolved.Value.Window, userId, ct);
             return Result.Success();
         }
