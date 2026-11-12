@@ -15,13 +15,13 @@ internal sealed class OrderViews(IAppDbContext db, TimeProvider time)
     {
         var seatLines = order.Items.Where(i => i.SeatIndex is not null).OrderBy(i => i.SeatIndex).ToList();
         var gaLines = order.Items.Where(i => i.SeatIndex is null).ToList();
-        var seatLabels = await LoadSeatLabelsAsync(order.EventId, seatLines, ct);
+        var seatLabels = await SeatLabels.LoadAsync(db, [order.EventId], seatLines.Select(i => i.SeatIndex!.Value).ToArray(), ct);
         var tierNames = await LoadTierNamesAsync(order.EventId, gaLines, ct);
         var ticketCount = order.Status == OrderStatus.Paid
             ? await db.Tickets.AsNoTracking().CountAsync(t => t.OrderId == order.Id && t.Status != TicketStatus.Voided, ct)
             : (int?)null;
 
-        var seats = seatLines.Select(i => ToSeat(i, seatLabels)).ToList();
+        var seats = seatLines.Select(i => ToSeat(order.EventId, i, seatLabels)).ToList();
         var ga = gaLines
             .Select(i => new OrderGaLine(i.TierId, tierNames.GetValueOrDefault(i.TierId, string.Empty), i.Quantity, i.UnitPrice.Amount))
             .ToList();
@@ -42,25 +42,10 @@ internal sealed class OrderViews(IAppDbContext db, TimeProvider time)
             ticketCount);
     }
 
-    private static OrderSeat ToSeat(OrderItem item, Dictionary<int, SeatLabel> labels)
+    private static OrderSeat ToSeat(Guid eventId, OrderItem item, Dictionary<(Guid EventId, int Index), SeatLabel> labels)
     {
-        var label = labels.GetValueOrDefault(item.SeatIndex!.Value) ?? new SeatLabel(string.Empty, string.Empty, string.Empty);
+        var label = labels.GetValueOrDefault((eventId, item.SeatIndex!.Value)) ?? new SeatLabel(string.Empty, string.Empty, string.Empty);
         return new OrderSeat(item.SeatIndex.Value, label.Section, label.Row, label.Number, item.TierId, item.UnitPrice.Amount);
-    }
-
-    private async Task<Dictionary<int, SeatLabel>> LoadSeatLabelsAsync(Guid eventId, List<OrderItem> seatLines, CancellationToken ct)
-    {
-        if (seatLines.Count == 0)
-        {
-            return [];
-        }
-
-        var indexes = seatLines.Select(i => i.SeatIndex!.Value).ToList();
-        var rows = await db.EventSeats.AsNoTracking()
-            .Where(s => s.EventId == eventId && indexes.Contains(s.Index))
-            .Select(s => new { s.Index, s.Section, s.Row, s.Number })
-            .ToListAsync(ct);
-        return rows.ToDictionary(s => s.Index, s => new SeatLabel(s.Section, s.Row, s.Number));
     }
 
     private async Task<Dictionary<Guid, string>> LoadTierNamesAsync(Guid eventId, List<OrderItem> gaLines, CancellationToken ct)
@@ -79,6 +64,4 @@ internal sealed class OrderViews(IAppDbContext db, TimeProvider time)
             .ToListAsync(ct);
         return rows.ToDictionary(t => t.Id, t => t.Name);
     }
-
-    private sealed record SeatLabel(string Section, string Row, string Number);
 }

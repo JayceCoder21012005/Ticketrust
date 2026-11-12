@@ -41,6 +41,12 @@ public sealed record Error(
 
 public static class CommonErrors
 {
+    /// <summary>
+    /// <see cref="Error.Extensions"/> key (an <c>int</c> of seconds) of a <see cref="ErrorType.RateLimited"/> error that says how long
+    /// to wait; the API also sends it as the <c>Retry-After</c> header.
+    /// </summary>
+    public const string RetryAfterExtension = "retryAfterSeconds";
+
     public static readonly Error SystemBusy =
         Error.Unavailable("system.busy", "The system is busy. Please try again in a moment.");
 }

@@ -90,6 +90,7 @@ public static class DependencyInjection
 
         services.AddSingleton<IAdmissionTokenFactory, AdmissionTokenFactory>();
         services.AddSingleton<IQrCodeService, QrCodeService>();
+        services.AddSingleton<IQrKeyThrottle, RedisQrKeyThrottle>();
         services.AddSingleton<IWaitingRoom, RedisWaitingRoom>();
         services.AddSingleton<IQueuePhaseSource, QueuePhaseSource>();
         services.AddScoped<ISaleWindowProvider, SaleWindowProvider>();

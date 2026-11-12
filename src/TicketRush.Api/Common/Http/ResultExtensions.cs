@@ -1,3 +1,4 @@
+using System.Globalization;
 using TicketRush.Domain.Primitives;
 
 namespace TicketRush.Api.Common.Http;
@@ -37,12 +38,17 @@ public static class ResultExtensions
             extensions["details"] = error.Details;
         }
 
-        return TypedResults.Problem(
+        var problem = TypedResults.Problem(
             statusCode: status,
             title: error.Message,
             type: TypeFor(status),
             extensions: extensions);
+        return RetryAfterSeconds(error) is { } seconds ? new RetryAfterResult(problem, seconds) : problem;
     }
+
+    /// <summary>A rate-limited error that says how long to wait (<see cref="CommonErrors.RetryAfterExtension"/>) becomes a <c>Retry-After</c> header too.</summary>
+    private static int? RetryAfterSeconds(Error error) =>
+        error.Type == ErrorType.RateLimited && error.Extensions?.GetValueOrDefault(CommonErrors.RetryAfterExtension) is int seconds ? seconds : null;
 
     public static int StatusCodeFor(ErrorType type) => type switch
     {
@@ -57,4 +63,13 @@ public static class ResultExtensions
     };
 
     private static string TypeFor(int status) => $"https://httpstatuses.io/{status}";
+
+    private sealed class RetryAfterResult(IResult inner, int seconds) : IResult
+    {
+        public Task ExecuteAsync(HttpContext httpContext)
+        {
+            httpContext.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
+            return inner.ExecuteAsync(httpContext);
+        }
+    }
 }
