@@ -111,6 +111,105 @@ describe("refreshAccessToken", () => {
   });
 });
 
+/** A Web Locks stand-in with a real queue: a request runs only after the previous holder of the same name has finished. */
+function lockManager() {
+  const tails = new Map<string, Promise<unknown>>();
+  return {
+    request: vi.fn(<T,>(name: string, callback: () => Promise<T>): Promise<T> => {
+      const previous = tails.get(name) ?? Promise.resolve();
+      const run = previous.then(callback, callback);
+      tails.set(name, run.catch(() => undefined));
+      return run;
+    }),
+  };
+}
+
+/**
+ * The refresh endpoint with rotation and reuse detection (spec 03): the cookie jar is shared by every tab of the origin, each
+ * success rotates it, and presenting an already-rotated token is refused (in production that also revokes the whole family).
+ */
+function rotatingServer() {
+  let current = 1;
+  let inFlight = 0;
+  const presented: string[] = [];
+  let maxInFlight = 0;
+  const fetchImpl = vi.fn(async () => {
+    const sent = `rt-${current}`; // what the browser attaches when the request starts
+    presented.push(sent);
+    inFlight++;
+    maxInFlight = Math.max(maxInFlight, inFlight);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    inFlight--;
+    if (sent !== `rt-${current}`) {
+      return json({ code: "auth.refresh_reused", status: 401 }, 401);
+    }
+
+    current++;
+    return json(session(`jwt-${current}`));
+  });
+  return { fetchImpl, presented, maxInFlight: () => maxInFlight };
+}
+
+/** A second tab: the same module, loaded again, so it has its own memory and its own single-flight promise. */
+async function openTab() {
+  vi.resetModules();
+  return import("./session");
+}
+
+describe("refreshAccessToken across tabs (Web Locks)", () => {
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, "locks");
+  });
+
+  it("runs two tabs' refreshes one after the other, so the second sends the cookie the first already rotated", async () => {
+    const locks = lockManager();
+    Object.defineProperty(navigator, "locks", { value: locks, configurable: true });
+    const server = rotatingServer();
+    const [tabA, tabB] = [await openTab(), await openTab()];
+
+    const tokens = await Promise.all([tabA.refreshAccessToken(server.fetchImpl), tabB.refreshAccessToken(server.fetchImpl)]);
+
+    expect(tokens).toEqual(["jwt-2", "jwt-3"]);
+    expect(server.presented).toEqual(["rt-1", "rt-2"]);
+    expect(server.maxInFlight()).toBe(1);
+    expect(locks.request).toHaveBeenCalledTimes(2);
+    expect(locks.request.mock.calls.map(([name]) => name)).toEqual(["tr-refresh", "tr-refresh"]);
+    expect(tabA.getAccessToken()).toBe("jwt-2");
+    expect(tabB.getAccessToken()).toBe("jwt-3");
+  });
+
+  it("still shares one request between the callers of one tab while holding the lock", async () => {
+    const locks = lockManager();
+    Object.defineProperty(navigator, "locks", { value: locks, configurable: true });
+    const server = rotatingServer();
+    const tab = await openTab();
+
+    const tokens = await Promise.all([tab.refreshAccessToken(server.fetchImpl), tab.refreshAccessToken(server.fetchImpl)]);
+
+    expect(tokens).toEqual(["jwt-2", "jwt-2"]);
+    expect(server.fetchImpl).toHaveBeenCalledTimes(1);
+    expect(locks.request).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the per-tab single flight where the browser has no Web Locks", async () => {
+    expect("locks" in navigator).toBe(false);
+    const server = rotatingServer();
+    const tab = await openTab();
+
+    expect(await tab.refreshAccessToken(server.fetchImpl)).toBe("jwt-2");
+    expect(server.fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("releases the lock when a refresh fails, so the next one is not stuck behind it", async () => {
+    const locks = lockManager();
+    Object.defineProperty(navigator, "locks", { value: locks, configurable: true });
+    const tab = await openTab();
+
+    expect(await tab.refreshAccessToken(vi.fn().mockRejectedValue(new TypeError("offline")))).toBeNull();
+    expect(await tab.refreshAccessToken(vi.fn().mockResolvedValue(json(session("after"))))).toBe("after");
+  });
+});
+
 describe("logout", () => {
   it("posts with the CSRF header and clears the session even if the request fails", async () => {
     await login({ email: "an@example.com", password: "matkhau123" }, vi.fn().mockResolvedValue(json(session("jwt"))));
