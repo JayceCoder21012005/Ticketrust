@@ -25,6 +25,17 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The request never got an HTTP answer (offline, DNS, connection reset). Thrown by clients whose callers must tell this
+ * apart from an api refusal, e.g. the ticket wallet, which falls back to its cached QR key only when the network is down.
+ */
+export class NetworkError extends Error {
+  constructor(options?: { cause?: unknown }) {
+    super("Network request failed", options);
+    this.name = "NetworkError";
+  }
+}
+
 /** The one place that turns api error codes into Vietnamese copy. Each spec adds its codes here. */
 const messages: Record<string, string> = {
   "system.busy": "Hệ thống đang bận. Vui lòng thử lại sau giây lát.",
@@ -80,6 +91,8 @@ const messages: Record<string, string> = {
   "idempotency.key_reused": "Yêu cầu bị trùng. Vui lòng tải lại trang.",
   "ticket.not_found": "Không tìm thấy vé.",
   "ticket.not_displayable": "Vé chưa thể hiển thị lúc này.",
+  "ticket.invalid_scope": "Danh sách vé không hợp lệ. Vui lòng tải lại trang.",
+  "ticket.qr_key_rate_limited": "Bạn mở mã QR quá nhiều lần. Vui lòng thử lại sau ít phút.",
   "waitlist.already_joined": "Bạn đã có trong danh sách chờ.",
   "waitlist.not_available": "Danh sách chờ không khả dụng.",
   "waitlist.offer_expired": "Lời mời mua vé đã hết hạn.",
