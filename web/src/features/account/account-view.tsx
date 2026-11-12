@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { LogOut, MailWarning, ReceiptText } from "lucide-react";
+import { LogOut, MailWarning, ReceiptText, Ticket } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ChangeEvent } from "react";
@@ -61,6 +61,10 @@ function AccountDetails() {
       <Link href="/account/orders" className="flex w-fit items-center gap-2 text-sm font-medium text-primary underline-offset-4 hover:underline">
         <ReceiptText aria-hidden className="size-4" />
         {t("orders.accountLink")}
+      </Link>
+      <Link href="/account/tickets" className="flex w-fit items-center gap-2 text-sm font-medium text-primary underline-offset-4 hover:underline">
+        <Ticket aria-hidden className="size-4" />
+        {t("tickets.accountLink")}
       </Link>
       <AvatarSection user={me.data} />
       <ProfileForm key={me.data.id} user={me.data} />

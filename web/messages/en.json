@@ -390,6 +390,39 @@
       "title": "Payment result"
     }
   },
+  "tickets": {
+    "title": "My tickets",
+    "description": "Your tickets for upcoming and past events.",
+    "accountLink": "My tickets",
+    "loading": "Loading tickets…",
+    "loadFailed": "Could not load your tickets.",
+    "sessionExpired": "Your session has expired. Redirecting to sign in…",
+    "tabs": {
+      "label": "My tickets",
+      "upcoming": "Upcoming",
+      "past": "Past"
+    },
+    "shown": "{tab}: {count} events",
+    "empty": {
+      "upcoming": {
+        "title": "You have no upcoming tickets",
+        "description": "When you buy tickets they will show up here."
+      },
+      "past": {
+        "title": "You have no tickets for past events",
+        "description": "Tickets for events that ended or were cancelled are kept here."
+      },
+      "action": "Explore events"
+    },
+    "list": "Ticket list",
+    "count": "{count} tickets",
+    "seat": "Section {section}, row {row}, seat {number}",
+    "status": {
+      "ended": "Ended",
+      "cancelled": "Cancelled",
+      "voided": "Ticket voided"
+    }
+  },
   "orders": {
     "title": "My orders",
     "description": "Follow the status of the orders you have placed.",
@@ -434,8 +467,7 @@
       "buyer": "Buyer",
       "pastDeadline": "The payment deadline has passed. Reload the page for the latest status.",
       "tickets": "You have {count} tickets.",
-      "viewTickets": "View tickets",
-      "ticketsSoon": "The tickets page is coming soon."
+      "viewTickets": "View tickets"
     },
     "timeline": {
       "label": "Order steps",

@@ -149,7 +149,7 @@ test.describe("order detail", () => {
     await expect(steps.nth(2)).toHaveAttribute("aria-current", "step");
     await expect(steps.nth(2)).toContainText("10:02 03/11/2026");
     await expect(page.getByText("Bạn có 2 vé.")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Xem vé" })).toHaveAttribute("aria-disabled", "true");
+    await expect(page.getByRole("link", { name: "Xem vé" })).toHaveAttribute("href", "/account/tickets");
     await expect(page.getByText("Nguyễn An")).toBeVisible();
     await expect(page.getByText("4.500.000")).toBeVisible();
   });

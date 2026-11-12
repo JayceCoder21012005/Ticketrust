@@ -390,6 +390,39 @@
       "title": "Kết quả thanh toán"
     }
   },
+  "tickets": {
+    "title": "Vé của tôi",
+    "description": "Vé của bạn cho các sự kiện sắp tới và đã qua.",
+    "accountLink": "Vé của tôi",
+    "loading": "Đang tải vé…",
+    "loadFailed": "Không tải được vé của bạn.",
+    "sessionExpired": "Phiên đăng nhập đã hết hạn. Đang chuyển đến trang đăng nhập…",
+    "tabs": {
+      "label": "Vé của tôi",
+      "upcoming": "Sắp diễn ra",
+      "past": "Đã qua"
+    },
+    "shown": "{tab}: {count} sự kiện",
+    "empty": {
+      "upcoming": {
+        "title": "Bạn chưa có vé nào sắp diễn ra",
+        "description": "Khi bạn mua vé, vé sẽ xuất hiện ở đây."
+      },
+      "past": {
+        "title": "Bạn chưa có vé nào ở các sự kiện đã qua",
+        "description": "Vé của các sự kiện đã kết thúc hoặc bị huỷ sẽ được lưu ở đây."
+      },
+      "action": "Khám phá sự kiện"
+    },
+    "list": "Danh sách vé",
+    "count": "{count} vé",
+    "seat": "Khu {section}, hàng {row}, ghế {number}",
+    "status": {
+      "ended": "Đã diễn ra",
+      "cancelled": "Đã huỷ",
+      "voided": "Vé đã vô hiệu"
+    }
+  },
   "orders": {
     "title": "Đơn hàng của tôi",
     "description": "Theo dõi trạng thái các đơn hàng bạn đã đặt.",
@@ -434,8 +467,7 @@
       "buyer": "Người mua",
       "pastDeadline": "Đã quá hạn thanh toán. Tải lại trang để xem trạng thái mới nhất.",
       "tickets": "Bạn có {count} vé.",
-      "viewTickets": "Xem vé",
-      "ticketsSoon": "Trang xem vé sẽ có trong thời gian tới."
+      "viewTickets": "Xem vé"
     },
     "timeline": {
       "label": "Các bước của đơn hàng",
