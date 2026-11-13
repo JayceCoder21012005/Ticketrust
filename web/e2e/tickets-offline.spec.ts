@@ -57,6 +57,8 @@ type Api = {
   /** What `qr-key` answers: the key, or an error status with its problem code. */
   key: "ok" | 404 | 409;
   keyCalls: string[];
+  /** How `auth/refresh` answers: the current user, or no answer at all (a network failure on that one call). */
+  refresh: "user" | "unreachable";
 };
 
 const problem = { 404: "ticket.not_found", 409: "ticket.not_displayable" } as const;
@@ -66,12 +68,15 @@ const serverNow = async (page: Page) => new Date((await page.evaluate(() => Date
 
 /** Signs `api.user` in and scripts the endpoints the buyer pages call. While `api.offline`, every call fails like a dead network. */
 async function arrange(context: BrowserContext, page: Page, baseURL: string, details: Record<string, Detail> = { [ID]: detail(ID) }): Promise<Api> {
-  const api: Api = { user: userA, offline: false, details, key: "ok", keyCalls: [] };
+  const api: Api = { user: userA, offline: false, details, key: "ok", keyCalls: [], refresh: "user" };
   await context.addCookies([{ name: "tr_session", value: "1", url: baseURL }]);
   const scripted = async (pattern: RegExp, answer: (url: URL) => Promise<Parameters<Route["fulfill"]>[0]>) =>
     context.route(pattern, async (route) => (api.offline ? route.abort("internetdisconnected") : route.fulfill(await answer(new URL(route.request().url())))));
 
-  await scripted(/\/api\/v1\/auth\/refresh$/, async () => ({ json: api.user }));
+  await context.route(/\/api\/v1\/auth\/refresh$/, (route) =>
+    api.offline || api.refresh === "unreachable" ? route.abort("internetdisconnected") : route.fulfill({ json: api.user }),
+  );
+  await scripted(/\/api\/v1\/auth\/login$/, async () => ({ json: api.user }));
   await scripted(/\/api\/v1\/auth\/logout$/, async () => ({ status: 204, headers: { "set-cookie": "tr_session=; Path=/; Max-Age=0" } }));
   await scripted(/\/api\/v1\/me$/, async () => ({ json: api.user.user }));
   await scripted(/\/api\/v1\/me\/notifications(\?.*)?$/, async () => ({ json: { items: [], nextCursor: null, unreadCount: 0 } }));
@@ -280,6 +285,36 @@ test.describe("offline ticket wallet", () => {
     await expect(qrImage(page)).toHaveCount(0);
     expect(await page.content()).not.toContain("Nguyễn An");
     expect(await page.content()).not.toContain(SECRET);
+  });
+
+  test("another user signing in on the login page never gets the previous user's offline ticket", async ({ context, page, baseURL }) => {
+    const api = await arrange(context, page, baseURL!);
+    await openOnlineAndStore(page);
+
+    // A's session ends without a logout here (the tab is simply left); B signs in on the login page of this browser.
+    api.user = userB;
+    api.refresh = "unreachable";
+    await page.goto(`/login?returnUrl=${encodeURIComponent("/account/tickets")}`);
+    await page.getByLabel("Email").fill("user-b@example.com");
+    await page.getByLabel("Mật khẩu", { exact: true }).fill("matkhau123");
+    await page.getByLabel("Mật khẩu", { exact: true }).press("Enter");
+    await expect(page).toHaveURL(/\/account\/tickets$/);
+    api.refresh = "user";
+    await expect.poll(async () => {
+      const state = await offlineState(page);
+      return { keys: state.keys, tickets: state.tickets, shell: state.cachedUrls.filter((url) => url.startsWith("/tickets/")) };
+    }).toEqual({ keys: [], tickets: [], shell: [] });
+
+    // B, signed in in this tab, goes offline and opens A's ticket from the history: nothing of A.
+    await goOffline(context, api);
+    await page.goto(`/tickets/${ID}`).catch(() => null);
+    await expect(qrImage(page)).toHaveCount(0);
+    expect(await page.content()).not.toContain("Nguyễn An");
+
+    // And after a reload (no session offline): the same.
+    await page.reload().catch(() => null);
+    await expect(qrImage(page)).toHaveCount(0);
+    expect(await page.content()).not.toContain("Nguyễn An");
   });
 
   for (const status of [404, 409] as const) {

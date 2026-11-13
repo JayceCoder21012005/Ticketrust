@@ -22,6 +22,7 @@ function detail(id: string, endsAt: string, status: TicketDetail["event"]["statu
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  localStorage.clear();
 });
 
 describe("keyCache", () => {
@@ -91,13 +92,69 @@ describe("keyCache", () => {
     expect(await ticketCache.get("t1")).toBeNull();
   });
 
+  it("Strict_claim_wipes_unowned_leftovers", async () => {
+    const store = memoryKeyStore();
+    const { keyCache, ticketCache } = createKeyCache(store);
+    // Written before any owner was known (or the owner mark was lost): never adopted by whoever signs in next.
+    await store.put("keys", "t1", { secret: SECRET, endsAt: iso(NOW + 60_000) });
+    await ticketCache.put(detail("t1", iso(NOW + 60_000)));
+
+    await keyCache.claim("b");
+
+    expect(await keyCache.get("t1")).toBeNull();
+    expect(await ticketCache.get("t1")).toBeNull();
+    expect(store.dump().meta.get("owner")).toBe("b");
+  });
+
+  it("claim keeps a non-secret owner marker in localStorage; clearAll removes it", async () => {
+    const { keyCache } = createKeyCache(memoryKeyStore());
+    await keyCache.claim("a");
+    expect(localStorage.getItem("tr.wallet.owner")).toBe("a");
+
+    expect(await keyCache.clearAll()).toBe(true);
+    expect(localStorage.getItem("tr.wallet.owner")).toBeNull();
+    expect(await createKeyCache(brokenKeyStore()).keyCache.clearAll()).toBe(false);
+  });
+
+  describe("reads for a user (owner check at read time)", () => {
+    async function ownedBy(owner: string) {
+      const store = memoryKeyStore();
+      const caches = createKeyCache(store);
+      await caches.keyCache.claim(owner);
+      await caches.keyCache.put("t1", { secret: SECRET, endsAt: iso(NOW + 60_000) });
+      await caches.ticketCache.put(detail("t1", iso(NOW + 60_000)));
+      return { store, ...caches };
+    }
+
+    it("serves the signed-in owner, and wipes for another signed-in user", async () => {
+      const { keyCache, ticketCache } = await ownedBy("a");
+      expect(await keyCache.read("t1", "a")).not.toBeNull();
+      expect(await ticketCache.read("t1", "a")).not.toBeNull();
+
+      expect(await ticketCache.read("t1", "b")).toBeNull();
+      expect(await keyCache.read("t1", "b")).toBeNull();
+      expect(await keyCache.get("t1")).toBeNull();
+    });
+
+    it("Owner_mismatch_offline_serves_nothing: without a session, only the last signed-in user's cache is served", async () => {
+      const { keyCache, ticketCache } = await ownedBy("a");
+      expect(await keyCache.read("t1", null)).not.toBeNull();
+
+      localStorage.setItem("tr.wallet.owner", "b");
+      expect(await keyCache.read("t1", null)).toBeNull();
+      expect(await ticketCache.read("t1", null)).toBeNull();
+      localStorage.removeItem("tr.wallet.owner");
+      expect(await keyCache.read("t1", null)).toBeNull();
+    });
+  });
+
   it("Cache_failures_never_break_the_online_path", async () => {
     const { keyCache, ticketCache } = createKeyCache(brokenKeyStore());
 
     await expect(keyCache.put("t1", { secret: SECRET, endsAt: iso(NOW + 60_000) })).resolves.toBeUndefined();
     await expect(keyCache.get("t1")).resolves.toBeNull();
     await expect(keyCache.delete("t1")).resolves.toBeUndefined();
-    await expect(keyCache.clearAll()).resolves.toBeUndefined();
+    await expect(keyCache.clearAll()).resolves.toBe(false);
     await expect(keyCache.purgeEnded(NOW)).resolves.toBeUndefined();
     await expect(keyCache.claim("u1")).resolves.toBeUndefined();
     await expect(ticketCache.put(detail("t1", iso(NOW + 60_000)))).resolves.toBeUndefined();

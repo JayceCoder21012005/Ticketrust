@@ -19,6 +19,7 @@ const { keyCache, ticketCache } = await import("@/lib/tickets/key-cache");
 const { loadQrKey, useQrKey } = await import("./use-qr-key");
 
 const ID = "0192f0e0-0002-7bbb-8ccc-0123456789ab";
+const USER = "u1";
 const SECRET = btoa(String.fromCharCode(...new Uint8Array(32).fill(42)));
 const OLD_SECRET = btoa(String.fromCharCode(...new Uint8Array(32).fill(1)));
 const T0 = 1_794_484_800_000 + 7_000;
@@ -33,6 +34,7 @@ beforeEach(async () => {
   vi.setSystemTime(T0);
   api.getQrKey.mockReset().mockResolvedValue(key());
   await keyCache.clearAll();
+  await keyCache.claim(USER);
 });
 
 afterEach(() => {
@@ -42,7 +44,7 @@ afterEach(() => {
 const flush = async () => {
   for (let i = 0; i < 4; i++) await act(() => vi.advanceTimersByTimeAsync(0));
 };
-const context = { endsAt: ENDS_AT, serverNow: () => Date.now() };
+const context = { endsAt: ENDS_AT, serverNow: () => Date.now(), userId: USER };
 const signal = () => new AbortController().signal;
 
 describe("loadQrKey", () => {
@@ -58,6 +60,28 @@ describe("loadQrKey", () => {
     api.getQrKey.mockRejectedValue(new NetworkError());
 
     expect(await loadQrKey(ID, signal(), context)).toEqual({ status: "ready", secret: OLD_SECRET, source: "cache" });
+  });
+
+  it("Claim_before_put_keeps_the_new_users_first_key", async () => {
+    // A's key was stored here; B is signed in now and gets a fresh key: B's must survive the wipe of A's cache.
+    await keyCache.clearAll();
+    await keyCache.claim("user-a");
+    await keyCache.put(ID, { secret: OLD_SECRET, endsAt: ENDS_AT });
+
+    expect(await loadQrKey(ID, signal(), { ...context, userId: "user-b" })).toMatchObject({ status: "ready", source: "network" });
+    await flush();
+
+    expect(await keyCache.read(ID, "user-b")).toEqual({ secret: SECRET, endsAt: ENDS_AT });
+  });
+
+  it("a network failure never serves another user's cached key", async () => {
+    await keyCache.put(ID, { secret: OLD_SECRET, endsAt: ENDS_AT });
+    api.getQrKey.mockRejectedValue(new NetworkError());
+
+    expect(await loadQrKey(ID, signal(), { ...context, userId: "someone-else" })).toEqual({ status: "error", failure: "network" });
+    // Signed out and offline: only the last signed-in user's cache (the marker is now someone-else's).
+    localStorage.setItem("tr.wallet.owner", "u1");
+    expect(await loadQrKey(ID, signal(), { ...context, userId: null })).toEqual({ status: "error", failure: "network" });
   });
 
   it("a network failure without a cached key, or with one of an ended event, stays an error", async () => {
@@ -121,7 +145,7 @@ describe("useQrKey", () => {
   it("marks a cached key and keeps asking the network in the background, then switches to the fresh one", async () => {
     await keyCache.put(ID, { secret: OLD_SECRET, endsAt: ENDS_AT });
     api.getQrKey.mockRejectedValue(new NetworkError());
-    const { result, unmount } = renderHook(() => useQrKey(ID, true, ENDS_AT, 0));
+    const { result, unmount } = renderHook(() => useQrKey(ID, true, ENDS_AT, 0, USER));
     await flush();
 
     expect(result.current).toMatchObject({ status: "ready", secret: OLD_SECRET, source: "cache" });
@@ -148,7 +172,7 @@ describe("useQrKey", () => {
   it("the background retry backs off to a cap and stops on unmount", async () => {
     await keyCache.put(ID, { secret: OLD_SECRET, endsAt: ENDS_AT });
     api.getQrKey.mockRejectedValue(new NetworkError());
-    const { unmount } = renderHook(() => useQrKey(ID, true, ENDS_AT, 0));
+    const { unmount } = renderHook(() => useQrKey(ID, true, ENDS_AT, 0, USER));
     await flush();
 
     await act(() => vi.advanceTimersByTimeAsync(10 * 60_000));
@@ -164,7 +188,7 @@ describe("useQrKey", () => {
   });
 
   it("Old_secret_is_cleared_when_the_ticket_stops_being_displayable", async () => {
-    const { result, rerender } = renderHook(({ enabled }) => useQrKey(ID, enabled, ENDS_AT, 0), { initialProps: { enabled: true } });
+    const { result, rerender } = renderHook(({ enabled }) => useQrKey(ID, enabled, ENDS_AT, 0, USER), { initialProps: { enabled: true } });
     await flush();
     expect(result.current).toMatchObject({ status: "ready", secret: SECRET });
 

@@ -51,6 +51,7 @@ const renderProvider = () =>
 const fetchMock = vi.fn<typeof fetch>();
 
 beforeEach(() => {
+  offline.forgetOfflineTickets.mockClear();
   vi.stubGlobal("fetch", fetchMock);
   window.localStorage.clear();
   window.sessionStorage.clear();
@@ -154,6 +155,33 @@ describe("AuthProvider", () => {
 
     await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("anonymous"));
     expect(String(fetchMock.mock.calls[0][0])).toBe("/api/v1/auth/logout");
+  });
+
+  it("Login_page_user_change_wipes_the_previous_users_offline_tickets", async () => {
+    // A's tickets were stored offline on this device; B signs in (the login page has no query cache to watch).
+    window.localStorage.setItem("tr.wallet.owner", "user-a");
+    offline.forgetOfflineTickets.mockClear();
+    renderProvider();
+
+    act(() => setSession(sessionExpiringIn(600_000)));
+
+    await waitFor(() => expect(offline.forgetOfflineTickets).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps the offline tickets of the same user, and loads no cleanup when nothing was stored", async () => {
+    offline.forgetOfflineTickets.mockClear();
+    window.localStorage.setItem("tr.wallet.owner", user.id);
+    const view = renderProvider();
+    act(() => setSession(sessionExpiringIn(600_000)));
+    view.unmount();
+    act(() => clearSession());
+
+    window.localStorage.removeItem("tr.wallet.owner");
+    renderProvider();
+    act(() => setSession(sessionExpiringIn(600_000)));
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(offline.forgetOfflineTickets).not.toHaveBeenCalled();
   });
 
   it("Logout_clears_the_offline_tickets: keys, ticket details and the service worker", async () => {

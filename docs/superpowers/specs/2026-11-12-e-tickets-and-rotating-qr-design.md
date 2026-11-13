@@ -47,6 +47,11 @@ Payload ≈ 50 chars. `step` has no leading zeros. Verification compares signatu
 - `web/package-lock.json` is never staged; no new web dependency.
 - No PII/secrets in logs; the secret appears only in the `qr-key` response body.
 
+## Limits (offline wallet)
+
+- The `qr-key` secret is stored in IndexedDB as the base64 the api sent, without client-side encryption. It is same-origin storage; an XSS could read it, but an XSS could also read the secret from memory while the wallet is open, so encryption with a key held by the same page would add little. Hardening idea: import the secret once as a non-extractable HMAC `CryptoKey` and store that instead.
+- Offline, with no session, the wallet trusts the device's last signed-in owner (the `tr.wallet.owner` marker matched against the cache's owner record), because there is no server to ask. Any session start of another user, logout, and a refused session refresh wipe the cache.
+
 ## Rulings (controller, user away)
 
 1. Stack spec 10 on the open spec-09 branch (`feat/10-e-tickets-and-rotating-qr` cut from `feat/09-notifications-and-email`): spec 10 depends on 09 and 09 is not merged yet. Nothing is pushed.

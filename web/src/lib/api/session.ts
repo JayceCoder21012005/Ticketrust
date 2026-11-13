@@ -1,4 +1,6 @@
+import { hasSessionHint } from "@/lib/auth/session-hint";
 import { ApiError, type ProblemDetails } from "@/lib/errors";
+import { forgetOfflineTicketsLater } from "@/lib/tickets/forget-offline";
 import type { components } from "./schema";
 
 export type SessionUser = components["schemas"]["UserAccount"];
@@ -120,12 +122,19 @@ export function loginRedirectUrl(currentPathAndQuery: string): string {
   return `/login?returnUrl=${encodeURIComponent(currentPathAndQuery)}`;
 }
 
+/** The api answered that nobody is signed in (not "busy", not "too many requests"). */
+const refusesSession = (status: number) => status >= 400 && status < 500 && status !== 429;
+
 async function doRefresh(fetchImpl: Fetch): Promise<string | null> {
+  const hinted = typeof document !== "undefined" && hasSessionHint(document.cookie);
   try {
     const response = await fetchImpl("/api/v1/auth/refresh", { method: "POST", credentials: "same-origin", headers: CSRF_HEADERS });
     setUnreachable(false);
     if (!response.ok) {
       clearSession();
+      // The hint said signed in, the api says the session is over (expired, revoked, signed out elsewhere): what this
+      // device kept for offline use goes too. A network failure (below) never wipes: that is the offline case.
+      if (hinted && refusesSession(response.status)) void forgetOfflineTicketsLater({ onlyIfStored: true });
       return null;
     }
 

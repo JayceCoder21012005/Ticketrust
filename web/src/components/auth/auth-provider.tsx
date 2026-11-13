@@ -12,6 +12,8 @@ import {
   type SessionUser,
 } from "@/lib/api/session";
 import { hasSessionHint } from "@/lib/auth/session-hint";
+import { forgetOfflineTicketsLater } from "@/lib/tickets/forget-offline";
+import { readOwnerMarker } from "@/lib/tickets/owner-marker";
 
 export type AuthStatus = "loading" | "authenticated" | "anonymous";
 
@@ -26,16 +28,6 @@ type AuthContextValue = {
   signIn: (credentials: { email: string; password: string }) => Promise<Session>;
   signOut: () => Promise<void>;
 };
-
-/**
- * Logout wipes the offline wallet (cached QR keys, ticket details, the service worker and its caches). Loaded on demand:
- * the auth pages share this provider and must not carry the wallet code.
- */
-const forgetOfflineTickets = () =>
-  import("@/lib/tickets/register-sw").then(
-    (module) => module.forgetOfflineTickets(),
-    () => undefined,
-  );
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -69,6 +61,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refreshAccessToken().finally(() => setRestored(true));
   }, [restoring]);
 
+  // Every session start (the login page included, where no query cache is watched): if the offline wallet on this
+  // device belongs to someone else, it is wiped before anything can show it. Only then is the cleanup loaded.
+  const userId = session?.user.id ?? null;
+  useEffect(() => {
+    if (!userId) return;
+    const owner = readOwnerMarker();
+    if (owner !== null && owner !== userId) void forgetOfflineTicketsLater();
+  }, [userId]);
+
   useEffect(() => {
     if (!session) {
       return;
@@ -84,7 +85,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: session?.user ?? null,
     offline: !session && hint && unreachable,
     signIn: (credentials) => login(credentials),
-    signOut: () => logout().finally(forgetOfflineTickets),
+    // Logout wipes the offline wallet (cached keys, ticket details, the service worker and its caches).
+    signOut: () => logout().finally(() => forgetOfflineTicketsLater()),
   };
 
   return <AuthContext value={value}>{children}</AuthContext>;

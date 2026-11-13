@@ -1,3 +1,4 @@
+import { clearOwnerMarker, OFFLINE_DATABASE, readOwnerMarker, writeOwnerMarker } from "./owner-marker";
 import type { TicketDetail } from "./types";
 
 /**
@@ -25,7 +26,7 @@ export interface KeyStore {
 /** A ticket's `qr-key` secret (standard base64, as received) and when its event ends (ISO 8601). */
 export type CachedKey = { secret: string; endsAt: string };
 
-const DB_NAME = "ticketrush-tickets";
+const DB_NAME = OFFLINE_DATABASE;
 const DB_VERSION = 1;
 const STORES: readonly StoreName[] = ["keys", "tickets", "meta"];
 const OWNER = "owner";
@@ -150,18 +151,42 @@ export function createKeyCache(store: KeyStore) {
     gate = next.catch(() => undefined);
     return next;
   };
+  /** True when every store was cleared. */
   const clearStores = async () => {
-    await Promise.allSettled(STORES.map((name) => store.clear(name)));
+    const results = await Promise.allSettled(STORES.map((name) => store.clear(name)));
+    return results.every((result) => result.status === "fulfilled");
+  };
+
+  /**
+   * Whether the cache may be served to the visitor. A signed-in user claims it first (another user's data is wiped).
+   * Without a session (offline, it could not be restored) only a cache owned by the last user signed in on this device
+   * is served: there is no server to ask, so the device's own marker is the best evidence.
+   */
+  const trusted = async (userId: string | null) => {
+    if (userId) {
+      await keyCache.claim(userId);
+      return true;
+    }
+    const owner = await afterWipes(() => store.get("meta", OWNER));
+    return typeof owner === "string" && owner === readOwnerMarker();
   };
 
   const keyCache = {
     /** Fire-and-forget after an online `qr-key` answer. */
     put: (ticketId: string, key: CachedKey) =>
       quietly(() => afterWipes(() => store.put("keys", ticketId, { secret: key.secret, endsAt: key.endsAt })), undefined),
+    /** Raw read, no owner check: the wallet uses `read`. */
     get: (ticketId: string) => quietly(async () => asKey(await afterWipes(() => store.get("keys", ticketId))), null),
     delete: (ticketId: string) => quietly(() => afterWipes(() => store.delete("keys", ticketId)), undefined),
-    /** Logout and user change: every key, every ticket detail and the owner mark. */
-    clearAll: () => quietly(() => wipe(clearStores), undefined),
+    /** The key for the visitor (`userId`, or null without a session), after the owner check above. */
+    read: (ticketId: string, userId: string | null) =>
+      quietly(async () => ((await trusted(userId)) ? asKey(await afterWipes(() => store.get("keys", ticketId))) : null), null),
+    /** Logout and user change: every key, every ticket detail and the owner mark. False when the stores could not be cleared. */
+    clearAll: () =>
+      quietly(async () => {
+        clearOwnerMarker();
+        return wipe(clearStores);
+      }, false),
     /** Drops what belongs to an event that has ended (or was cancelled), and anything unreadable. */
     purgeEnded: (nowMs: number) =>
       quietly(async () => {
@@ -181,16 +206,18 @@ export function createKeyCache(store: KeyStore) {
         ]);
       }, undefined),
     /**
-     * Marks the cache as `userId`'s; what another user left behind (their session ended without a logout here) is wiped
-     * first. Called by the wallet screens once the session is known.
+     * Marks the cache as `userId`'s. Anything not already owned by `userId` is wiped first: another user's data (their
+     * session ended without a logout here) and unowned leftovers alike. Also keeps the owner marker (`owner-marker.ts`)
+     * that lets the auth code and the offline wallet tell who the cache belongs to.
      */
     claim: (userId: string) =>
       quietly(
         () =>
           wipe(async () => {
+            writeOwnerMarker(userId);
             const owner = await store.get("meta", OWNER);
             if (owner === userId) return;
-            if (owner !== undefined) await clearStores();
+            await clearStores();
             await store.put("meta", OWNER, userId);
           }),
         undefined,
@@ -201,6 +228,9 @@ export function createKeyCache(store: KeyStore) {
     /** The ticket detail as the api sent it (it never holds the secret), for the seat info offline. */
     put: (ticket: TicketDetail) => quietly(() => afterWipes(() => store.put("tickets", ticket.id, ticket)), undefined),
     get: (ticketId: string) => quietly(async () => asTicket(await afterWipes(() => store.get("tickets", ticketId)), ticketId), null),
+    /** The detail for the visitor (`userId`, or null without a session), after the owner check (see `trusted`). */
+    read: (ticketId: string, userId: string | null) =>
+      quietly(async () => ((await trusted(userId)) ? asTicket(await afterWipes(() => store.get("tickets", ticketId)), ticketId) : null), null),
     delete: (ticketId: string) => quietly(() => afterWipes(() => store.delete("tickets", ticketId)), undefined),
   };
 

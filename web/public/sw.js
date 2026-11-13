@@ -21,7 +21,8 @@ const NETWORK_TIMEOUT_MS = 3000;
 const MAX_STATIC_ENTRIES = 300;
 const MAX_WARM_URLS = 300;
 
-const WALLET_PAGE = /^\/tickets\/[^/]+\/?$/;
+/** `/tickets/<uuid>` only: nothing else under `/tickets` is ever cached. */
+const WALLET_PAGE = /^\/tickets\/[0-9a-f-]{36}$/;
 const STATIC_PREFIX = "/_next/static/";
 
 /** Set by the page at logout (just before it unregisters this worker): from then on nothing is cached any more. */
@@ -45,7 +46,7 @@ const sameOrigin = (url) => url.origin === self.location.origin;
 const isWalletPage = (url) => sameOrigin(url) && WALLET_PAGE.test(url.pathname);
 const isStatic = (url) => sameOrigin(url) && url.pathname.startsWith(STATIC_PREFIX);
 /** The wallet page is cached under its path alone (no query, no fragment). */
-const pageKey = (url) => `${url.origin}${url.pathname.replace(/\/$/, "")}`;
+const pageKey = (url) => `${url.origin}${url.pathname}`;
 
 /** A complete same-origin 200: never a redirect (to login), an error page, or an opaque answer. */
 const cacheable = (response) => Boolean(response) && response.status === 200 && response.type === "basic" && !response.redirected;

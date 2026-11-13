@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useDropCacheOnUserChange } from "@/lib/api/use-drop-cache-on-user-change";
+import { forgetOfflineTicketsLater } from "@/lib/tickets/forget-offline";
 
 /**
  * TanStack Query is only for user-specific / live data (public pages use "use cache").
@@ -24,10 +25,7 @@ function createQueryClient() {
  * sign-out and a user change wipe it with the query cache. Loaded on demand, so only that moment pays for it.
  */
 const forgetOfflineTickets = () => {
-  void import("@/lib/tickets/register-sw").then(
-    (module) => module.forgetOfflineTickets(),
-    () => undefined,
-  );
+  void forgetOfflineTicketsLater();
 };
 
 /** For the (buyer), organizer, admin and gate layouts. */

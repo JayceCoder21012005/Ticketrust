@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const cache = vi.hoisted(() => ({ clearAll: vi.fn(async () => undefined) }));
+const cache = vi.hoisted(() => ({ clearAll: vi.fn(async () => true) }));
 vi.mock("./key-cache", () => ({ keyCache: cache }));
 
 const { forgetOfflineTickets, registerTicketWorker } = await import("./register-sw");
@@ -112,6 +112,20 @@ describe("forgetOfflineTickets", () => {
     expect(registration.active.postMessage).toHaveBeenCalledWith({ type: "retire" });
     expect(other.unregister).not.toHaveBeenCalled();
     expect(deleted).toEqual(["ticketrush-wallet-shell-v1", "ticketrush-wallet-static-v1"]);
+  });
+
+  it("deletes the whole database when the stores cannot be cleared (last resort)", async () => {
+    stubServiceWorker();
+    cache.clearAll.mockResolvedValueOnce(false);
+    const deleteDatabase = vi.fn();
+    vi.stubGlobal("indexedDB", { deleteDatabase });
+    vi.stubGlobal("caches", { keys: async () => [], delete: vi.fn() });
+    localStorage.setItem("tr.wallet.owner", "a");
+
+    await forgetOfflineTickets();
+
+    expect(deleteDatabase).toHaveBeenCalledWith("ticketrush-tickets");
+    expect(localStorage.getItem("tr.wallet.owner")).toBeNull();
   });
 
   it("still clears the keys when the worker api or the caches fail", async () => {

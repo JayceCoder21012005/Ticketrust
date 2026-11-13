@@ -27,8 +27,11 @@ type Outcome =
   | { status: "rateLimited"; retryAt: number }
   | { status: "error"; failure: TicketFailure };
 
-/** What the cache needs to know about the ticket: when its event ends, and the server-corrected clock (C10). */
-export type KeyContext = { endsAt: string; serverNow: () => number };
+/**
+ * What the cache needs to know: when the ticket's event ends, the server-corrected clock (C10), and who is asking (the
+ * signed-in user's id, or null without a session) so the cache is only ever used by its owner.
+ */
+export type KeyContext = { endsAt: string; serverNow: () => number; userId: string | null };
 
 /** The only key format the wallet can sign (spec 10, TR1 with 15-second steps). */
 const FORMAT = "TR1";
@@ -46,7 +49,15 @@ async function fetchKey(ticketId: string, signal: AbortSignal, context: KeyConte
     const key = await getQrKey(ticketId, signal);
     // A key the generator cannot use must never be drawn, nor kept.
     if (key.format !== FORMAT || key.stepSeconds !== STEP_SECONDS) return { status: "error", failure: "other" };
-    void keyCache.put(ticketId, { secret: key.secret, endsAt: context.endsAt }).catch(ignore);
+    // Claimed first (the gate in key-cache runs the claim's wipe before this write), so a new user's first key survives
+    // the wipe of the previous user's cache. Without a known user nothing is stored.
+    const { userId } = context;
+    if (userId) {
+      void keyCache
+        .claim(userId)
+        .then(() => keyCache.put(ticketId, { secret: key.secret, endsAt: context.endsAt }))
+        .catch(ignore);
+    }
     return { status: "ready", secret: key.secret, source: "network" };
   } catch (error) {
     const failure = ticketFailure(error);
@@ -75,7 +86,7 @@ export async function loadQrKey(ticketId: string, signal: AbortSignal, context: 
   const outcome = await fetchKey(ticketId, signal, context);
   if (outcome.status !== "error" || outcome.failure !== "network" || signal.aborted) return outcome;
 
-  const cached = await keyCache.get(ticketId);
+  const cached = await keyCache.read(ticketId, context.userId);
   return cached && running(cached.endsAt, context.serverNow()) ? { status: "ready", secret: cached.secret, source: "cache" } : outcome;
 }
 
@@ -85,12 +96,18 @@ export async function loadQrKey(ticketId: string, signal: AbortSignal, context: 
  * 429 counts down and asks again by itself. A cached key (offline) is shown at once while the network is retried in
  * the background with a bounded backoff, so the cache is refreshed as soon as the signal is back.
  */
-export function useQrKey(ticketId: string, enabled: boolean, endsAt: string, offsetMs: number): QrKeyState & { retry: () => void } {
+export function useQrKey(
+  ticketId: string,
+  enabled: boolean,
+  endsAt: string,
+  offsetMs: number,
+  userId: string | null,
+): QrKeyState & { retry: () => void } {
   const [attempt, setAttempt] = useState(0);
   const [outcome, setOutcome] = useState<{ attempt: number; ticketId: string; value: Outcome } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
-  const context = useEffectEvent((): KeyContext => ({ endsAt, serverNow: () => Date.now() + offsetMs }));
+  const context = useEffectEvent((): KeyContext => ({ endsAt, serverNow: () => Date.now() + offsetMs, userId }));
 
   // A ticket that stops being displayable forgets its secret: if it becomes displayable again, nothing of the old
   // answer shows before a fresh one is in.
@@ -133,7 +150,8 @@ export function useQrKey(ticketId: string, enabled: boolean, endsAt: string, off
       timer = setTimeout(async () => {
         const value = await fetchKey(ticketId, controller.signal, context());
         if (controller.signal.aborted) return;
-        // A fresh key or a refusal replaces the cached one; anything else (still offline, 429, 503) keeps it on screen.
+        // A fresh key or a refusal replaces the cached one. Anything else keeps the cached code on screen, deliberately
+        // also on 429 and 503: the server did not refuse the ticket, it only could not answer now.
         if (value.status === "ready" || value.status === "refused") {
           setOutcome({ attempt, ticketId, value });
           return;

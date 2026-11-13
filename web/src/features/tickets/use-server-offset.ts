@@ -8,6 +8,8 @@ import { fetchServerTime } from "@/lib/server-time";
 const STORAGE_KEY = "tr.wallet.server-offset";
 /** An offset older than this is not trusted any more (the device clock may have been changed since). */
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+/** An offset this large is a damaged value, not a clock: it is treated as unknown. */
+const MAX_OFFSET_MS = 24 * 60 * 60 * 1000;
 /** Without a saved offset, the QR waits this long at most for `/time` before using the device clock. */
 export const SERVER_TIME_WAIT_MS = 1_500;
 
@@ -17,7 +19,7 @@ type Saved = { offsetMs: number; at: number };
 let memory: Saved | null = null;
 
 function fresh(saved: Saved | null): Saved | null {
-  if (!saved || !Number.isFinite(saved.offsetMs) || !Number.isFinite(saved.at)) return null;
+  if (!saved || !Number.isFinite(saved.offsetMs) || !Number.isFinite(saved.at) || Math.abs(saved.offsetMs) >= MAX_OFFSET_MS) return null;
   const age = Date.now() - saved.at;
   return age >= 0 && age <= MAX_AGE_MS ? saved : null;
 }

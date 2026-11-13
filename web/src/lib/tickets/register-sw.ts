@@ -1,5 +1,6 @@
 import { hasSessionHint } from "@/lib/auth/session-hint";
 import { keyCache } from "./key-cache";
+import { deleteOfflineDatabase } from "./owner-marker";
 
 /** `public/sw.js`: caches the wallet page shell and its static assets so `/tickets/[id]` opens without signal. */
 export const WORKER_URL = "/sw.js";
@@ -89,5 +90,10 @@ export async function forgetOfflineTickets(): Promise<void> {
     await Promise.all(names.filter((name) => name.startsWith(WORKER_CACHE_PREFIX)).map((name) => caches.delete(name)));
   };
 
-  await Promise.allSettled([keyCache.clearAll(), unregister(), dropCaches()]);
+  // Last resort when the stores cannot be cleared: drop the whole database.
+  const clearStores = async () => {
+    if (!(await keyCache.clearAll())) deleteOfflineDatabase();
+  };
+
+  await Promise.allSettled([clearStores(), unregister(), dropCaches()]);
 }

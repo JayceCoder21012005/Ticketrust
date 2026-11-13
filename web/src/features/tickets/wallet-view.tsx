@@ -48,18 +48,22 @@ function displayOf(ticket: TicketDetail, serverNowMs: number): "qr" | OverlayKin
 
 type CachedRead = { ticketId: string; ticket: TicketDetail | null };
 
-/** The ticket detail saved on an earlier online visit, read when the api cannot be reached (undefined while reading). */
-function useCachedTicket(ticketId: string, active: boolean): TicketDetail | null | undefined {
+/**
+ * The ticket detail saved on an earlier online visit, read when the api cannot be reached (undefined while reading).
+ * Only its owner gets it: a signed-in user claims the cache first (another user's is wiped); without a session only
+ * the cache of the last user signed in on this device is served.
+ */
+function useCachedTicket(ticketId: string, active: boolean, userId: string | null): TicketDetail | null | undefined {
   const [read, setRead] = useState<CachedRead | null>(null);
 
   useEffect(() => {
     if (!active) return;
     let live = true;
-    ticketCache.get(ticketId).then((ticket) => live && setRead({ ticketId, ticket }));
+    ticketCache.read(ticketId, userId).then((ticket) => live && setRead({ ticketId, ticket }));
     return () => {
       live = false;
     };
-  }, [ticketId, active]);
+  }, [ticketId, active, userId]);
 
   return active && read?.ticketId === ticketId ? read.ticket : undefined;
 }
@@ -74,11 +78,12 @@ function useCachedTicket(ticketId: string, active: boolean): TicketDetail | null
  */
 export function WalletView({ ticketId }: { ticketId: string }) {
   const router = useRouter();
-  const { status, offline } = useAuth();
+  const { status, offline, user } = useAuth();
+  const userId = user?.id ?? null;
   const query = useTicket(ticketId);
   const expired = query.error instanceof ApiError && query.error.status === 401;
   const unreachable = !query.data && (offline || query.error instanceof NetworkError);
-  const cached = useCachedTicket(ticketId, unreachable);
+  const cached = useCachedTicket(ticketId, unreachable, userId);
 
   useEffect(() => {
     if ((status === "anonymous" && !offline) || expired) router.replace(loginRedirectUrl(walletHref(ticketId)));
@@ -88,8 +93,8 @@ export function WalletView({ ticketId }: { ticketId: string }) {
   useEffect(() => registerTicketWorker(), []);
 
   // A loaded ticket stays on screen when a later refetch fails.
-  if (query.data) return <Wallet ticket={query.data} onStale={() => void query.refetch()} />;
-  if (unreachable && cached) return <Wallet ticket={cached} onStale={() => void query.refetch()} />;
+  if (query.data) return <Wallet ticket={query.data} fromNetwork onStale={() => void query.refetch()} />;
+  if (unreachable && cached) return <Wallet ticket={cached} fromNetwork={false} onStale={() => void query.refetch()} />;
   if (unreachable && cached === null) {
     return (
       <Frame>
@@ -150,11 +155,13 @@ function NotFound() {
 
 type WalletProps = {
   ticket: TicketDetail;
+  /** The api's answer (true) or the copy saved for offline use (false). */
+  fromNetwork: boolean;
   /** Reloads the ticket: the api refused a key, so the status we have is out of date. */
   onStale: () => void;
 };
 
-function Wallet({ ticket, onStale }: WalletProps) {
+function Wallet({ ticket, fromNetwork, onStale }: WalletProps) {
   const router = useRouter();
   const { user } = useAuth();
   const userId = user?.id ?? null;
@@ -162,7 +169,7 @@ function Wallet({ ticket, onStale }: WalletProps) {
   // The device time the display was last evaluated at: on mount, then when the event ends (see below).
   const [checkedAt, setCheckedAt] = useState(() => Date.now());
   const display = displayOf(ticket, checkedAt + offsetMs);
-  const key = useQrKey(ticket.id, display === "qr", ticket.event.endsAt, offsetMs);
+  const key = useQrKey(ticket.id, display === "qr", ticket.event.endsAt, offsetMs, userId);
   const heading = useRef<HTMLHeadingElement>(null);
   const swipe = useRef<{ id: number; x: number; y: number } | null>(null);
   const { previous, next } = siblingsOf(ticket.orderTicketIds, ticket.id);

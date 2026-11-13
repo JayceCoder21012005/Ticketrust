@@ -81,6 +81,8 @@ beforeEach(async () => {
   vi.setSystemTime(T0);
   forgetServerOffset();
   await keyCache.clearAll();
+  // The device's cache belongs to u1, the last user signed in here.
+  await keyCache.claim("u1");
   worker.registerTicketWorker.mockClear();
   auth.status = "authenticated";
   auth.offline = false;
@@ -501,9 +503,15 @@ describe("WalletView", () => {
       expect(clock()).toHaveTextContent("19:00:08");
     });
 
-    it("ignores a damaged offset store", async () => {
+    it("ignores a damaged offset store, and an offset of a day or more", async () => {
       localStorage.setItem("tr.wallet.server-offset", "{not json");
       server.fetchServerTime.mockRejectedValue(new Error("offline"));
+      const first = renderWallet();
+      await settle();
+      expect(clock()).toHaveTextContent("19:00:07");
+      first.unmount();
+
+      localStorage.setItem("tr.wallet.server-offset", JSON.stringify({ offsetMs: 24 * 3_600_000, at: Date.now() }));
       renderWallet();
       await settle();
       expect(clock()).toHaveTextContent("19:00:07");
@@ -623,6 +631,43 @@ describe("WalletView", () => {
       expect(screen.getByRole("heading", { level: 2, name: "Sự kiện đã kết thúc" })).toBeInTheDocument();
       expect(qr()).not.toBeInTheDocument();
       expect(api.getQrKey).not.toHaveBeenCalled();
+      expect(await keyCache.get(ids[1]!)).toBeNull();
+      expect(await ticketCache.get(ids[1]!)).toBeNull();
+    });
+
+    it("Owner_mismatch_offline_shows_no_qr_and_no_name: another user signed in last on this device", async () => {
+      await keyCache.claim("user-a");
+      await ticketCache.put(ticket());
+      await keyCache.put(ids[1]!, { secret: SECRET, endsAt: "2099-12-20T16:00:00Z" });
+      localStorage.setItem("tr.wallet.owner", "user-b");
+      auth.status = "anonymous";
+      auth.offline = true;
+      auth.sessionPresent = false;
+      auth.userId = null;
+      api.getQrKey.mockRejectedValue(new NetworkError());
+
+      renderWallet();
+      await settle();
+
+      expect(screen.getByText("Chưa xem được vé này khi không có mạng")).toBeInTheDocument();
+      expect(qr()).not.toBeInTheDocument();
+      expect(document.body).not.toHaveTextContent("Nguyễn Văn An");
+    });
+
+    it("a signed-in user offline never sees another user's cached ticket, and it is wiped", async () => {
+      await keyCache.claim("user-a");
+      await ticketCache.put(ticket());
+      await keyCache.put(ids[1]!, { secret: SECRET, endsAt: "2099-12-20T16:00:00Z" });
+      auth.userId = "user-b";
+      api.getTicket.mockRejectedValue(new NetworkError());
+      api.getQrKey.mockRejectedValue(new NetworkError());
+
+      renderWallet();
+      await settle();
+
+      expect(screen.getByText("Chưa xem được vé này khi không có mạng")).toBeInTheDocument();
+      expect(qr()).not.toBeInTheDocument();
+      expect(document.body).not.toHaveTextContent("Nguyễn Văn An");
       expect(await keyCache.get(ids[1]!)).toBeNull();
       expect(await ticketCache.get(ids[1]!)).toBeNull();
     });
