@@ -43,14 +43,14 @@ Payload ≈ 50 chars. `step` has no leading zeros. Verification compares signatu
 
 ## Constraints
 
-- Spec 00 coding rules and API conventions (ProblemDetails with `code`, ownership 404, OpenAPI regenerated + typed client). Vietnamese copy, axe clean in light and dark, keyboard accessible, loading/empty/error states, 170 KB public-bundle budget untouched (the wallet/QR code only loads on buyer routes).
+- Spec 00 coding rules and API conventions (ProblemDetails with `code`, ownership 404, OpenAPI regenerated + typed client). Vietnamese copy, axe clean in light and dark, keyboard accessible, loading/empty/error states, 170 KB public-bundle budget untouched (the wallet/QR code only loads on buyer routes). Client copy of the buyer area (`tickets`, `checkout`, `queue`, `orders`, `seats`) lives in `web/messages/vi.buyer.json` / `en.buyer.json` and is read through `@/lib/i18n.buyer`, so `vi.json` (shipped on every page) holds only public and shared copy.
 - `web/package-lock.json` is never staged; no new web dependency.
 - No PII/secrets in logs; the secret appears only in the `qr-key` response body.
 
 ## Limits (offline wallet)
 
 - The `qr-key` secret is stored in IndexedDB as the base64 the api sent, without client-side encryption. It is same-origin storage; an XSS could read it, but an XSS could also read the secret from memory while the wallet is open, so encryption with a key held by the same page would add little. Hardening idea: import the secret once as a non-extractable HMAC `CryptoKey` and store that instead.
-- Offline, with no session, the wallet trusts the device's last signed-in owner (the `tr.wallet.owner` marker matched against the cache's owner record), because there is no server to ask. Any session start of another user, logout, and a refused session refresh wipe the cache.
+- Offline, with no session, the wallet trusts the device's last signed-in owner (the `tr.wallet.owner` marker matched against the cache's owner record), because there is no server to ask. Any session start of a different user on this device wipes the offline cache (the marker effect in `AuthProvider`, which also runs on the login page), as do logout and a refused session refresh. What remains: the multi-tab case (another tab still holding the previous user's in-memory session can store a key again until the next sign-in wipes it; without the marker it is not served offline) and a failed cleanup (nothing is relabelled and the IndexedDB database is deleted as a last resort). A busy or 5xx refresh never wipes the wallet: it is treated like no network.
 
 ## Rulings (controller, user away)
 
