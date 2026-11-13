@@ -15,6 +15,8 @@ export function useMyTickets(scope: TicketScope) {
     queryKey: ticketKeys.list(scope),
     queryFn: ({ signal }) => getMyTickets(scope, signal),
     enabled: signedIn,
+    // Always refetch on mount: a buyer who opened an empty "Sắp diễn ra" tab, bought, and came back must see the new ticket.
+    staleTime: 0,
   });
 }
 

@@ -33,6 +33,20 @@ describe("ticket queries", () => {
     expect(client.getQueryData(ticketKeys.list("past"))).toEqual([]);
   });
 
+  it("useMyTickets refetches on every mount, even inside the global 30 s staleTime (a bought ticket shows on return)", async () => {
+    api.getMyTickets.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: "t1" }]);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30_000 } } });
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+
+    const first = renderHook(() => useMyTickets("upcoming"), { wrapper });
+    await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
+    first.unmount();
+
+    const second = renderHook(() => useMyTickets("upcoming"), { wrapper });
+    await waitFor(() => expect(second.result.current.data).toEqual([{ id: "t1" }]));
+    expect(api.getMyTickets).toHaveBeenCalledTimes(2);
+  });
+
   it("useTicket loads the ticket under its key", async () => {
     api.getTicket.mockResolvedValue({ id: "t1" });
     const { client, wrapper } = setup();
