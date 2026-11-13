@@ -42,7 +42,7 @@ export function setSession(next: Session | null): void {
 }
 
 /**
- * True when the last session refresh failed for lack of a network (not because the api refused it). The offline ticket
+ * True when the last session refresh got no usable answer: no network, or a busy one (5xx, 429, 511), not a refusal. The offline ticket
  * wallet reads this to stay on screen instead of sending the visitor to a login page that cannot load anyway.
  */
 export function isSessionUnreachable(): boolean {
@@ -129,7 +129,9 @@ async function doRefresh(fetchImpl: Fetch): Promise<string | null> {
   const hinted = typeof document !== "undefined" && hasSessionHint(document.cookie);
   try {
     const response = await fetchImpl("/api/v1/auth/refresh", { method: "POST", credentials: "same-origin", headers: CSRF_HEADERS });
-    setUnreachable(false);
+    // A busy answer (5xx, 429, a captive portal's 511) says nothing about the session, like no network at all: the
+    // visitor counts as unreachable so the offline wallet stays, and only a real refusal wipes what is kept offline.
+    setUnreachable(!response.ok && !refusesSession(response.status));
     if (!response.ok) {
       clearSession();
       // The hint said signed in, the api says the session is over (expired, revoked, signed out elsewhere): what this

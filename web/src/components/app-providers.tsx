@@ -22,10 +22,11 @@ function createQueryClient() {
 
 /**
  * The offline ticket wallet (cached QR keys, ticket details, the service worker and its caches) belongs to one user:
- * sign-out and a user change wipe it with the query cache. Loaded on demand, so only that moment pays for it.
+ * another user taking over wipes it with the query cache. Sign-out wipes it in `AuthProvider.signOut` and a refused
+ * refresh in `doRefresh`; a session that merely ended (a busy api, no network) must keep it. Loaded on demand.
  */
-const forgetOfflineTickets = () => {
-  void forgetOfflineTicketsLater();
+const forgetOfflineTickets = (next: string | null) => {
+  if (next !== null) void forgetOfflineTicketsLater();
 };
 
 /** For the (buyer), organizer, admin and gate layouts. */

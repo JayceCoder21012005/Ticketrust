@@ -122,6 +122,18 @@ describe("AuthProvider", () => {
     expect(screen.getByTestId("status").textContent).toBe("anonymous");
   });
 
+  it.each([503, 429, 511])("a busy api (%i) on load is treated like no network: offline, nothing wiped", async (status) => {
+    document.cookie = "tr_session=1; path=/";
+    window.localStorage.setItem("tr.wallet.owner", user.id);
+    fetchMock.mockResolvedValue(json({ code: "system.busy" }, status));
+
+    renderProvider();
+
+    await waitFor(() => expect(screen.getByTestId("offline").textContent).toBe("true"));
+    expect(screen.getByTestId("status").textContent).toBe("anonymous");
+    expect(offline.forgetOfflineTickets).not.toHaveBeenCalled();
+  });
+
   it("is not offline once the api answers, even with a refusal", async () => {
     document.cookie = "tr_session=1; path=/";
     fetchMock.mockResolvedValue(json({ code: "auth.refresh_invalid" }, 401));

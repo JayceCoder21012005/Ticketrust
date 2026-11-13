@@ -90,13 +90,14 @@ describe("AppProviders query cache", () => {
 });
 
 describe("AppProviders offline tickets", () => {
-  it("Sign_out_clears_the_offline_tickets", async () => {
+  it("Sign_out_does_not_wipe_here: only a different user does (sign-out wipes in AuthProvider.signOut, a refusal in doRefresh)", async () => {
     act(() => setSession(session("a")));
     mount();
 
     act(() => clearSession());
 
-    await vi.waitFor(() => expect(offline.forgetOfflineTickets).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(offline.forgetOfflineTickets).not.toHaveBeenCalled();
   });
 
   it("User_change_clears_the_offline_tickets", async () => {
