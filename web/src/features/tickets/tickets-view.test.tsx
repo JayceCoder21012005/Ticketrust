@@ -96,7 +96,7 @@ beforeEach(() => {
   session.present = true;
   url.state.search = "";
   offline.purgeEnded.mockResolvedValue(undefined);
-  offline.claim.mockResolvedValue(undefined);
+  offline.claim.mockResolvedValue(true);
   router.replace.mockImplementation((href: string) => url.set(href.includes("?") ? href.slice(href.indexOf("?")) : ""));
 });
 

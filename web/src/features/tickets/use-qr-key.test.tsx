@@ -74,6 +74,25 @@ describe("loadQrKey", () => {
     expect(await keyCache.read(ID, "user-b")).toEqual({ secret: SECRET, endsAt: ENDS_AT });
   });
 
+  it("Failed_claim_never_stores_the_new_users_key: A's data survives a partial clear, B gets nothing stored", async () => {
+    await keyCache.clearAll();
+    await keyCache.claim("user-a");
+    await keyCache.put(ID, { secret: OLD_SECRET, endsAt: ENDS_AT });
+    const store = cache.store!;
+    const clear = store.clear;
+    store.clear = (name) => (name === "keys" ? Promise.reject(new DOMException("Quota", "QuotaExceededError")) : clear(name));
+    try {
+      expect(await loadQrKey(ID, signal(), { ...context, userId: "user-b" })).toMatchObject({ status: "ready", source: "network" });
+      await flush();
+
+      expect(store.dump().keys.get(ID)).toEqual({ secret: OLD_SECRET, endsAt: ENDS_AT });
+      expect(store.dump().meta.get("owner")).not.toBe("user-b");
+      expect(await keyCache.read(ID, "user-b")).toBeNull();
+    } finally {
+      store.clear = clear;
+    }
+  });
+
   it("a network failure never serves another user's cached key", async () => {
     await keyCache.put(ID, { secret: OLD_SECRET, endsAt: ENDS_AT });
     api.getQrKey.mockRejectedValue(new NetworkError());

@@ -1,4 +1,4 @@
-import { clearOwnerMarker, OFFLINE_DATABASE, readOwnerMarker, writeOwnerMarker } from "./owner-marker";
+import { clearOwnerMarker, deleteOfflineDatabase, OFFLINE_DATABASE, readOwnerMarker, writeOwnerMarker } from "./owner-marker";
 import type { TicketDetail } from "./types";
 
 /**
@@ -163,10 +163,7 @@ export function createKeyCache(store: KeyStore) {
    * is served: there is no server to ask, so the device's own marker is the best evidence.
    */
   const trusted = async (userId: string | null) => {
-    if (userId) {
-      await keyCache.claim(userId);
-      return true;
-    }
+    if (userId) return keyCache.claim(userId);
     const owner = await afterWipes(() => store.get("meta", OWNER));
     return typeof owner === "string" && owner === readOwnerMarker();
   };
@@ -181,12 +178,19 @@ export function createKeyCache(store: KeyStore) {
     /** The key for the visitor (`userId`, or null without a session), after the owner check above. */
     read: (ticketId: string, userId: string | null) =>
       quietly(async () => ((await trusted(userId)) ? asKey(await afterWipes(() => store.get("keys", ticketId))) : null), null),
-    /** Logout and user change: every key, every ticket detail and the owner mark. False when the stores could not be cleared. */
+    /**
+     * Logout and user change: every key, every ticket detail and the owner mark, in the gate's order (a wipe queued
+     * behind a claim must not leave that claim's marker over empty stores). False when the stores could not be cleared.
+     */
     clearAll: () =>
-      quietly(async () => {
-        clearOwnerMarker();
-        return wipe(clearStores);
-      }, false),
+      quietly(
+        () =>
+          wipe(async () => {
+            clearOwnerMarker();
+            return clearStores();
+          }),
+        false,
+      ),
     /** Drops what belongs to an event that has ended (or was cancelled), and anything unreadable. */
     purgeEnded: (nowMs: number) =>
       quietly(async () => {
@@ -207,20 +211,28 @@ export function createKeyCache(store: KeyStore) {
       }, undefined),
     /**
      * Marks the cache as `userId`'s. Anything not already owned by `userId` is wiped first: another user's data (their
-     * session ended without a logout here) and unowned leftovers alike. Also keeps the owner marker (`owner-marker.ts`)
-     * that lets the auth code and the offline wallet tell who the cache belongs to.
+     * session ended without a logout here) and unowned leftovers alike. True when the cache is `userId`'s now. When the
+     * wipe fails, nothing is relabelled: the database is dropped as the last resort and the answer is false, so the
+     * caller stores nothing and the previous user's data is never served as `userId`'s. Also keeps the owner marker
+     * (`owner-marker.ts`) that lets the auth code and the offline wallet tell who the cache belongs to.
      */
     claim: (userId: string) =>
       quietly(
         () =>
           wipe(async () => {
-            writeOwnerMarker(userId);
-            const owner = await store.get("meta", OWNER);
-            if (owner === userId) return;
-            await clearStores();
+            if ((await store.get("meta", OWNER)) === userId) {
+              writeOwnerMarker(userId);
+              return true;
+            }
+            if (!(await clearStores())) {
+              deleteOfflineDatabase();
+              return false;
+            }
             await store.put("meta", OWNER, userId);
+            writeOwnerMarker(userId);
+            return true;
           }),
-        undefined,
+        false,
       ),
   };
 

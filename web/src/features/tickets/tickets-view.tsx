@@ -50,7 +50,7 @@ export function TicketsView() {
   const loaded = query.isSuccess ? query.dataUpdatedAt : 0;
   useEffect(() => {
     if (!loaded || !userId) return;
-    void keyCache.claim(userId).then(() => keyCache.purgeEnded(Date.now()));
+    void keyCache.claim(userId).then((owned) => (owned ? keyCache.purgeEnded(Date.now()) : undefined));
   }, [loaded, userId]);
 
   // The heading takes focus once, when the first answer is in (a route change should land on the new content).

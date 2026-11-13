@@ -116,6 +116,76 @@ describe("keyCache", () => {
     expect(await createKeyCache(brokenKeyStore()).keyCache.clearAll()).toBe(false);
   });
 
+  describe("claim when a wipe fails", () => {
+    /** A store whose `clear` of one object store rejects (a partial clear). */
+    function failingClear(name: "keys" | "tickets" | "meta") {
+      const store = memoryKeyStore();
+      const clear = store.clear;
+      store.clear = (target) => (target === name ? Promise.reject(new DOMException("Quota", "QuotaExceededError")) : clear(target));
+      return store;
+    }
+
+    it("Claim_never_relabels_data_whose_clear_failed", async () => {
+      const store = failingClear("keys");
+      const { keyCache, ticketCache } = createKeyCache(store);
+      await store.put("meta", "owner", "A");
+      await store.put("keys", "t1", { secret: SECRET, endsAt: iso(NOW + 60_000) });
+      await store.put("tickets", "t1", detail("t1", iso(NOW + 60_000)));
+      localStorage.setItem("tr.wallet.owner", "A");
+
+      expect(await keyCache.claim("B")).toBe(false);
+
+      expect(store.dump().meta.get("owner")).not.toBe("B");
+      expect(localStorage.getItem("tr.wallet.owner")).not.toBe("B");
+      expect(await keyCache.read("t1", "B")).toBeNull();
+      expect(await ticketCache.read("t1", "B")).toBeNull();
+    });
+
+    it("a claim that finds the user already the owner is true and keeps the data", async () => {
+      const { keyCache } = createKeyCache(memoryKeyStore());
+      expect(await keyCache.claim("A")).toBe(true);
+      await keyCache.put("t1", { secret: SECRET, endsAt: iso(NOW + 60_000) });
+
+      expect(await keyCache.claim("A")).toBe(true);
+      expect(await keyCache.get("t1")).not.toBeNull();
+      expect(localStorage.getItem("tr.wallet.owner")).toBe("A");
+    });
+
+    it("a claim that wipes another user's data answers true and takes the cache", async () => {
+      const store = memoryKeyStore();
+      const { keyCache } = createKeyCache(store);
+      await keyCache.claim("A");
+      await keyCache.put("t1", { secret: SECRET, endsAt: iso(NOW + 60_000) });
+
+      expect(await keyCache.claim("B")).toBe(true);
+      expect(await keyCache.get("t1")).toBeNull();
+      expect(store.dump().meta.get("owner")).toBe("B");
+      expect(localStorage.getItem("tr.wallet.owner")).toBe("B");
+    });
+
+    it("Clear_all_clears_the_marker_and_the_stores_in_gate_order", async () => {
+      // B's claim is queued first and held up by a slow store; the global wipe queued behind it must run after it,
+      // marker included, so the device is not left with marker B over empty stores.
+      const store = memoryKeyStore();
+      const get = store.get;
+      let release = () => {};
+      const held = new Promise<void>((resolve) => (release = resolve));
+      store.get = async (name, id) => {
+        await held;
+        return get(name, id);
+      };
+      const { keyCache } = createKeyCache(store);
+
+      const claim = keyCache.claim("B");
+      const cleared = keyCache.clearAll();
+      release();
+      await Promise.all([claim, cleared]);
+
+      expect(localStorage.getItem("tr.wallet.owner")).toBeNull();
+      expect(store.dump().meta.size).toBe(0);
+    });
+  });
+
   describe("reads for a user (owner check at read time)", () => {
     async function ownedBy(owner: string) {
       const store = memoryKeyStore();
@@ -156,7 +226,7 @@ describe("keyCache", () => {
     await expect(keyCache.delete("t1")).resolves.toBeUndefined();
     await expect(keyCache.clearAll()).resolves.toBe(false);
     await expect(keyCache.purgeEnded(NOW)).resolves.toBeUndefined();
-    await expect(keyCache.claim("u1")).resolves.toBeUndefined();
+    await expect(keyCache.claim("u1")).resolves.toBe(false);
     await expect(ticketCache.put(detail("t1", iso(NOW + 60_000)))).resolves.toBeUndefined();
     await expect(ticketCache.get("t1")).resolves.toBeNull();
     await expect(ticketCache.delete("t1")).resolves.toBeUndefined();

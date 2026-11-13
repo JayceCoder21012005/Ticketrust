@@ -194,7 +194,7 @@ function Wallet({ ticket, fromNetwork, onStale }: WalletProps) {
   const fresh = key.status === "ready" && key.source === "network";
   useEffect(() => {
     if (!fresh || !userId) return;
-    void keyCache.claim(userId).then(() => ticketCache.put(ticket));
+    void keyCache.claim(userId).then((owned) => (owned ? ticketCache.put(ticket) : undefined));
   }, [fresh, userId, ticket]);
 
   // The api says this ticket cannot show a code (listed, checked in, voided, its event cancelled or over): no key is
@@ -203,7 +203,7 @@ function Wallet({ ticket, fromNetwork, onStale }: WalletProps) {
   useEffect(() => {
     if (!fromNetwork || display === "qr") return;
     void keyCache.delete(ticket.id);
-    if (userId) void keyCache.claim(userId).then(() => ticketCache.put(ticket));
+    if (userId) void keyCache.claim(userId).then((owned) => (owned ? ticketCache.put(ticket) : undefined));
     else void ticketCache.delete(ticket.id);
   }, [fromNetwork, display, ticket, userId]);
 

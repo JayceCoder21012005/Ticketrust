@@ -672,6 +672,25 @@ describe("WalletView", () => {
       expect(await ticketCache.get(ids[1]!)).toBeNull();
     });
 
+    it("a failed claim never saves the ticket detail or the key for the new user", async () => {
+      await keyCache.claim("user-a");
+      await ticketCache.put(ticket({ holderName: "Chủ cũ" }));
+      const store = cache.store!;
+      const clear = store.clear;
+      store.clear = (name) => (name === "keys" ? Promise.reject(new DOMException("Quota", "QuotaExceededError")) : clear(name));
+      auth.userId = "user-b";
+      try {
+        renderWallet();
+        await settle();
+
+        expect(store.dump().meta.get("owner")).not.toBe("user-b");
+        expect(await ticketCache.read(ids[1]!, "user-b")).toBeNull();
+        expect((store.dump().tickets.get(ids[1]!) as { holderName?: string } | undefined)?.holderName).not.toBe("Nguyễn Văn An");
+      } finally {
+        store.clear = clear;
+      }
+    });
+
     it("Not_displayable_online_drops_the_cached_key: Listed, CheckedIn, Voided, Cancelled, Ended", async () => {
       const cases: [Partial<TicketDetail>, Partial<TicketDetail["event"]>, string][] = [
         [{ status: "Listed" }, {}, "Đang rao bán"],

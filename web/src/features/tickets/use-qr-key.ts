@@ -55,7 +55,7 @@ async function fetchKey(ticketId: string, signal: AbortSignal, context: KeyConte
     if (userId) {
       void keyCache
         .claim(userId)
-        .then(() => keyCache.put(ticketId, { secret: key.secret, endsAt: context.endsAt }))
+        .then((owned) => (owned ? keyCache.put(ticketId, { secret: key.secret, endsAt: context.endsAt }) : undefined))
         .catch(ignore);
     }
     return { status: "ready", secret: key.secret, source: "network" };
