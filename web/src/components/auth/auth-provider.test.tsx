@@ -3,7 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearSession, setSession } from "@/lib/api/session";
-import { AuthProvider, useAuth } from "./auth-provider";
+
+const offline = vi.hoisted(() => ({ forgetOfflineTickets: vi.fn(async () => undefined) }));
+vi.mock("@/lib/tickets/register-sw", () => offline);
+
+const { AuthProvider, useAuth } = await import("./auth-provider");
 
 const user = {
   id: "0193",
@@ -22,10 +26,11 @@ const sessionExpiringIn = (ms: number, accessToken = "jwt") => ({
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
 function Probe() {
-  const { status, user: current, signOut } = useAuth();
+  const { status, offline: unreachable, user: current, signOut } = useAuth();
   return (
     <div>
       <span data-testid="status">{status}</span>
+      <span data-testid="offline">{String(unreachable)}</span>
       <span data-testid="name">{current?.fullName ?? ""}</span>
       <button type="button" onClick={() => void signOut()}>
         out
@@ -106,6 +111,26 @@ describe("AuthProvider", () => {
     await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("anonymous"));
   });
 
+  it("an unreachable api on load leaves the visitor offline, not signed out", async () => {
+    document.cookie = "tr_session=1; path=/";
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    renderProvider();
+
+    await waitFor(() => expect(screen.getByTestId("offline").textContent).toBe("true"));
+    expect(screen.getByTestId("status").textContent).toBe("anonymous");
+  });
+
+  it("is not offline once the api answers, even with a refusal", async () => {
+    document.cookie = "tr_session=1; path=/";
+    fetchMock.mockResolvedValue(json({ code: "auth.refresh_invalid" }, 401));
+
+    renderProvider();
+
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("anonymous"));
+    expect(screen.getByTestId("offline").textContent).toBe("false");
+  });
+
   it("refreshes 60 seconds before the access token expires", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     act(() => setSession(sessionExpiringIn(10 * 60_000, "first")));
@@ -129,6 +154,18 @@ describe("AuthProvider", () => {
 
     await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("anonymous"));
     expect(String(fetchMock.mock.calls[0][0])).toBe("/api/v1/auth/logout");
+  });
+
+  it("Logout_clears_the_offline_tickets: keys, ticket details and the service worker", async () => {
+    act(() => setSession(sessionExpiringIn(600_000)));
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    renderProvider();
+
+    // Even offline: signing out locally must not leave the tickets behind.
+    await userEvent.click(screen.getByRole("button", { name: "out" }));
+
+    await waitFor(() => expect(offline.forgetOfflineTickets).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId("status").textContent).toBe("anonymous");
   });
 
   it("never writes the access token to localStorage or sessionStorage", async () => {

@@ -37,13 +37,17 @@ vi.mock("next/navigation", () => ({
 }));
 
 const auth = vi.hoisted(() => ({ status: "authenticated" }));
-vi.mock("@/components/auth/auth-provider", () => ({ useAuth: () => ({ status: auth.status }) }));
+vi.mock("@/components/auth/auth-provider", () => ({ useAuth: () => ({ status: auth.status, user: { id: "u1" } }) }));
 
 const session = vi.hoisted(() => ({ present: true }));
 vi.mock("@/lib/api/use-session-present", () => ({ useSessionPresent: () => session.present }));
 
 const api = vi.hoisted(() => ({ getMyTickets: vi.fn(), getTicket: vi.fn() }));
 vi.mock("@/lib/tickets/api", () => api);
+
+const offline = vi.hoisted(() => ({ purgeEnded: vi.fn(), claim: vi.fn(), registerTicketWorker: vi.fn() }));
+vi.mock("@/lib/tickets/key-cache", () => ({ keyCache: { purgeEnded: offline.purgeEnded, claim: offline.claim } }));
+vi.mock("@/lib/tickets/register-sw", () => ({ registerTicketWorker: offline.registerTicketWorker }));
 
 const { TicketsView } = await import("./tickets-view");
 
@@ -91,10 +95,23 @@ beforeEach(() => {
   auth.status = "authenticated";
   session.present = true;
   url.state.search = "";
+  offline.purgeEnded.mockResolvedValue(undefined);
+  offline.claim.mockResolvedValue(undefined);
   router.replace.mockImplementation((href: string) => url.set(href.includes("?") ? href.slice(href.indexOf("?")) : ""));
 });
 
 describe("TicketsView", () => {
+  it("Ended_keys_are_purged_when_the_list_loads, for this user, and the wallet worker is registered", async () => {
+    api.getMyTickets.mockResolvedValue([group(1, [ticket(1)])]);
+    renderView();
+
+    expect(await screen.findByRole("link", { name: /Đêm nhạc 1/ })).toBeInTheDocument();
+    await waitFor(() => expect(offline.purgeEnded).toHaveBeenCalledTimes(1));
+    expect(offline.claim).toHaveBeenCalledWith("u1");
+    expect(Math.abs(offline.purgeEnded.mock.calls[0]![0] - Date.now())).toBeLessThan(60_000);
+    expect(offline.registerTicketWorker).toHaveBeenCalled();
+  });
+
   it("Tabs_switch_between_upcoming_and_past", async () => {
     const user = userEvent.setup();
     api.getMyTickets.mockImplementation(async (scope: string) =>

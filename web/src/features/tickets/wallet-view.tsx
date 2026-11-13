@@ -1,9 +1,9 @@
 "use client";
 
-import { ArrowLeft, CalendarDays, MapPin, Sun, TicketX } from "lucide-react";
+import { ArrowLeft, CalendarDays, MapPin, Sun, TicketX, WifiOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useEffectEvent, useRef, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
@@ -11,9 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWakeLock } from "@/features/queue/use-queue-effects";
 import { loginRedirectUrl } from "@/lib/api/session";
-import { ApiError, toFriendlyMessage } from "@/lib/errors";
+import { ApiError, NetworkError, toFriendlyMessage } from "@/lib/errors";
 import { formatEventDate, formatTimeRange } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { keyCache, ticketCache } from "@/lib/tickets/key-cache";
+import { registerTicketWorker } from "@/lib/tickets/register-sw";
 import type { TicketDetail } from "@/lib/tickets/types";
 import { useTicket } from "@/lib/tickets/use-tickets";
 import { AddToCalendar } from "./add-to-calendar";
@@ -29,33 +31,87 @@ const TICKETS_HREF = "/account/tickets";
 /** A horizontal drag at least this long (and mostly horizontal) moves to the next or previous ticket. */
 const SWIPE_PX = 60;
 
-/** What the QR slot shows for the ticket as loaded: a code only for a valid ticket of an event still to come or running. */
-function displayOf(ticket: TicketDetail, offsetMs: number): "qr" | OverlayKind {
+/** `setTimeout` takes at most 2^31 − 1 ms (about 24.8 days); a longer wait is re-aimed when it fires. */
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
+
+/**
+ * What the QR slot shows for the ticket as loaded, at `serverNowMs`: a code only for a valid ticket of an event still
+ * to come or running.
+ */
+function displayOf(ticket: TicketDetail, serverNowMs: number): "qr" | OverlayKind {
   if (ticket.status === "Listed") return "listed";
   if (ticket.status === "CheckedIn") return "checkedIn";
   if (ticket.status === "Voided" || ticket.event.status === "Cancelled") return "voided";
-  if (ticket.event.status === "Ended" || Date.parse(ticket.event.endsAt) <= Date.now() + offsetMs) return "ended";
+  if (ticket.event.status === "Ended" || Date.parse(ticket.event.endsAt) <= serverNowMs) return "ended";
   return "qr";
+}
+
+type CachedRead = { ticketId: string; ticket: TicketDetail | null };
+
+/** The ticket detail saved on an earlier online visit, read when the api cannot be reached (undefined while reading). */
+function useCachedTicket(ticketId: string, active: boolean): TicketDetail | null | undefined {
+  const [read, setRead] = useState<CachedRead | null>(null);
+
+  useEffect(() => {
+    if (!active) return;
+    let live = true;
+    ticketCache.get(ticketId).then((ticket) => live && setRead({ ticketId, ticket }));
+    return () => {
+      live = false;
+    };
+  }, [ticketId, active]);
+
+  return active && read?.ticketId === ticketId ? read.ticket : undefined;
 }
 
 /**
  * `/tickets/[id]` (spec 10): the ticket "wallet" screen. proxy.ts sends visitors without a session hint to login; this
  * covers a hint that outlived its session and a 401 the silent refresh could not fix. The api answers 404 for an
  * unknown ticket and for someone else's alike.
+ *
+ * Offline (the api cannot be reached: the session could not be restored, or the ticket request got no answer at all)
+ * the ticket saved on an earlier online visit is shown, with its cached key; a ticket never opened online here says so.
  */
 export function WalletView({ ticketId }: { ticketId: string }) {
   const router = useRouter();
-  const { status } = useAuth();
+  const { status, offline, user } = useAuth();
+  const userId = user?.id ?? null;
   const query = useTicket(ticketId);
   const expired = query.error instanceof ApiError && query.error.status === 401;
+  const unreachable = !query.data && (offline || query.error instanceof NetworkError);
+  const cached = useCachedTicket(ticketId, unreachable);
 
   useEffect(() => {
-    if (status === "anonymous" || expired) router.replace(loginRedirectUrl(walletHref(ticketId)));
-  }, [status, expired, ticketId, router]);
+    if ((status === "anonymous" && !offline) || expired) router.replace(loginRedirectUrl(walletHref(ticketId)));
+  }, [status, offline, expired, ticketId, router]);
+
+  // The service worker keeps this page's shell for the next visit without signal.
+  useEffect(() => registerTicketWorker(), []);
+
+  // The online answer is saved for offline use once the cache is marked as this user's (another user's is wiped first).
+  useEffect(() => {
+    if (!query.data || !userId) return;
+    const ticket = query.data;
+    void keyCache.claim(userId).then(() => ticketCache.put(ticket));
+  }, [query.data, userId]);
 
   // A loaded ticket stays on screen when a later refetch fails.
   if (query.data) return <Wallet ticket={query.data} onStale={() => void query.refetch()} />;
-  if (query.isError && !expired) {
+  if (unreachable && cached) return <Wallet ticket={cached} onStale={() => void query.refetch()} />;
+  if (unreachable && cached === null) {
+    return (
+      <Frame>
+        <BackLink />
+        <ErrorState
+          title={t("tickets.wallet.offlineUnavailable.title")}
+          description={t("tickets.wallet.offlineUnavailable.description")}
+          // Without a session (it could not be restored offline) only a reload tries everything again.
+          onRetry={offline ? () => window.location.reload() : () => void query.refetch()}
+        />
+      </Frame>
+    );
+  }
+  if (query.isError && !expired && !unreachable) {
     return query.error instanceof ApiError && query.error.status === 404 ? (
       <NotFound />
     ) : (
@@ -108,18 +164,33 @@ type WalletProps = {
 
 function Wallet({ ticket, onStale }: WalletProps) {
   const router = useRouter();
-  const offsetMs = useServerOffset();
-  const display = displayOf(ticket, offsetMs);
-  const key = useQrKey(ticket.id, display === "qr");
+  const { offsetMs, settled: clockReady } = useServerOffset();
+  // The device time the display was last evaluated at: on mount, then when the event ends (see below).
+  const [checkedAt, setCheckedAt] = useState(() => Date.now());
+  const display = displayOf(ticket, checkedAt + offsetMs);
+  const key = useQrKey(ticket.id, display === "qr", ticket.event.endsAt, offsetMs);
   const heading = useRef<HTMLHeadingElement>(null);
   const swipe = useRef<{ id: number; x: number; y: number } | null>(null);
   const { previous, next } = siblingsOf(ticket.orderTicketIds, ticket.id);
   const refused = key.status === "refused" ? key.code : null;
+  const endsAt = ticket.event.endsAt;
 
   // The new ticket's content after a route change (or the first load) gets focus, so the arrow keys work at once.
   useEffect(() => heading.current?.focus(), []);
   // Keeps the screen on while the code is shown at the gate (where supported; released on leave).
   useWakeLock(key.status === "ready");
+
+  // The code disappears when the event ends on the server clock, even with the screen left open.
+  useEffect(() => {
+    if (display !== "qr") return;
+    const left = Date.parse(endsAt) - (Date.now() + offsetMs);
+    const timer = setTimeout(() => setCheckedAt(Date.now()), Math.min(Math.max(0, left), MAX_TIMEOUT_MS));
+    return () => clearTimeout(timer);
+  }, [display, endsAt, offsetMs, checkedAt]);
+
+  // Keys and tickets of events that are over leave the offline cache.
+  const purge = useEffectEvent(() => void keyCache.purgeEnded(Date.now() + offsetMs));
+  useEffect(() => purge(), []);
 
   const reload = useEffectEvent(onStale);
   useEffect(() => {
@@ -155,6 +226,7 @@ function Wallet({ ticket, onStale }: WalletProps) {
   };
 
   const showsCode = display === "qr" && key.status === "ready";
+  const fromCache = showsCode && key.source === "cache";
 
   return (
     <div
@@ -181,7 +253,16 @@ function Wallet({ ticket, onStale }: WalletProps) {
       </header>
       <SiblingNav ids={ticket.orderTicketIds} currentId={ticket.id} />
       <section aria-label={t("tickets.wallet.qrSection")} className="flex flex-col items-center">
-        {display === "qr" ? <CodeSlot ticket={ticket} keyState={key} offsetMs={offsetMs} /> : <StatusOverlay kind={display} />}
+        {display === "qr" ? <CodeSlot ticket={ticket} keyState={key} offsetMs={offsetMs} clockReady={clockReady} /> : <StatusOverlay kind={display} />}
+        {/* One polite live region, filled once when the cached key is in use (the ticking code never touches it). */}
+        <p role="status" className={fromCache ? "mt-3 flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-medium" : "sr-only"}>
+          {fromCache ? (
+            <>
+              <WifiOff aria-hidden className="size-3.5 shrink-0" />
+              {t("tickets.wallet.offlineHint")}
+            </>
+          ) : null}
+        </p>
       </section>
       {showsCode ? (
         <p className="flex items-start gap-2 rounded-xl bg-muted/60 px-4 py-3 text-sm">
@@ -197,11 +278,19 @@ function Wallet({ ticket, onStale }: WalletProps) {
 
 const failureCopy = (failure: string) => (failure === "network" || failure === "busy" ? failure : "other");
 
+type CodeSlotProps = {
+  ticket: TicketDetail;
+  keyState: QrKeyState & { retry: () => void };
+  offsetMs: number;
+  /** False while the server clock is still being asked for (1.5 s at most): the code waits rather than jump. */
+  clockReady: boolean;
+};
+
 /** The QR slot of a displayable ticket, through the life of its `qr-key` request. */
-function CodeSlot({ ticket, keyState, offsetMs }: { ticket: TicketDetail; keyState: QrKeyState & { retry: () => void }; offsetMs: number }) {
+function CodeSlot({ ticket, keyState, offsetMs, clockReady }: CodeSlotProps) {
   switch (keyState.status) {
     case "ready":
-      return <RotatingQr ticketId={ticket.id} secret={keyState.secret} offsetMs={offsetMs} />;
+      return clockReady ? <RotatingQr ticketId={ticket.id} secret={keyState.secret} offsetMs={offsetMs} /> : <QrPlaceholder />;
     case "refused":
       return <StatusOverlay kind="notDisplayable" />;
     case "rateLimited":
@@ -225,15 +314,20 @@ function CodeSlot({ ticket, keyState, offsetMs }: { ticket: TicketDetail; keySta
         />
       );
     default:
-      return (
-        <div className="aspect-square w-full max-w-80">
-          <Skeleton className="size-full rounded-2xl" />
-          <p role="status" className="sr-only">
-            {t("tickets.wallet.qrLoading")}
-          </p>
-        </div>
-      );
+      return <QrPlaceholder />;
   }
+}
+
+/** The QR slot while the key or the server clock is on its way. */
+function QrPlaceholder() {
+  return (
+    <div className="aspect-square w-full max-w-80">
+      <Skeleton className="size-full rounded-2xl" />
+      <p role="status" className="sr-only">
+        {t("tickets.wallet.qrLoading")}
+      </p>
+    </div>
+  );
 }
 
 export function WalletSkeleton() {

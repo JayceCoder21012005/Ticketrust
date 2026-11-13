@@ -7,9 +7,22 @@ import type { QrKey, TicketDetail } from "@/lib/tickets/types";
 const router = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn(), prefetch: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => "/tickets/x" }));
 
-const auth = vi.hoisted(() => ({ status: "authenticated" }));
-vi.mock("@/components/auth/auth-provider", () => ({ useAuth: () => ({ status: auth.status }) }));
-vi.mock("@/lib/api/use-session-present", () => ({ useSessionPresent: () => true }));
+const auth = vi.hoisted(() => ({ status: "authenticated", offline: false, sessionPresent: true, userId: "u1" as string | null }));
+vi.mock("@/components/auth/auth-provider", () => ({
+  useAuth: () => ({ status: auth.status, offline: auth.offline, user: auth.userId ? { id: auth.userId } : null }),
+}));
+vi.mock("@/lib/api/use-session-present", () => ({ useSessionPresent: () => auth.sessionPresent }));
+
+/** The real cache module over an in-memory store (jsdom has no IndexedDB). */
+const cache = vi.hoisted(() => ({ store: null as null | ReturnType<typeof import("@/lib/tickets/fixtures/memory-key-store").memoryKeyStore> }));
+vi.mock("@/lib/tickets/key-cache", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/tickets/key-cache")>();
+  const { memoryKeyStore } = await import("@/lib/tickets/fixtures/memory-key-store");
+  cache.store = memoryKeyStore();
+  return { ...actual, ...actual.createKeyCache(cache.store) };
+});
+const worker = vi.hoisted(() => ({ registerTicketWorker: vi.fn(), forgetOfflineTickets: vi.fn() }));
+vi.mock("@/lib/tickets/register-sw", () => worker);
 
 const api = vi.hoisted(() => ({ getTicket: vi.fn(), getQrKey: vi.fn(), getMyTickets: vi.fn() }));
 vi.mock("@/lib/tickets/api", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/tickets/api")>()), ...api }));
@@ -25,6 +38,8 @@ const code = vi.hoisted(() => ({
 vi.mock("@/lib/tickets/qr-code", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/tickets/qr-code")>()), qrPayload: code.qrPayload }));
 
 const { WalletView } = await import("./wallet-view");
+const { keyCache, ticketCache } = await import("@/lib/tickets/key-cache");
+const { forgetServerOffset } = await import("./use-server-offset");
 
 const ids = ["0192f0e0-0001-7bbb-8ccc-0123456789ab", "0192f0e0-0002-7bbb-8ccc-0123456789ab", "0192f0e0-0003-7bbb-8ccc-0123456789ab", "0192f0e0-0004-7bbb-8ccc-0123456789ab"];
 const SECRET = btoa(String.fromCharCode(...new Uint8Array(32).fill(42)));
@@ -61,10 +76,16 @@ const key = (id: string): QrKey => ({ ticketId: id, secret: SECRET, stepSeconds:
 
 let reducedMotion = false;
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
   vi.setSystemTime(T0);
+  forgetServerOffset();
+  await keyCache.clearAll();
+  worker.registerTicketWorker.mockClear();
   auth.status = "authenticated";
+  auth.offline = false;
+  auth.sessionPresent = true;
+  auth.userId = "u1";
   reducedMotion = false;
   server.skew = 0;
   server.fetchServerTime.mockImplementation(async () => ({ serverNow: new Date(Date.now() + server.skew) }));
@@ -374,6 +395,8 @@ describe("WalletView", () => {
     await settle();
 
     expect(screen.getByText("Thử lại sau 3 giây")).toBeInTheDocument();
+    // The announcement matches the countdown: seconds, not minutes.
+    expect(screen.getByText("Mã QR sẽ tự tải lại sau vài giây.")).toHaveAttribute("role", "status");
     expect(qr()).not.toBeInTheDocument();
     await advance(1_000);
     expect(screen.getByText("Thử lại sau 2 giây")).toBeInTheDocument();
@@ -439,5 +462,213 @@ describe("WalletView", () => {
     renderWallet();
 
     expect(screen.getByText("Đang tải vé…")).toBeInTheDocument();
+  });
+
+  describe("server clock", () => {
+    it("Offset_is_cached_and_reused_on_the_next_open", async () => {
+      server.skew = 20_000;
+      const first = renderWallet();
+      await settle();
+      expect(clock()).toHaveTextContent("19:00:27");
+      first.unmount();
+
+      // The next open (another ticket of the order, or a reload offline): /time never answers, the QR is drawn at once
+      // on the saved offset instead of the device clock.
+      server.fetchServerTime.mockReturnValue(new Promise(() => undefined));
+      const second = renderWallet(ids[2]);
+      await settle();
+      expect(qr()).toBeInTheDocument();
+      expect(clock()).toHaveTextContent("19:00:27");
+      expect(Math.floor(code.qrPayload.mock.lastCall![2] / 15)).toBe(stepAt(T0 + 20_000));
+      second.unmount();
+
+      // A new page load (module memory gone) reads it back from storage.
+      forgetServerOffset("memory");
+      renderWallet();
+      await settle();
+      expect(clock()).toHaveTextContent("19:00:27");
+    });
+
+    it("waits for the server clock at most 1.5 s when no offset was saved", async () => {
+      server.fetchServerTime.mockReturnValue(new Promise(() => undefined));
+      renderWallet();
+      await settle();
+      expect(qr()).not.toBeInTheDocument();
+      expect(screen.getByText("Đang tạo mã QR…")).toBeInTheDocument();
+
+      await advance(1_500);
+      expect(qr()).toBeInTheDocument();
+      expect(clock()).toHaveTextContent("19:00:08");
+    });
+
+    it("ignores a damaged offset store", async () => {
+      localStorage.setItem("tr.wallet.server-offset", "{not json");
+      server.fetchServerTime.mockRejectedValue(new Error("offline"));
+      renderWallet();
+      await settle();
+      expect(clock()).toHaveTextContent("19:00:07");
+    });
+  });
+
+  it("Qr_disappears_when_the_event_ends_while_open", async () => {
+    // The server clock is 10 s ahead: the event ends 20 s from now on the device.
+    server.skew = 10_000;
+    api.getTicket.mockResolvedValue(ticket({}, { startsAt: new Date(T0 - 3_600_000).toISOString(), endsAt: new Date(T0 + 30_000).toISOString() }));
+    renderWallet();
+    await settle();
+    expect(qr()).toBeInTheDocument();
+
+    await advance(19_000);
+    expect(qr()).toBeInTheDocument();
+    await advance(1_000);
+    expect(qr()).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Sự kiện đã kết thúc" })).toBeInTheDocument();
+  });
+
+  it("aims the end timer at most 2^31 - 1 ms ahead, so a far-away event never fires it at once", async () => {
+    const timeouts = vi.spyOn(globalThis, "setTimeout");
+    renderWallet();
+    await settle();
+
+    // A longer delay would overflow setTimeout and fire immediately; this one is re-aimed when it fires.
+    expect(Math.max(...timeouts.mock.calls.map((call) => call[1] ?? 0))).toBe(2 ** 31 - 1);
+    expect(qr()).toBeInTheDocument();
+  });
+
+  describe("offline", () => {
+    const hint = () => screen.queryByText("Đang dùng mã ngoại tuyến");
+
+    it("saves the ticket and claims the cache for the user, registers the worker", async () => {
+      renderWallet();
+      await settle();
+
+      expect(await ticketCache.get(ids[1]!)).toMatchObject({ id: ids[1], holderName: "Nguyễn Văn An" });
+      expect(await keyCache.get(ids[1]!)).toEqual({ secret: SECRET, endsAt: "2099-12-20T16:00:00Z" });
+      expect(cache.store!.dump().meta.get("owner")).toBe("u1");
+      expect(worker.registerTicketWorker).toHaveBeenCalled();
+      expect(hint()).not.toBeInTheDocument();
+    });
+
+    it("a network failure shows the cached key with a polite hint, once", async () => {
+      await keyCache.put(ids[1]!, { secret: SECRET, endsAt: "2099-12-20T16:00:00Z" });
+      api.getQrKey.mockRejectedValue(new NetworkError());
+      renderWallet();
+      await settle();
+
+      expect(qr()).toBeInTheDocument();
+      const status = hint()!;
+      expect(status).toHaveAttribute("role", "status");
+      // The ticking QR does not re-announce: the hint is one stable node.
+      await advance(16_000);
+      expect(hint()).toBe(status);
+      expect(qrPath()).toMatch(/^M/);
+    });
+
+    it("an offline reload renders the cached ticket and its cached key instead of going to login", async () => {
+      const cached = ticket();
+      await ticketCache.put(cached);
+      await keyCache.put(ids[1]!, { secret: SECRET, endsAt: cached.event.endsAt });
+      auth.status = "anonymous";
+      auth.offline = true;
+      auth.sessionPresent = false;
+      auth.userId = null;
+      api.getQrKey.mockRejectedValue(new NetworkError());
+      server.fetchServerTime.mockRejectedValue(new Error("offline"));
+
+      renderWallet();
+      await settle();
+
+      expect(router.replace).not.toHaveBeenCalled();
+      expect(screen.getByRole("heading", { level: 1, name: "Đêm nhạc Mùa Thu" })).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "Thông tin chỗ ngồi" })).toHaveTextContent("Nguyễn Văn An");
+      expect(qr()).toBeInTheDocument();
+      expect(hint()).toBeInTheDocument();
+      expect(api.getTicket).not.toHaveBeenCalled();
+    });
+
+    it("an offline reload of a ticket never opened here says so, without a QR", async () => {
+      auth.status = "anonymous";
+      auth.offline = true;
+      auth.sessionPresent = false;
+      renderWallet();
+      await settle();
+
+      expect(router.replace).not.toHaveBeenCalled();
+      expect(screen.getByText("Chưa xem được vé này khi không có mạng")).toBeInTheDocument();
+      expect(qr()).not.toBeInTheDocument();
+    });
+
+    it("a ticket request that fails for lack of network falls back to the cached ticket", async () => {
+      await ticketCache.put(ticket());
+      await keyCache.put(ids[1]!, { secret: SECRET, endsAt: "2099-12-20T16:00:00Z" });
+      api.getTicket.mockRejectedValue(new NetworkError());
+      api.getQrKey.mockRejectedValue(new NetworkError());
+      renderWallet();
+      await settle();
+
+      expect(screen.getByRole("heading", { level: 1, name: "Đêm nhạc Mùa Thu" })).toBeInTheDocument();
+      expect(qr()).toBeInTheDocument();
+    });
+
+    it("a cached ticket of an event that has ended shows the ended state, then is purged", async () => {
+      const over = ticket({}, { startsAt: new Date(T0 - 7_200_000).toISOString(), endsAt: new Date(T0 - 1_000).toISOString() });
+      await ticketCache.put(over);
+      await keyCache.put(ids[1]!, { secret: SECRET, endsAt: over.event.endsAt });
+      auth.status = "anonymous";
+      auth.offline = true;
+      auth.sessionPresent = false;
+      renderWallet();
+      await settle();
+
+      expect(screen.getByRole("heading", { level: 2, name: "Sự kiện đã kết thúc" })).toBeInTheDocument();
+      expect(qr()).not.toBeInTheDocument();
+      expect(api.getQrKey).not.toHaveBeenCalled();
+      expect(await keyCache.get(ids[1]!)).toBeNull();
+      expect(await ticketCache.get(ids[1]!)).toBeNull();
+    });
+
+    it("a refused key (409) deletes what was cached for the ticket", async () => {
+      await keyCache.put(ids[1]!, { secret: SECRET, endsAt: "2099-12-20T16:00:00Z" });
+      api.getQrKey.mockRejectedValue(new ApiError(409, { code: "ticket.not_displayable", status: 409 }));
+      renderWallet();
+      await settle();
+
+      expect(await keyCache.get(ids[1]!)).toBeNull();
+    });
+  });
+
+  it("Module_size_is_an_integer", async () => {
+    let report: ((entries: { contentRect: { width: number } }[]) => void) | null = null;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: (entries: { contentRect: { width: number } }[]) => void) {
+          report = callback;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    renderWallet();
+    await settle();
+    const svg = qr()!;
+    const modules = Number(svg.getAttribute("viewBox")!.split(" ")[2]);
+
+    for (const [box, dpr] of [
+      [300, 1],
+      [287.5, 2],
+      [300, 1.5],
+      [271, 3],
+    ] as const) {
+      vi.stubGlobal("devicePixelRatio", dpr);
+      act(() => report!([{ contentRect: { width: box } }]));
+      const size = Number(svg.getAttribute("width"));
+      expect(svg.getAttribute("height")).toBe(svg.getAttribute("width"));
+      // Every module covers a whole number of device pixels, and the code never outgrows its box.
+      const devicePxPerModule = (size * dpr) / modules;
+      expect(Math.abs(devicePxPerModule - Math.round(devicePxPerModule))).toBeLessThan(1e-9);
+      expect(size).toBeLessThanOrEqual(box);
+      expect(size).toBeGreaterThan(box - modules / dpr);
+    }
   });
 });

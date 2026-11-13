@@ -19,10 +19,21 @@ function createQueryClient() {
   });
 }
 
+/**
+ * The offline ticket wallet (cached QR keys, ticket details, the service worker and its caches) belongs to one user:
+ * sign-out and a user change wipe it with the query cache. Loaded on demand, so only that moment pays for it.
+ */
+const forgetOfflineTickets = () => {
+  void import("@/lib/tickets/register-sw").then(
+    (module) => module.forgetOfflineTickets(),
+    () => undefined,
+  );
+};
+
 /** For the (buyer), organizer, admin and gate layouts. */
 export function AppProviders({ children }: { children: ReactNode }) {
   const [queryClient] = useState(createQueryClient);
-  useDropCacheOnUserChange(queryClient);
+  useDropCacheOnUserChange(queryClient, forgetOfflineTickets);
 
   return (
     <QueryClientProvider client={queryClient}>

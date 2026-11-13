@@ -3,6 +3,7 @@
 import { createContext, use, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   getSession,
+  isSessionUnreachable,
   login,
   logout,
   refreshAccessToken,
@@ -17,9 +18,24 @@ export type AuthStatus = "loading" | "authenticated" | "anonymous";
 type AuthContextValue = {
   status: AuthStatus;
   user: SessionUser | null;
+  /**
+   * The session hint says "signed in" but the session could not be restored for lack of a network (status stays
+   * `anonymous`). Only the offline ticket wallet acts on it; every other guarded page still goes to login.
+   */
+  offline: boolean;
   signIn: (credentials: { email: string; password: string }) => Promise<Session>;
   signOut: () => Promise<void>;
 };
+
+/**
+ * Logout wipes the offline wallet (cached QR keys, ticket details, the service worker and its caches). Loaded on demand:
+ * the auth pages share this provider and must not carry the wallet code.
+ */
+const forgetOfflineTickets = () =>
+  import("@/lib/tickets/register-sw").then(
+    (module) => module.forgetOfflineTickets(),
+    () => undefined,
+  );
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -38,6 +54,7 @@ const onServer = () => false;
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const session = useSyncExternalStore(subscribe, getSession, () => null);
+  const unreachable = useSyncExternalStore(subscribe, isSessionUnreachable, () => false);
   const hint = useSyncExternalStore(noSubscription, readHint, () => false);
   // The server render and hydration can't read the cookie: until the client can, the session is unknown, not absent.
   const hydrated = useSyncExternalStore(noSubscription, onClient, onServer);
@@ -65,8 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextValue = {
     status: session ? "authenticated" : !hydrated || restoring ? "loading" : "anonymous",
     user: session?.user ?? null,
+    offline: !session && hint && unreachable,
     signIn: (credentials) => login(credentials),
-    signOut: () => logout(),
+    signOut: () => logout().finally(forgetOfflineTickets),
   };
 
   return <AuthContext value={value}>{children}</AuthContext>;

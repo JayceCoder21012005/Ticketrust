@@ -27,3 +27,14 @@ export function qrPath(matrix: readonly (readonly boolean[])[]): string {
   });
   return parts.join("");
 }
+
+/**
+ * The side, in CSS px, at which a symbol of `modules` modules is drawn crisp in a `boxCssPx` box: every module covers
+ * a whole number of DEVICE pixels (`floor(box × dpr / modules) × modules / dpr`), so no edge is anti-aliased at any
+ * device pixel ratio. At a ratio of 1 this is `floor(box / modules) × modules`. A box too small for that keeps its size.
+ */
+export function crispQrSize(boxCssPx: number, modules: number, devicePixelRatio = 1): number {
+  const ratio = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
+  const perModule = Math.floor((boxCssPx * ratio) / modules);
+  return perModule > 0 ? (perModule * modules) / ratio : boxCssPx;
+}

@@ -451,6 +451,11 @@
         "title": "Không tạo được mã QR",
         "description": "Hãy tải lại trang. Nếu vẫn lỗi, liên hệ hỗ trợ."
       },
+      "offlineHint": "Đang dùng mã ngoại tuyến",
+      "offlineUnavailable": {
+        "title": "Chưa xem được vé này khi không có mạng",
+        "description": "Vé chỉ dùng được ngoại tuyến sau khi đã mở một lần lúc có mạng. Hãy kết nối mạng rồi thử lại."
+      },
       "keyFailed": {
         "title": "Không tải được mã QR",
         "network": "Không có kết nối mạng. Hãy kiểm tra kết nối rồi thử lại.",
@@ -460,7 +465,7 @@
       "rateLimited": {
         "title": "Bạn mở mã QR quá nhiều lần",
         "retryIn": "Thử lại sau {seconds} giây",
-        "announce": "Mã QR sẽ tự tải lại sau ít phút."
+        "announce": "Mã QR sẽ tự tải lại sau vài giây."
       },
       "overlay": {
         "checkedIn": {

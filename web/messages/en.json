@@ -451,6 +451,11 @@
         "title": "Could not generate the QR code",
         "description": "Reload the page. If it keeps failing, contact support."
       },
+      "offlineHint": "Using the offline code",
+      "offlineUnavailable": {
+        "title": "This ticket is not available offline yet",
+        "description": "A ticket works offline once it has been opened with a connection. Connect to the internet and try again."
+      },
       "keyFailed": {
         "title": "Could not load the QR code",
         "network": "No network connection. Check your connection and try again.",
@@ -460,7 +465,7 @@
       "rateLimited": {
         "title": "You opened the QR code too many times",
         "retryIn": "Retrying in {seconds} seconds",
-        "announce": "The QR code will reload by itself shortly."
+        "announce": "The QR code will reload by itself in a few seconds."
       },
       "overlay": {
         "checkedIn": {

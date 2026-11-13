@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ErrorState } from "@/components/shared/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatClock } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { qrPath, qrViewBoxSize } from "@/lib/tickets/qr-svg";
+import { crispQrSize, qrPath, qrViewBoxSize } from "@/lib/tickets/qr-svg";
 import { ProgressRing } from "./progress-ring";
 import { useRotatingCode } from "./use-rotating-code";
 
@@ -61,11 +61,45 @@ function LiveClock({ nowMs }: { nowMs: number }) {
   );
 }
 
-/** Black on white whatever the theme (scanners need the contrast), drawn as one path with crisp module edges. */
+type Box = { width: number; ratio: number };
+
+/** The element's CSS width and the device pixel ratio, read together as it resizes (null until measured). */
+function useBox() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState<Box | null>(null);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width) setBox({ width, ratio: window.devicePixelRatio || 1 });
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  return { ref, box };
+}
+
+/**
+ * Black on white whatever the theme (scanners need the contrast), drawn as one path. Sized so every module covers a
+ * whole number of device pixels (`crispQrSize`) and placed on a whole device pixel inside its white box, so the module
+ * edges stay sharp at any pixel ratio; until the box is measured it simply fills it.
+ */
 function QrSymbol({ payload }: { payload: string | null }) {
   const { encode, failed } = useEncoder();
   const matrix = useMemo(() => (encode && payload ? encode(payload) : null), [encode, payload]);
+  const { ref, box } = useBox();
 
+  return (
+    <div ref={ref} className="relative size-full">
+      <QrDrawing matrix={matrix} failed={failed} box={box} />
+    </div>
+  );
+}
+
+function QrDrawing({ matrix, failed, box }: { matrix: boolean[][] | null; failed: boolean; box: Box | null }) {
   if (failed) {
     return <p className="grid size-full place-items-center p-6 text-center text-sm text-neutral-900">{t("tickets.wallet.qrEncoderFailed")}</p>;
   }
@@ -79,14 +113,18 @@ function QrSymbol({ payload }: { payload: string | null }) {
   }
 
   const size = qrViewBoxSize(matrix);
+  const side = box ? crispQrSize(box.width, size, box.ratio) : null;
+  const inset = box && side ? Math.floor(((box.width - side) / 2) * box.ratio) / box.ratio : 0;
   return (
     <svg
       role="img"
       aria-label={t("tickets.wallet.qrLabel")}
       viewBox={`0 0 ${size} ${size}`}
       shapeRendering="crispEdges"
-      className="block size-full"
-      style={{ forcedColorAdjust: "none" }}
+      width={side ?? undefined}
+      height={side ?? undefined}
+      className={side ? "absolute block" : "block size-full"}
+      style={side ? { forcedColorAdjust: "none", left: inset, top: inset } : { forcedColorAdjust: "none" }}
     >
       <rect width={size} height={size} fill="#ffffff" />
       <path data-modules="" d={qrPath(matrix)} fill="#000000" />

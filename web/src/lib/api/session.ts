@@ -10,6 +10,8 @@ export type Session = components["schemas"]["LoginResponse"];
  * `/api/v1/auth` by itself; a reload restores the session through one refresh call.
  */
 let session: Session | null = null;
+/** The last refresh got no answer at all (no signal): the session may well still exist, it just cannot be restored now. */
+let unreachable = false;
 let inFlightRefresh: Promise<string | null> | null = null;
 const listeners = new Set<() => void>();
 
@@ -33,6 +35,21 @@ export function subscribe(listener: () => void): () => void {
 
 export function setSession(next: Session | null): void {
   session = next;
+  if (next) unreachable = false;
+  listeners.forEach((listener) => listener());
+}
+
+/**
+ * True when the last session refresh failed for lack of a network (not because the api refused it). The offline ticket
+ * wallet reads this to stay on screen instead of sending the visitor to a login page that cannot load anyway.
+ */
+export function isSessionUnreachable(): boolean {
+  return unreachable;
+}
+
+function setUnreachable(next: boolean): void {
+  if (unreachable === next) return;
+  unreachable = next;
   listeners.forEach((listener) => listener());
 }
 
@@ -106,6 +123,7 @@ export function loginRedirectUrl(currentPathAndQuery: string): string {
 async function doRefresh(fetchImpl: Fetch): Promise<string | null> {
   try {
     const response = await fetchImpl("/api/v1/auth/refresh", { method: "POST", credentials: "same-origin", headers: CSRF_HEADERS });
+    setUnreachable(false);
     if (!response.ok) {
       clearSession();
       return null;
@@ -115,6 +133,7 @@ async function doRefresh(fetchImpl: Fetch): Promise<string | null> {
     setSession(next);
     return next.accessToken;
   } catch {
+    setUnreachable(true);
     return null;
   }
 }

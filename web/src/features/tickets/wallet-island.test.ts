@@ -47,6 +47,18 @@ describe("wallet page bundle", () => {
     expect(readFileSync(join(SRC, "features/tickets/rotating-qr.tsx"), "utf8")).toMatch(/import\("@\/lib\/tickets\/qr-matrix"\)/);
   });
 
+  it("Service_worker_registration_is_only_reached_from_the_buyer_ticket_pages", () => {
+    const offline = /lib\/tickets\/(register-sw|key-cache)\.ts$/;
+    const reaches = (entry: string) => [...staticGraph(join(SRC, entry))].map((file) => relative(SRC, file).replace(/\\/g, "/")).filter((file) => offline.test(file));
+
+    expect(reaches("app/(buyer)/tickets/[id]/page.tsx")).toEqual(expect.arrayContaining(["lib/tickets/register-sw.ts", "lib/tickets/key-cache.ts"]));
+    expect(reaches("app/(buyer)/account/tickets/page.tsx")).toContain("lib/tickets/register-sw.ts");
+    // Shared and public code (layouts, providers, the auth pages) only loads the cleanup on demand, at logout.
+    for (const entry of ["app/layout.tsx", "app/(public)/layout.tsx", "app/(public)/(auth)/layout.tsx", "app/(buyer)/layout.tsx", "components/app-providers.tsx", "components/auth/auth-provider.tsx"]) {
+      expect(reaches(entry), entry).toEqual([]);
+    }
+  });
+
   it("the walk does see a static import of the encoder", () => {
     // Guards the guard: the regex catches the form a static import of the encoder would take.
     expect(staticSpecifiers('import { encodeQr } from "@/lib/tickets/qr-matrix";\nimport type { X } from "./y";')).toEqual(["@/lib/tickets/qr-matrix"]);

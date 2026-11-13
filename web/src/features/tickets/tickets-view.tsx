@@ -12,6 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { loginRedirectUrl } from "@/lib/api/session";
 import { ApiError, toFriendlyMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
+import { keyCache } from "@/lib/tickets/key-cache";
+import { registerTicketWorker } from "@/lib/tickets/register-sw";
 import type { TicketScope } from "@/lib/tickets/types";
 import { useMyTickets } from "@/lib/tickets/use-tickets";
 import { TicketCard } from "./ticket-card";
@@ -30,7 +32,8 @@ const hrefOf = (scope: TicketScope) => (scope === "upcoming" ? TICKETS_HREF : `$
 export function TicketsView() {
   const router = useRouter();
   const scope = parseScope(useSearchParams().get("scope"));
-  const { status } = useAuth();
+  const { status, user } = useAuth();
+  const userId = user?.id ?? null;
   const heading = useRef<HTMLHeadingElement>(null);
   const query = useMyTickets(scope);
   const settled = query.isSuccess || query.isError;
@@ -39,6 +42,16 @@ export function TicketsView() {
   useEffect(() => {
     if (status === "anonymous" || expired) router.replace(loginRedirectUrl(hrefOf(scope)));
   }, [status, expired, scope, router]);
+
+  // The wallet's service worker is registered from here too, so the shell is ready before the first ticket opens.
+  useEffect(() => registerTicketWorker(), []);
+
+  // Each time the list loads, the offline cache drops what belongs to events that are over (and to another user).
+  const loaded = query.isSuccess ? query.dataUpdatedAt : 0;
+  useEffect(() => {
+    if (!loaded || !userId) return;
+    void keyCache.claim(userId).then(() => keyCache.purgeEnded(Date.now()));
+  }, [loaded, userId]);
 
   // The heading takes focus once, when the first answer is in (a route change should land on the new content).
   const focused = useRef(false);
