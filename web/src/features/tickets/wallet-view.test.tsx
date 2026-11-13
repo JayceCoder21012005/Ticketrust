@@ -627,13 +627,18 @@ describe("WalletView", () => {
       expect(await ticketCache.get(ids[1]!)).toBeNull();
     });
 
-    it("a refused key (409) deletes what was cached for the ticket", async () => {
-      await keyCache.put(ids[1]!, { secret: SECRET, endsAt: "2099-12-20T16:00:00Z" });
-      api.getQrKey.mockRejectedValue(new ApiError(409, { code: "ticket.not_displayable", status: 409 }));
-      renderWallet();
-      await settle();
+    it("a refused key (404, 409) deletes what was cached for the ticket and never saves its detail again", async () => {
+      for (const error of [new ApiError(409, { code: "ticket.not_displayable", status: 409 }), new ApiError(404, { code: "ticket.not_found", status: 404 })]) {
+        await keyCache.put(ids[1]!, { secret: SECRET, endsAt: "2099-12-20T16:00:00Z" });
+        await ticketCache.put(ticket());
+        api.getQrKey.mockRejectedValue(error);
+        const view = renderWallet();
+        await settle();
 
-      expect(await keyCache.get(ids[1]!)).toBeNull();
+        expect(await keyCache.get(ids[1]!)).toBeNull();
+        expect(await ticketCache.get(ids[1]!)).toBeNull();
+        view.unmount();
+      }
     });
   });
 

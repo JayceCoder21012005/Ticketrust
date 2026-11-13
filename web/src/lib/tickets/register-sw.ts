@@ -40,10 +40,22 @@ export function registerTicketWorker(): void {
     if (process.env.NODE_ENV === "development" || !("serviceWorker" in navigator) || !window.isSecureContext) return;
     if (!hasSessionHint(document.cookie)) return;
 
-    navigator.serviceWorker
+    const container = navigator.serviceWorker;
+    const warm = (registration: ServiceWorkerRegistration) => registration.active?.postMessage({ type: "warm", urls: loadedUrls() });
+    container
       .register(WORKER_URL, { scope: "/", updateViaCache: "none" })
-      .then(() => navigator.serviceWorker.ready)
-      .then((registration) => registration.active?.postMessage({ type: "warm", urls: loadedUrls() }))
+      .then(() => container.ready)
+      .then((registration) => {
+        warm(registration);
+        // Until the worker takes control, files the page loads (a font subset drawn late, say) bypass it: list them
+        // again once it controls the page and once the page and its fonts have loaded; from then on it sees every
+        // request itself.
+        if (!container.controller) container.addEventListener("controllerchange", () => warm(registration), { once: true });
+        const loaded = new Promise<void>((resolve) =>
+          document.readyState === "complete" ? resolve() : window.addEventListener("load", () => resolve(), { once: true }),
+        );
+        void loaded.then(() => document.fonts?.ready).then(() => warm(registration), () => undefined);
+      })
       .catch(() => undefined);
   } catch {
     // Blocked by the browser or a policy: online only.

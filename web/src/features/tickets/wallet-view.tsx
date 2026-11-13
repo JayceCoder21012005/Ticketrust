@@ -74,8 +74,7 @@ function useCachedTicket(ticketId: string, active: boolean): TicketDetail | null
  */
 export function WalletView({ ticketId }: { ticketId: string }) {
   const router = useRouter();
-  const { status, offline, user } = useAuth();
-  const userId = user?.id ?? null;
+  const { status, offline } = useAuth();
   const query = useTicket(ticketId);
   const expired = query.error instanceof ApiError && query.error.status === 401;
   const unreachable = !query.data && (offline || query.error instanceof NetworkError);
@@ -87,13 +86,6 @@ export function WalletView({ ticketId }: { ticketId: string }) {
 
   // The service worker keeps this page's shell for the next visit without signal.
   useEffect(() => registerTicketWorker(), []);
-
-  // The online answer is saved for offline use once the cache is marked as this user's (another user's is wiped first).
-  useEffect(() => {
-    if (!query.data || !userId) return;
-    const ticket = query.data;
-    void keyCache.claim(userId).then(() => ticketCache.put(ticket));
-  }, [query.data, userId]);
 
   // A loaded ticket stays on screen when a later refetch fails.
   if (query.data) return <Wallet ticket={query.data} onStale={() => void query.refetch()} />;
@@ -164,6 +156,8 @@ type WalletProps = {
 
 function Wallet({ ticket, onStale }: WalletProps) {
   const router = useRouter();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const { offsetMs, settled: clockReady } = useServerOffset();
   // The device time the display was last evaluated at: on mount, then when the event ends (see below).
   const [checkedAt, setCheckedAt] = useState(() => Date.now());
@@ -187,6 +181,14 @@ function Wallet({ ticket, onStale }: WalletProps) {
     const timer = setTimeout(() => setCheckedAt(Date.now()), Math.min(Math.max(0, left), MAX_TIMEOUT_MS));
     return () => clearTimeout(timer);
   }, [display, endsAt, offsetMs, checkedAt]);
+
+  // A ticket the api just gave a key for is saved for offline use (never one it refused: that answer deletes it), once
+  // the cache is marked as this user's (what another user left is wiped first).
+  const fresh = key.status === "ready" && key.source === "network";
+  useEffect(() => {
+    if (!fresh || !userId) return;
+    void keyCache.claim(userId).then(() => ticketCache.put(ticket));
+  }, [fresh, userId, ticket]);
 
   // Keys and tickets of events that are over leave the offline cache.
   const purge = useEffectEvent(() => void keyCache.purgeEnded(Date.now() + offsetMs));

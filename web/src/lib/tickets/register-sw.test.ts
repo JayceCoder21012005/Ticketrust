@@ -11,7 +11,11 @@ function stubServiceWorker() {
   const active = worker("http://localhost:3000/sw.js");
   const registration = { active, waiting: null, installing: null, unregister: vi.fn(async () => true) };
   const other = { active: worker("http://localhost:3000/other-sw.js"), waiting: null, installing: null, unregister: vi.fn(async () => true) };
+  const changes: (() => void)[] = [];
   const serviceWorker = {
+    controller: null,
+    addEventListener: vi.fn((_type: string, listener: () => void) => changes.push(listener)),
+    changes,
     register: vi.fn(async () => registration),
     ready: Promise.resolve(registration),
     getRegistrations: vi.fn(async () => [registration, other]),
@@ -54,6 +58,20 @@ describe("registerTicketWorker", () => {
     expect(serviceWorker.register).toHaveBeenCalledWith("/sw.js", { scope: "/", updateViaCache: "none" });
     // The worker is told what this page already loaded: the page itself and same-origin static assets only.
     expect(active.postMessage).toHaveBeenCalledWith({ type: "warm", urls: [location.pathname, "/_next/static/chunks/app-123.js"] });
+  });
+
+  it("lists the page's files again once the worker controls the page and once the page has loaded", async () => {
+    const { serviceWorker, active } = stubServiceWorker();
+    setHint(true);
+
+    registerTicketWorker();
+    await flush();
+    // At once, then when the page (already loaded here) and its fonts are in.
+    expect(active.postMessage).toHaveBeenCalledTimes(2);
+    expect(serviceWorker.addEventListener).toHaveBeenCalledWith("controllerchange", expect.any(Function), { once: true });
+
+    serviceWorker.changes.forEach((listener) => listener());
+    expect(active.postMessage).toHaveBeenCalledTimes(3);
   });
 
   it("does nothing without a session hint, without service workers, or on an insecure origin", async () => {

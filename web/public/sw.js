@@ -86,7 +86,8 @@ async function walletPage(event, url) {
 
 /** Cache first: a content-hashed file never changes. */
 async function staticAsset(event) {
-  const cached = await caches.match(event.request, { cacheName: STATIC_CACHE });
+  // Content-hashed: whatever the request headers (a font asked for with CORS, say), the stored file is the one.
+  const cached = await caches.match(event.request, { cacheName: STATIC_CACHE, ignoreVary: true });
   if (cached) return cached;
   const response = await fetch(event.request);
   event.waitUntil(storeStatic(event.request, response.clone()).catch(() => undefined));
@@ -124,7 +125,7 @@ async function warm(raw) {
   await Promise.all(
     urls.filter(isStatic).map(async (url) => {
       try {
-        if (!(await staticCache.match(url.href))) await storeStatic(new Request(url.href), await fetch(url.href));
+        if (!(await staticCache.match(url.href, { ignoreVary: true }))) await storeStatic(new Request(url.href), await fetch(url.href));
       } catch {
         // Offline already, or the file is gone: the next online visit caches it.
       }
