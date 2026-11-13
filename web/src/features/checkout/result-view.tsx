@@ -14,7 +14,7 @@ import { recallEvent } from "@/lib/checkout/event-memory";
 import { isPastDeadline, refundReasonKey, resultKindOf, type ResultKind } from "@/lib/checkout/order-state";
 import type { Order } from "@/lib/checkout/types";
 import { useOrderPolling } from "@/lib/checkout/use-order-polling";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { cn } from "@/lib/utils";
 import { Confetti } from "./confetti";
 

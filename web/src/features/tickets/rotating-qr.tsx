@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { ErrorState } from "@/components/shared/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatClock } from "@/lib/format";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { crispQrSize, qrPath, qrViewBoxSize } from "@/lib/tickets/qr-svg";
 import { ProgressRing } from "./progress-ring";
 import { useRotatingCode } from "./use-rotating-code";

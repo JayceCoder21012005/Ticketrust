@@ -1,4 +1,4 @@
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { cn } from "@/lib/utils";
 
 const RADIUS = 20;

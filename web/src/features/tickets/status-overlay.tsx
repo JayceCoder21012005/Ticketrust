@@ -1,5 +1,5 @@
 import { CalendarX, CircleCheck, CircleX, Tag, TriangleAlert, type LucideIcon } from "lucide-react";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { cn } from "@/lib/utils";
 
 /** Why the wallet shows no QR. `notDisplayable`: the api refused a key (409) and the ticket is being reloaded. */

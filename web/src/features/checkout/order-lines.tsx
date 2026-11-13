@@ -1,5 +1,5 @@
 import { formatVnd } from "@/lib/format";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 
 type Seat = { index: number; section: string; row: string; number: string; price: number };
 type GaLine = { tierId: string; name: string; quantity: number; price: number };

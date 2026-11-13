@@ -3,7 +3,7 @@ import Link from "next/link";
 import { EventPoster } from "@/components/catalog/event-poster";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/format";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import type { TicketEventGroup, TicketScope } from "@/lib/tickets/types";
 
 type TicketCardProps = {

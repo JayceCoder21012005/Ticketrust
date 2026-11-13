@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { loadClockOffset } from "@/lib/catalog/browser";
 import { formatCountdown } from "@/lib/clock";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { ADMISSION_CHANGED_EVENT, loadAdmission } from "@/lib/queue/admission-store";
 
 const subscribe = (notify: () => void) => {

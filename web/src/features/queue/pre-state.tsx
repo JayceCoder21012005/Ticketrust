@@ -1,6 +1,6 @@
 import { Shuffle } from "lucide-react";
 import { CountdownTimer } from "@/components/shared/countdown-timer";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import type { QueueStatus } from "@/lib/queue/types";
 
 /**

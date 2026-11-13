@@ -1,0 +1,434 @@
+{
+  "tickets": {
+    "title": "My tickets",
+    "description": "Your tickets for upcoming and past events.",
+    "accountLink": "My tickets",
+    "loading": "Loading tickets…",
+    "loadFailed": "Could not load your tickets.",
+    "sessionExpired": "Your session has expired. Redirecting to sign in…",
+    "tabs": {
+      "label": "My tickets",
+      "upcoming": "Upcoming",
+      "past": "Past"
+    },
+    "shown": "{tab}: {count} events",
+    "empty": {
+      "upcoming": {
+        "title": "You have no upcoming tickets",
+        "description": "When you buy tickets they will show up here."
+      },
+      "past": {
+        "title": "You have no tickets for past events",
+        "description": "Tickets for events that ended or were cancelled are kept here."
+      },
+      "action": "Explore events"
+    },
+    "list": "Ticket list",
+    "count": "{count} tickets",
+    "seat": "Section {section}, row {row}, seat {number}",
+    "status": {
+      "ended": "Ended",
+      "cancelled": "Cancelled",
+      "voided": "Ticket voided"
+    },
+    "wallet": {
+      "title": "E-ticket",
+      "loading": "Loading ticket…",
+      "back": "My tickets",
+      "loadFailed": "Could not load the ticket.",
+      "notFound": {
+        "title": "Ticket not found",
+        "description": "This ticket does not exist or does not belong to your account.",
+        "action": "Back to my tickets"
+      },
+      "qrSection": "Entry code",
+      "qrLabel": "Entry QR code, changes every 15 seconds",
+      "qrLoading": "Generating QR code…",
+      "qrEncoderFailed": "Could not load the QR generator. Please reload the page.",
+      "rotates": "The code changes every 15 seconds, so a screenshot will not work.",
+      "ring": {
+        "label": "Time until the next code",
+        "value": "{seconds} seconds left"
+      },
+      "clock": "Current time",
+      "brightness": "Turn up your screen brightness so the code scans faster.",
+      "insecure": {
+        "title": "A secure (HTTPS) connection is needed to show the code",
+        "description": "Reopen the page with an address starting with https://."
+      },
+      "codeFailed": {
+        "title": "Could not generate the QR code",
+        "description": "Reload the page. If it keeps failing, contact support."
+      },
+      "offlineHint": "Using the offline code",
+      "offlineUnavailable": {
+        "title": "This ticket is not available offline yet",
+        "description": "A ticket works offline once it has been opened with a connection. Connect to the internet and try again."
+      },
+      "keyFailed": {
+        "title": "Could not load the QR code",
+        "network": "No network connection. Check your connection and try again.",
+        "busy": "The system is busy. Please try again in a moment.",
+        "other": "Something went wrong. Please try again."
+      },
+      "rateLimited": {
+        "title": "You opened the QR code too many times",
+        "retryIn": "Retrying in {seconds} seconds",
+        "announce": "The QR code will reload by itself in a few seconds."
+      },
+      "overlay": {
+        "checkedIn": {
+          "title": "Checked in",
+          "description": "This ticket has already been used to enter."
+        },
+        "listed": {
+          "title": "Listed for resale",
+          "description": "This ticket is listed for resale, so its QR code is hidden. Cancel the listing to use it again."
+        },
+        "voided": {
+          "title": "Cancelled",
+          "description": "This ticket has been cancelled and is no longer valid."
+        },
+        "ended": {
+          "title": "The event has ended",
+          "description": "The QR code is no longer shown after the event ends."
+        },
+        "notDisplayable": {
+          "title": "The QR code cannot be shown",
+          "description": "The ticket's status just changed. Updating…"
+        }
+      },
+      "seat": {
+        "heading": "Seat details",
+        "section": "Section",
+        "row": "Row",
+        "number": "Seat",
+        "standing": "Standing",
+        "tier": "Tier",
+        "holder": "Holder"
+      },
+      "siblings": {
+        "label": "Tickets in this order",
+        "previous": "Previous ticket",
+        "next": "Next ticket",
+        "position": "Ticket {index} of {count}",
+        "hint": "Swipe or use the arrow keys to see other tickets."
+      },
+      "calendar": {
+        "add": "Add to calendar",
+        "openTicket": "Open ticket: {url}"
+      }
+    }
+  },
+  "checkout": {
+    "title": "Checkout",
+    "order": "Order {code}",
+    "loading": "Loading your order…",
+    "loadFailed": "Could not load the order.",
+    "notFound": {
+      "title": "Order not found",
+      "body": "This order does not exist or belongs to another account.",
+      "action": "Browse events"
+    },
+    "countdown": {
+      "label": "Time left to pay",
+      "low": "Less than a minute left to pay",
+      "ended": "Time is up"
+    },
+    "summary": {
+      "title": "Order summary",
+      "event": "Event",
+      "section": "Section {name}",
+      "seat": "Row {row} · Seat {number}",
+      "ga": "{name} × {quantity}",
+      "total": "Total",
+      "buyer": "Buyer"
+    },
+    "terms": {
+      "label": "I agree to the ticket terms and the refund policy.",
+      "required": "Please accept the terms to pay."
+    },
+    "pay": "Pay now",
+    "paying": "Taking you to the payment gateway…",
+    "previousFailed": "The last payment did not go through. Your seats are still held, you can try again.",
+    "cancel": {
+      "action": "Cancel order",
+      "title": "Cancel this order?",
+      "body": "The seats are released right away. To buy them you need to choose again.",
+      "confirm": "Cancel order",
+      "keep": "Keep order",
+      "cancelling": "Cancelling…"
+    },
+    "expired": {
+      "title": "Payment time is over",
+      "body": "Your seats were released. Please choose again.",
+      "action": "Choose seats again",
+      "events": "Browse events"
+    },
+    "buyerStep": {
+      "title": "Buyer details",
+      "description": "Tickets and the confirmation email go to these details. They cannot be changed once the order is created.",
+      "name": "Full name",
+      "email": "Email for tickets",
+      "phone": "Phone number (optional)",
+      "submit": "Create order",
+      "submitting": "Creating order…",
+      "loadFailed": "Could not load your hold.",
+      "noHold": {
+        "title": "You are not holding any seats",
+        "body": "Choose seats before you check out.",
+        "action": "Choose seats"
+      },
+      "holdGone": "Your hold is no longer valid. Please choose seats again.",
+      "backToSeats": "Back to seat selection"
+    },
+    "result": {
+      "loading": "Checking your order…",
+      "loadFailed": "Could not load the order result.",
+      "ordersLink": "My orders",
+      "seatsAgain": "Choose seats again",
+      "confirming": {
+        "title": "Confirming your payment",
+        "body": "Do not close this page. We are waiting for the payment gateway to confirm, usually a few seconds."
+      },
+      "success": {
+        "title": "Payment successful",
+        "body": "Thank you! Your tickets are ready and also sent by email.",
+        "tickets": "You have {count} tickets.",
+        "action": "View tickets"
+      },
+      "failed": {
+        "title": "Payment failed",
+        "body": "The transaction was not completed. Your seats are still held until the payment time runs out.",
+        "retry": "Try again",
+        "gone": "The hold has run out, so you cannot try again."
+      },
+      "expired": {
+        "title": "Order expired",
+        "body": "The payment time is over and the seats were released. If a payment arrives late, we will refund it."
+      },
+      "cancelled": {
+        "title": "Order cancelled",
+        "body": "The seats were released."
+      },
+      "refunding": {
+        "title": "Refund in progress",
+        "lead": "We received your payment but could not issue tickets.",
+        "tail": "The full amount goes back to the original payment method. How long it takes depends on your bank.",
+        "reasons": {
+          "seats_unavailable": "The payment arrived after the hold ran out and the seats were bought by someone else.",
+          "event_cancelled": "The organizer cancelled this event.",
+          "event_ended": "The payment arrived after the event ended.",
+          "purchase_limit_exceeded": "These tickets would exceed the maximum each person may buy for the event.",
+          "order_closed": "The payment arrived after the order was closed.",
+          "amount_mismatch": "The amount the gateway recorded does not match the order.",
+          "duplicate_payment": "This order was already paid, so the second payment is refunded.",
+          "other": "The order was no longer valid when the payment was confirmed."
+        }
+      },
+      "refunded": {
+        "title": "Refunded",
+        "body": "We refunded this order. If the money has not arrived yet, give your bank some time."
+      },
+      "timeout": {
+        "title": "Still processing",
+        "body": "Still processing — check again in My orders. You do not need to pay again.",
+        "refresh": "Check again",
+        "backToPay": "Back to payment"
+      },
+      "title": "Payment result"
+    }
+  },
+  "queue": {
+    "title": "Waiting room",
+    "joining": "Joining the waiting room…",
+    "leave": "Leave the waiting room",
+    "stateLabel": "Waiting room status",
+    "pre": {
+      "title": "The waiting room is open",
+      "opensIn": "Sale opens in",
+      "fairness": "Everyone who enters the waiting room before the sale opens is placed in random order.",
+      "stay": "You can leave this page open. When the sale opens you will see your place in line.",
+      "justOpened": "Placing everyone in order…"
+    },
+    "waiting": {
+      "title": "You are in line",
+      "position": "Your place: {position}",
+      "ahead": "{count} people ahead of you",
+      "aheadNone": "You are next",
+      "eta": "Estimated wait {eta}",
+      "etaUnderMinute": "under 1 minute",
+      "etaMinutes": "about {minutes} minutes",
+      "etaHours": "about {hours} hours",
+      "noReload": "Do not reload the page — you will not lose your place.",
+      "reconnecting": "Connection lost, retrying… Your place is kept.",
+      "progress": "Progress in line",
+      "notify": "Notify me when it is my turn",
+      "notifyOn": "We will notify you when it is your turn"
+    },
+    "admitted": {
+      "title": "It is your turn!",
+      "description": "You have {minutes} minutes to choose seats and pay.",
+      "redirect": "Taking you to seat selection in {seconds} seconds…",
+      "go": "Choose seats now",
+      "notificationBody": "Open TicketRush to pick tickets for {event}."
+    },
+    "allHeld": {
+      "title": "All tickets are on hold",
+      "description": "Tickets may come back when others do not finish paying. You keep your place."
+    },
+    "soldOut": {
+      "title": "Sold out",
+      "description": "Sorry, every ticket of this sale has been sold."
+    },
+    "closed": {
+      "title": "The sale has ended",
+      "description": "The waiting room for this sale is closed.",
+      "back": "Back to the event"
+    },
+    "expired": {
+      "title": "Your shopping time ended",
+      "description": "Your shopping session is over. Rejoin the waiting room to continue — you will be placed at the end of the line.",
+      "rejoin": "Rejoin the waiting room"
+    },
+    "accessCode": {
+      "title": "Enter your access code",
+      "description": "This sale is only for people who have a code.",
+      "label": "Access code",
+      "submit": "Enter the waiting room"
+    },
+    "failed": {
+      "title": "Could not enter the waiting room",
+      "retry": "Try again",
+      "back": "Back to the event"
+    },
+    "timer": {
+      "label": "{time} left to buy",
+      "goTo": "Choose seats",
+      "expired": "Shopping time is over. Rejoin the waiting room to continue."
+    }
+  },
+  "orders": {
+    "title": "My orders",
+    "description": "Follow the status of the orders you have placed.",
+    "loading": "Loading orders…",
+    "loadFailed": "Could not load your orders.",
+    "accountLink": "My orders",
+    "empty": {
+      "title": "You have no orders yet",
+      "description": "When you book tickets, your orders will appear here.",
+      "action": "Browse events"
+    },
+    "eventFallback": "Event",
+    "code": "Order {code}",
+    "items": "{count} tickets",
+    "placedAt": "Placed {time}",
+    "continuePay": "Continue to payment",
+    "loadMore": "Show more",
+    "loadingMore": "Loading…",
+    "loadMoreFailed": "Could not load more orders. Please try again.",
+    "loadedMore": "Loaded {count} more orders, showing {total}.",
+    "status": {
+      "Pending": "Awaiting payment",
+      "AwaitingPayment": "Awaiting payment",
+      "PaymentFailed": "Payment failed",
+      "Paid": "Paid",
+      "Cancelled": "Cancelled",
+      "Expired": "Expired",
+      "RefundPending": "Refund in progress",
+      "Refunded": "Refunded"
+    },
+    "detail": {
+      "back": "All orders",
+      "loading": "Loading order…",
+      "loadFailed": "Could not load the order.",
+      "notFound": {
+        "title": "Order not found",
+        "body": "The order does not exist or does not belong to this account.",
+        "action": "Back to my orders"
+      },
+      "viewEvent": "View event",
+      "timeline": "Order status",
+      "buyer": "Buyer",
+      "pastDeadline": "The payment deadline has passed. Reload the page for the latest status.",
+      "tickets": "You have {count} tickets.",
+      "viewTickets": "View tickets"
+    },
+    "timeline": {
+      "label": "Order steps",
+      "steps": {
+        "created": "Booked",
+        "awaiting": "Awaiting payment",
+        "paid": "Paid",
+        "failed": "Payment failed",
+        "cancelled": "Cancelled",
+        "expired": "Expired",
+        "refunding": "Refund in progress",
+        "refunded": "Refunded",
+        "received": "Payment received"
+      },
+      "state": {
+        "done": "completed",
+        "current": "current step",
+        "upcoming": "upcoming"
+      },
+      "notes": {
+        "awaiting": "Complete the payment before the seat hold runs out.",
+        "failed": "The transaction did not complete. You can try again until the payment deadline.",
+        "cancelled": "The seats have been released.",
+        "expired": "The payment time ran out and the seats were released.",
+        "refunded": "We have refunded this order."
+      },
+      "deadline": "Hold deadline: {time}"
+    }
+  },
+  "seats": {
+    "title": "Choose seats",
+    "overview": "Overview",
+    "stage": "Stage",
+    "mapLabel": "Seat map, {count} seats. Use the arrow keys to move and Enter to select.",
+    "sectionLabel": "Section {name}, {count} seats free",
+    "sectionOpened": "Opened section {name}, {count} seats free",
+    "overviewOpened": "Overview, {count} sections",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "legend": {
+      "free": "Available",
+      "selected": "Selected",
+      "mine": "Held by you",
+      "taken": "Taken",
+      "allTiers": "All tiers",
+      "filter": "Filter by tier"
+    },
+    "summary": {
+      "title": "Your selection",
+      "empty": "No seats selected",
+      "total": "Subtotal",
+      "continue": "Continue",
+      "holding": "Holding…",
+      "release": "Release",
+      "lowTime": "Less than a minute left to hold your seats",
+      "heldFor": "Held for",
+      "held": "You hold {count} tickets",
+      "open": "View selection",
+      "checkout": "Continue to payment"
+    },
+    "ga": {
+      "title": "Standing",
+      "decrease": "One fewer {name} ticket",
+      "increase": "One more {name} ticket",
+      "remaining": "{count} left"
+    },
+    "bestAvailable": "Best available",
+    "bestAvailableOf": "Pick the best {count} seats in {name}",
+    "seatsTaken": "{count} seats were just taken",
+    "expired": {
+      "title": "Your hold has expired",
+      "body": "Your seats were released. Please choose again.",
+      "action": "Choose again"
+    },
+    "loadFailed": "The seat map could not be loaded.",
+    "retry": "Try again",
+    "limit": "Up to {count} tickets per buyer"
+  }
+}

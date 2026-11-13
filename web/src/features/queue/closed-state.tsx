@@ -1,7 +1,7 @@
 import { CalendarX, Clock, Lock, Ticket } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 
 type ClosedKind = "Closed" | "SoldOut" | "AllHeld" | "Expired";
 

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { loginRedirectUrl } from "@/lib/api/session";
 import { ApiError, toFriendlyMessage } from "@/lib/errors";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { keyCache } from "@/lib/tickets/key-cache";
 import { registerTicketWorker } from "@/lib/tickets/register-sw";
 import type { TicketScope } from "@/lib/tickets/types";

@@ -7,7 +7,7 @@ import { getAccessToken, refreshAccessToken } from "@/lib/api/session";
 import type { SalePhase, TicketTier, TierRemaining } from "@/lib/catalog/types";
 import { clockOffsetMs } from "@/lib/clock";
 import { ApiError, toFriendlyMessage } from "@/lib/errors";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { loadAdmission } from "@/lib/queue/admission-store";
 import { fetchAvailability, fetchSeatMap } from "@/lib/seats/availability";
 import { createHold, getMyHold, releaseMyHold, unavailableOf } from "@/lib/seats/holds-api";

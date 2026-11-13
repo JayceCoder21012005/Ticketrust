@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import enServer from "../../messages/en.server.json";
 import viServer from "../../messages/vi.server.json";
+import viBuyer from "../../messages/vi.buyer.json";
 import vi from "../../messages/vi.json";
 import { t } from "./i18n.server";
 
@@ -43,6 +44,11 @@ describe("server message catalogs", () => {
   it("never repeat a key of the shared catalog (one source per string)", () => {
     const shared = new Set(keys(vi));
     expect(keys(viServer).filter((key) => shared.has(key))).toEqual([]);
+  });
+
+  it("never repeat a key of the buyer catalog either", () => {
+    const buyer = new Set(keys(viBuyer));
+    expect(keys(viServer).filter((key) => buyer.has(key))).toEqual([]);
   });
 
   it("are never imported by client components (they would ship every page's copy to the browser)", () => {

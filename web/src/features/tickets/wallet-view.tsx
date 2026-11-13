@@ -13,7 +13,7 @@ import { useWakeLock } from "@/features/queue/use-queue-effects";
 import { loginRedirectUrl } from "@/lib/api/session";
 import { ApiError, NetworkError, toFriendlyMessage } from "@/lib/errors";
 import { formatEventDate, formatTimeRange } from "@/lib/format";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { keyCache, ticketCache } from "@/lib/tickets/key-cache";
 import { registerTicketWorker } from "@/lib/tickets/register-sw";
 import type { TicketDetail } from "@/lib/tickets/types";

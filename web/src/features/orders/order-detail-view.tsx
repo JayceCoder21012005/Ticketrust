@@ -16,7 +16,7 @@ import { getOrder } from "@/lib/checkout/orders-api";
 import type { Buyer, Order, OrderPage } from "@/lib/checkout/types";
 import { formatDateTime } from "@/lib/format";
 import { ApiError } from "@/lib/errors";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { OrderLines } from "@/features/checkout/order-lines";
 import { ORDERS_HREF } from "./orders-view";
 import { StatusBadge } from "./status-badge";

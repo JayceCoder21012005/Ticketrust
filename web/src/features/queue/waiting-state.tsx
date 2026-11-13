@@ -1,7 +1,7 @@
 import { Bell, Hourglass } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { etaLabel, formatPosition, progressPercent } from "@/lib/queue/format";
 import type { QueueStatus } from "@/lib/queue/types";
 

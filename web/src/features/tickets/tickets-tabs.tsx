@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import type { TicketScope } from "@/lib/tickets/types";
 
 export const SCOPES: readonly TicketScope[] = ["upcoming", "past"];

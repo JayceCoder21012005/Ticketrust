@@ -18,7 +18,7 @@ import { loginRedirectUrl, updateSessionUser, type SessionUser } from "@/lib/api
 import { lazyResolver } from "@/lib/auth/lazy-resolver";
 import type { ProfileInput } from "@/lib/auth/schemas";
 import { toFriendlyMessage } from "@/lib/errors";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { getMe, updateMe, uploadAvatar } from "./api";
 
 const ME = ["me"] as const;
