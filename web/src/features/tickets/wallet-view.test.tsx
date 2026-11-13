@@ -672,6 +672,48 @@ describe("WalletView", () => {
       expect(await ticketCache.get(ids[1]!)).toBeNull();
     });
 
+    it("Not_displayable_online_drops_the_cached_key: Listed, CheckedIn, Voided, Cancelled, Ended", async () => {
+      const cases: [Partial<TicketDetail>, Partial<TicketDetail["event"]>, string][] = [
+        [{ status: "Listed" }, {}, "Đang rao bán"],
+        [{ status: "CheckedIn" }, {}, "Đã check-in"],
+        [{ status: "Voided" }, {}, "Đã huỷ"],
+        [{}, { status: "Cancelled" }, "Đã huỷ"],
+        [{}, { status: "Ended" }, "Sự kiện đã kết thúc"],
+      ];
+      for (const [extra, event, overlay] of cases) {
+        // Opened earlier while valid: key and "Valid" detail are cached.
+        await ticketCache.put(ticket());
+        await keyCache.put(ids[1]!, { secret: SECRET, endsAt: "2099-12-20T16:00:00Z" });
+        api.getTicket.mockResolvedValue(ticket(extra, event));
+        const online = renderWallet();
+        await settle();
+
+        expect(screen.getByRole("heading", { level: 2, name: overlay })).toBeInTheDocument();
+        expect(await keyCache.get(ids[1]!)).toBeNull();
+        // The stale "Valid" detail is replaced by the real one.
+        const stored = await ticketCache.get(ids[1]!);
+        expect([stored?.status, stored?.event.status]).toEqual([extra.status ?? "Valid", event.status ?? "Published"]);
+        online.unmount();
+
+        // Offline afterwards: the overlay (or nothing), never a QR, never a key request.
+        auth.status = "anonymous";
+        auth.offline = true;
+        auth.sessionPresent = false;
+        auth.userId = null;
+        api.getQrKey.mockClear();
+        const offline = renderWallet();
+        await settle();
+        expect(qr()).not.toBeInTheDocument();
+        expect(api.getQrKey).not.toHaveBeenCalled();
+        expect(screen.getByRole("heading", { level: 2, name: overlay })).toBeInTheDocument();
+        offline.unmount();
+        auth.status = "authenticated";
+        auth.offline = false;
+        auth.sessionPresent = true;
+        auth.userId = "u1";
+      }
+    });
+
     it("a refused key (404, 409) deletes what was cached for the ticket and never saves its detail again", async () => {
       for (const error of [new ApiError(409, { code: "ticket.not_displayable", status: 409 }), new ApiError(404, { code: "ticket.not_found", status: 404 })]) {
         await keyCache.put(ids[1]!, { secret: SECRET, endsAt: "2099-12-20T16:00:00Z" });

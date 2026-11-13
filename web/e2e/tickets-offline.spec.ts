@@ -317,6 +317,33 @@ test.describe("offline ticket wallet", () => {
     expect(await page.content()).not.toContain("Nguyễn An");
   });
 
+  const overlays: [string, Record<string, unknown>, Record<string, unknown>, string][] = [
+    ["Listed", { status: "Listed" }, {}, "Đang rao bán"],
+    ["CheckedIn", { status: "CheckedIn" }, {}, "Đã check-in"],
+    ["Voided", { status: "Voided" }, {}, "Đã huỷ"],
+    ["Cancelled", {}, { status: "Cancelled" }, "Đã huỷ"],
+  ];
+  for (const [name, extra, event, overlay] of overlays) {
+    test(`a ticket the api now reports ${name} drops its cached key and never shows a QR offline`, async ({ context, page, baseURL }) => {
+      const api = await arrange(context, page, baseURL!);
+      await openOnlineAndStore(page);
+
+      // Online, the ticket changed elsewhere: no qr-key call is made, yet the cached key goes.
+      api.details[ID] = { ...detail(ID, event), ...extra } as Detail;
+      await page.reload();
+      await expect(page.getByRole("heading", { level: 2, name: overlay })).toBeVisible();
+      await expect.poll(async () => (await offlineState(page)).keys).toEqual([]);
+      expect(api.keyCalls).toEqual([ID]);
+
+      await goOffline(context, api);
+      await page.reload();
+      // Offline the real status shows (the stale "valid" copy is gone), never a code.
+      await expect(page.getByRole("heading", { level: 2, name: overlay })).toBeVisible();
+      await expect(qrImage(page)).toHaveCount(0);
+      expect(api.keyCalls).toEqual([ID]);
+    });
+  }
+
   for (const status of [404, 409] as const) {
     test(`a ${status} from qr-key while online deletes what was cached for the ticket`, async ({ context, page, baseURL }) => {
       const api = await arrange(context, page, baseURL!);

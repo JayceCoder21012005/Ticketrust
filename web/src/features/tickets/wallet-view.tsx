@@ -197,6 +197,16 @@ function Wallet({ ticket, fromNetwork, onStale }: WalletProps) {
     void keyCache.claim(userId).then(() => ticketCache.put(ticket));
   }, [fresh, userId, ticket]);
 
+  // The api says this ticket cannot show a code (listed, checked in, voided, its event cancelled or over): no key is
+  // asked for, so the 409 path never runs. Its cached key goes now, and the stale "valid" detail is replaced by the
+  // real one, so offline the same overlay shows and `purgeEnded` sees the real status (it drops it once over).
+  useEffect(() => {
+    if (!fromNetwork || display === "qr") return;
+    void keyCache.delete(ticket.id);
+    if (userId) void keyCache.claim(userId).then(() => ticketCache.put(ticket));
+    else void ticketCache.delete(ticket.id);
+  }, [fromNetwork, display, ticket, userId]);
+
   // Keys and tickets of events that are over leave the offline cache.
   const purge = useEffectEvent(() => void keyCache.purgeEnded(Date.now() + offsetMs));
   useEffect(() => purge(), []);
