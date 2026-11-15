@@ -197,6 +197,26 @@ public sealed class WaitingRoomScriptTests(ContainersFixture containers)
     }
 
     [Fact]
+    public async Task IsDone_is_true_only_for_a_user_who_left_a_room_they_had_a_place_in()
+    {
+        await using var h = await QueueRoomHarness.CreateAsync(containers);
+        var open = h.Sale(TimeSpan.FromMinutes(-1));
+        var (member, left, stranger) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        await h.Room.JoinAsync(open, member, Ct);
+        await h.Room.JoinAsync(open, left, Ct);
+
+        await h.Room.LeaveAsync(open, left, Ct);
+
+        (await h.Room.IsDoneAsync(open, left, Ct)).ShouldBeTrue();
+        (await h.Room.IsDoneAsync(open, member, Ct)).ShouldBeFalse();
+        (await h.Room.IsDoneAsync(open, stranger, Ct)).ShouldBeFalse();
+
+        await h.Room.JoinAsync(open, left, Ct); // coming back at the tail clears "done"
+        (await h.Room.IsDoneAsync(open, left, Ct)).ShouldBeFalse();
+        (await h.Room.IsMemberAsync(open, left, Ct)).ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task Redis_timeouts_and_errors_are_reported_as_QueueUnavailable_not_as_a_500()
     {
         // RedisTimeoutException derives from TimeoutException, not RedisException: both must become 503 system.busy.

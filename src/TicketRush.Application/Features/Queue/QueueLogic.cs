@@ -13,6 +13,39 @@ public static class PhaseSelector
             ?? all.Where(p => p.OpensAt > now).MinBy(p => p.OpensAt)
             ?? all.MaxBy(p => p.ClosesAt);
     }
+
+    /// <summary>
+    /// The phase a user who is in no room of the event yet is queued for. While a phase is open and the next queued
+    /// phase is inside its pre-queue window, that next phase wins (its random pre-queue is running); otherwise this is
+    /// <see cref="Select"/>.
+    /// </summary>
+    public static SaleWindow? SelectJoinTarget(IEnumerable<SaleWindow> phases, DateTimeOffset now, TimeSpan preQueue)
+    {
+        var all = phases.ToList();
+        return Ambiguous(all, now, preQueue)?.Next ?? Select(all, now);
+    }
+
+    /// <summary>
+    /// The rooms a user could already be in: the open phase and the next one when both exist and the next one's
+    /// pre-queue is running; otherwise the single phase of the moment (empty without phases).
+    /// </summary>
+    public static IReadOnlyList<SaleWindow> RoomCandidates(IEnumerable<SaleWindow> phases, DateTimeOffset now, TimeSpan preQueue)
+    {
+        var all = phases.ToList();
+        if (Ambiguous(all, now, preQueue) is var (open, next))
+        {
+            return [open, next];
+        }
+
+        return Select(all, now) is { } only ? [only] : [];
+    }
+
+    private static (SaleWindow Open, SaleWindow Next)? Ambiguous(List<SaleWindow> all, DateTimeOffset now, TimeSpan preQueue)
+    {
+        var open = all.Where(p => p.OpensAt <= now && now < p.ClosesAt).MinBy(p => p.OpensAt);
+        var next = all.Where(p => p.QueueEnabled && p.OpensAt > now).MinBy(p => p.OpensAt);
+        return open is not null && next is not null && next.OpensAt - now <= preQueue ? (open, next) : null;
+    }
 }
 
 /// <summary>The server decides how often each client polls (spec 06): far back in line means rarely.</summary>

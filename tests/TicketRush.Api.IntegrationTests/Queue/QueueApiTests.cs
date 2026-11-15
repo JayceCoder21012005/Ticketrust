@@ -264,6 +264,8 @@ public sealed class QueueApiTests(ContainersFixture containers) : IAsyncLifetime
 
         public Task<bool> IsMemberAsync(SaleWindow sale, Guid userId, CancellationToken ct) => throw new QueueUnavailableException("down");
 
+        public Task<bool> IsDoneAsync(SaleWindow sale, Guid userId, CancellationToken ct) => throw new QueueUnavailableException("down");
+
         public Task<bool> IsActiveAsync(Guid phaseId, Guid userId, CancellationToken ct) => throw new QueueUnavailableException("down");
 
         public Task<bool> IsCurrentTokenAsync(Guid phaseId, Guid userId, string token, CancellationToken ct) => throw new QueueUnavailableException("down");

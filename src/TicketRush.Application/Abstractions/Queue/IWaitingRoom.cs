@@ -18,6 +18,12 @@ public interface IWaitingRoom
     /// </summary>
     Task<bool> IsMemberAsync(SaleWindow sale, Guid userId, CancellationToken ct);
 
+    /// <summary>
+    /// True when the user was in this sale and is now done: they left, or their shopping window ended. Lets the status
+    /// of a finished room still be shown while another phase's pre-queue is running.
+    /// </summary>
+    Task<bool> IsDoneAsync(SaleWindow sale, Guid userId, CancellationToken ct);
+
     /// <summary>Removes the user from the line and from the active set; their slot is free immediately.</summary>
     Task LeaveAsync(SaleWindow sale, Guid userId, CancellationToken ct);
 
