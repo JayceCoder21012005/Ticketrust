@@ -12,7 +12,7 @@ public sealed class TicketTests
 
     private static readonly Dictionary<string, Action<Ticket>> Methods = new()
     {
-        [nameof(Ticket.CheckIn)] = t => t.CheckIn(),
+        [nameof(Ticket.CheckIn)] = t => t.CheckIn(Guid.NewGuid(), DateTimeOffset.UtcNow),
         [nameof(Ticket.List)] = t => t.List(),
         [nameof(Ticket.Unlist)] = t => t.Unlist(),
         [nameof(Ticket.Void)] = t => t.Void(),
@@ -123,7 +123,7 @@ public sealed class TicketTests
         switch (status)
         {
             case TicketStatus.CheckedIn:
-                ticket.CheckIn();
+                ticket.CheckIn(Guid.NewGuid(), DateTimeOffset.UtcNow);
                 break;
             case TicketStatus.Listed:
                 ticket.List();

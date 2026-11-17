@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using TicketRush.Application.Abstractions.Persistence;
 using TicketRush.Domain.Events;
+using TicketRush.Domain.Gates;
 using TicketRush.Domain.Notifications;
 using TicketRush.Domain.Orders;
 using TicketRush.Domain.Primitives;
@@ -50,6 +51,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataPr
     public DbSet<EventFollow> EventFollows => Set<EventFollow>();
 
     public DbSet<ReminderDispatch> ReminderDispatches => Set<ReminderDispatch>();
+
+    public DbSet<GateAssignment> GateAssignments => Set<GateAssignment>();
+
+    public DbSet<CheckIn> CheckIns => Set<CheckIn>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
