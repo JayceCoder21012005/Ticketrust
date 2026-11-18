@@ -257,7 +257,7 @@ cp .env.example .env        # điền các secret
 docker compose -f docker-compose.prod.yml --env-file .env up -d
 ```
 
-Khi CI chạy trên `main`, nó build và publish image lên GHCR. CI đang tạm dừng (xem [Chạy CI ở máy trước khi push](#chạy-ci-ở-máy-trước-khi-push)), nên hiện tại build image ngay trên server bằng `--build`.
+Khi bật lại trigger `push`, mỗi lần push lên `main` CI build và publish image lên GHCR (chạy tay thì không publish). CI đang tạm dừng (xem [Chạy CI ở máy trước khi push](#chạy-ci-ở-máy-trước-khi-push)), nên hiện tại build image ngay trên server bằng `--build`.
 
 SignalR (`/hubs/*`) đi thẳng từ Caddy tới `api:8080`, không qua Next (bản `standalone` không proxy được WebSocket).
 `CaddyWebSocketTests` kiểm tra điều này bằng thật: chạy image `caddy:2` với đúng `deploy/Caddyfile` (chỉ thay địa chỉ site
