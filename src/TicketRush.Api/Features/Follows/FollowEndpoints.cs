@@ -2,7 +2,9 @@ using System.Security.Claims;
 using TicketRush.Api.Common.Auth;
 using TicketRush.Api.Common.Http;
 using TicketRush.Application.Features.Follows.FollowEvent;
+using TicketRush.Application.Features.Catalog;
 using TicketRush.Application.Features.Follows.GetFollowState;
+using TicketRush.Application.Features.Follows.ListMyFollows;
 using TicketRush.Application.Features.Follows.UnfollowEvent;
 
 namespace TicketRush.Api.Features.Follows;
@@ -25,11 +27,21 @@ public static class FollowEndpoints
         follow.MapDelete("/", UnfollowAsync)
             .WithName("UnfollowEvent")
             .Produces(StatusCodes.Status204NoContent);
+
+        v1.MapGet("/me/follows", ListMineAsync)
+            .WithName("ListMyFollows")
+            .WithTags("Follows")
+            .RequireAuthorization()
+            .AddEndpointFilter<NoStoreFilter>()
+            .Produces<IReadOnlyList<EventSummary>>();
         return v1;
     }
 
     private static async Task<IResult> GetAsync(Guid id, ClaimsPrincipal user, GetFollowStateHandler handler, CancellationToken ct) =>
         TypedResults.Ok(await handler.HandleAsync(user.UserId(), id, ct));
+
+    private static async Task<IResult> ListMineAsync(ClaimsPrincipal user, ListMyFollowsHandler handler, CancellationToken ct) =>
+        TypedResults.Ok(await handler.HandleAsync(user.UserId(), ct));
 
     private static async Task<IResult> FollowAsync(Guid id, ClaimsPrincipal user, FollowEventHandler handler, CancellationToken ct) =>
         (await handler.HandleAsync(user.UserId(), id, ct)).ToHttpResult();

@@ -120,6 +120,29 @@
         }
       }
     },
+    "/api/v1/me/follows": {
+      "get": {
+        "tags": [
+          "Follows"
+        ],
+        "operationId": "ListMyFollows",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EventSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/webhooks/payments/{provider}": {
       "post": {
         "tags": [
@@ -6079,6 +6102,9 @@
       "name": "Catalog"
     },
     {
+      "name": "Follows"
+    },
+    {
       "name": "Webhooks"
     },
     {
@@ -6110,9 +6136,6 @@
     },
     {
       "name": "Gate"
-    },
-    {
-      "name": "Follows"
     },
     {
       "name": "MockGateway"

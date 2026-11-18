@@ -84,6 +84,34 @@ public sealed class FollowApiTests(ContainersFixture containers) : IAsyncLifetim
         (await JsonAsync(await SendAsync(HttpMethod.Get, eventId, who.Access))).GetProperty("following").GetBoolean();
 
     [Fact]
+    public async Task My_follows_lists_upcoming_followed_events_only_in_start_order()
+    {
+        var me = await NewAccountAsync();
+        var other = await NewAccountAsync();
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var later = await IdOfAsync(db, SeedEventCatalog.OpeningSoonSlug);
+            var ending = await IdOfAsync(db, "v-league-ha-noi-vs-cong-an");
+            foreach (var id in new[] { later, _published, ending })
+            {
+                (await SendAsync(HttpMethod.Post, id, me.Access)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+            }
+
+            (await SendAsync(HttpMethod.Post, ending, other.Access)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+            await db.Database.ExecuteSqlAsync($"UPDATE events SET starts_at = now() - interval '3 hours', ends_at = now() - interval '1 hour' WHERE id = {ending}", Ct);
+        }
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/me/follows");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", me.Access);
+        var follows = await JsonAsync(await _client.SendAsync(request, Ct));
+
+        var slugs = follows.EnumerateArray().Select(e => e.GetProperty("slug").GetString()).ToList();
+        slugs.ShouldBe(["son-tung-mtp-live", SeedEventCatalog.OpeningSoonSlug]);
+        (await _client.GetAsync("/api/v1/me/follows", Ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
     public async Task Follow_twice_is_204_and_one_row()
     {
         var me = await NewAccountAsync();
