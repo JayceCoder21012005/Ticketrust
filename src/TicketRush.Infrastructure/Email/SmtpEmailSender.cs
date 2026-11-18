@@ -1,4 +1,5 @@
 using System.Data.Common;
+using MailKit;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Configuration;
@@ -28,7 +29,7 @@ internal sealed class SmtpEmailSender(IConfiguration configuration, IOptions<Ema
 
         using var client = new SmtpClient();
         await client.ConnectAsync(endpoint.Host, endpoint.Port, SecureSocketOptions.Auto, ct);
-        await client.SendAsync(email, ct);
+        await client.SendAsync(new SendRequest(email), ct);
         await client.DisconnectAsync(quit: true, ct);
     }
 
