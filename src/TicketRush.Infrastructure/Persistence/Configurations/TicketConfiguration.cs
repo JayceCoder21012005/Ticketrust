@@ -35,7 +35,9 @@ internal sealed class TicketConfiguration : IEntityTypeConfiguration<Ticket>
             .HasDatabaseName(SeatIndexName);
 
         // "My tickets" (spec 10) and the per-user purchase limit of an event.
+        builder.Property(t => t.CheckedInAt);
         builder.HasIndex(t => t.OwnerUserId);
+        builder.HasIndex(t => new { t.EventId, t.Status }).HasDatabaseName("ix_tickets_event_status"); // gate counters (spec 11)
         builder.HasIndex(t => new { t.EventId, t.OwnerUserId }).HasDatabaseName("ix_tickets_event_owner");
     }
 }

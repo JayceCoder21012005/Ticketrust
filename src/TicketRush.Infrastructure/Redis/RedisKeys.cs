@@ -124,6 +124,12 @@ public sealed class RedisKeys(IOptions<RedisOptions> options)
     /// <summary>STRING: qr-key requests made by one user in the current fixed window (PX = the window, set by the first request).</summary>
     public RedisKey QrKeyThrottle(Guid userId) => $"{Prefix}qr-key:{userId:N}";
 
+    /// <summary>STRING: scans made by one staff member in the current 1 s window (spec 11, <see cref="Gates.RedisScanGuard"/>).</summary>
+    public RedisKey ScanRate(Guid staffUserId) => $"{Prefix}scan-rate:{staffUserId:N}";
+
+    /// <summary>STRING: JSON of the answer to one payload (hashed by the caller) scanned by one staff member in the last 3 s.</summary>
+    public RedisKey ScanRepeat(Guid staffUserId, string payloadHash) => $"{Prefix}scan-repeat:{staffUserId:N}:{payloadHash}";
+
     private static string Hash(string value) =>
         Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value)));
 

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using TicketRush.Domain.Events;
+using TicketRush.Domain.Gates;
 using TicketRush.Domain.Notifications;
 using TicketRush.Domain.Orders;
 using TicketRush.Domain.Tickets;
@@ -39,6 +40,11 @@ public interface IAppDbContext
     DbSet<EventFollow> EventFollows { get; }
 
     DbSet<ReminderDispatch> ReminderDispatches { get; }
+
+    DbSet<GateAssignment> GateAssignments { get; }
+
+    /// <summary>The log of every gate scan (spec 11).</summary>
+    DbSet<CheckIn> CheckIns { get; }
 
     /// <summary>Change tracking access, e.g. to set the original concurrency token a client sent back.</summary>
     EntityEntry<TEntity> Entry<TEntity>(TEntity entity)

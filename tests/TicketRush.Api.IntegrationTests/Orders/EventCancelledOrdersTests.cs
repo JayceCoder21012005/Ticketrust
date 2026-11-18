@@ -273,7 +273,7 @@ public sealed class EventCancelledOrdersTests(ContainersFixture containers) : IA
         var paid = await PaidAsync(_h.GaUnits(2));
         await _h.WithDbAsync(async db =>
         {
-            (await db.Tickets.FirstAsync(t => t.OrderId == paid.OrderId, Ct)).CheckIn();
+            (await db.Tickets.FirstAsync(t => t.OrderId == paid.OrderId, Ct)).CheckIn(Guid.NewGuid(), DateTimeOffset.UtcNow);
             return await db.SaveChangesAsync(Ct);
         });
 
