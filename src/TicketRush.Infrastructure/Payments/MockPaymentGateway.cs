@@ -66,9 +66,14 @@ public sealed class MockPaymentGateway(
         }
 
         var session = await sessions.GetAsync(sessionId, ct);
-        return RefusalReason(session, amount) is { } reason
-            ? new RefundResult(string.Empty, RefundStatus.Failed, reason)
-            : await sessions.RecordRefundAsync(sessionId, idempotencyKey, amount.Amount, ct);
+        if (RefusalReason(session, amount) is not { } reason)
+        {
+            return await sessions.RecordRefundAsync(sessionId, idempotencyKey, amount.Amount, ct);
+        }
+
+        // A caller with the same key that was in flight at the same time may have booked the refund after the check above:
+        // the session then reads as fully refunded, but for this key the answer is that refund (idempotency), not a refusal.
+        return await sessions.GetRefundAsync(idempotencyKey, ct) ?? new RefundResult(string.Empty, RefundStatus.Failed, reason);
     }
 
     public WebhookEvent VerifyAndParse(WebhookHeaders headers, string body)
