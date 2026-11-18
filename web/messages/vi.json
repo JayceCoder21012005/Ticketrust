@@ -229,5 +229,20 @@
     "title": "Bạn thao tác quá nhanh",
     "wait": "Thử lại sau {seconds} giây.",
     "ready": "Bạn có thể thử lại."
+  },
+  "search": {
+    "title": "Tìm kiếm",
+    "description": "Gõ để tìm sự kiện, nghệ sĩ, địa điểm hoặc thành phố.",
+    "resultCount": "{count} kết quả",
+    "empty": "Không tìm thấy kết quả phù hợp.",
+    "recent": "Tìm kiếm gần đây",
+    "clear": "Xoá",
+    "clearRecent": "Xoá lịch sử tìm kiếm",
+    "events": "Sự kiện",
+    "trending": "Đang hot",
+    "artists": "Nghệ sĩ",
+    "venues": "Địa điểm",
+    "cities": "Thành phố",
+    "seeAll": "Xem tất cả kết quả cho “{q}”"
   }
 }

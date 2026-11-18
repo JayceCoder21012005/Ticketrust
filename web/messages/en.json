@@ -229,5 +229,20 @@
     "title": "You are going too fast",
     "wait": "Try again in {seconds} s.",
     "ready": "You can try again."
+  },
+  "search": {
+    "title": "Search",
+    "description": "Type to find events, artists, venues or cities.",
+    "resultCount": "{count} results",
+    "empty": "No matching results.",
+    "recent": "Recent searches",
+    "clear": "Clear",
+    "clearRecent": "Clear search history",
+    "events": "Events",
+    "trending": "Trending",
+    "artists": "Artists",
+    "venues": "Venues",
+    "cities": "Cities",
+    "seeAll": "See all results for “{q}”"
   }
 }
