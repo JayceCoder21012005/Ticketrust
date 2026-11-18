@@ -1,13 +1,15 @@
+using TicketRush.Api.Common.RateLimiting;
 using System.Security.Claims;
 using TicketRush.Api.Common.Auth;
 using TicketRush.Api.Common.Http;
+using TicketRush.Application.Abstractions.Security;
 using TicketRush.Application.Features.Queue;
 using TicketRush.Infrastructure.Identity;
 
 namespace TicketRush.Api.Features.Queue;
 
 /// <param name="AccessCode">Presale code, only for phases that have one.</param>
-/// <param name="CaptchaToken">Accepted now, enforced once spec 12 lands.</param>
+/// <param name="CaptchaToken">Turnstile token (spec 12), needed to enter the line; not needed to come back to it.</param>
 public sealed record JoinQueueRequest(string? AccessCode, string? CaptchaToken);
 
 /// <summary>Virtual waiting room (spec 06). Signed-in buyers only; every call is served from Redis after the first.</summary>
@@ -19,6 +21,7 @@ public static class QueueEndpoints
 
         queue.MapPost("/join", JoinAsync)
             .WithName("JoinQueue")
+            .RequireRateLimit(RateLimitPolicies.QueueJoin)
             .Produces<QueueStatusResponse>()
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
@@ -26,6 +29,7 @@ public static class QueueEndpoints
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
         queue.MapGet("/me", StatusAsync)
             .WithName("GetQueueStatus")
+            .RequireRateLimit(RateLimitPolicies.QueueStatus)
             .Produces<QueueStatusResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
@@ -42,12 +46,20 @@ public static class QueueEndpoints
         JoinQueueRequest? request,
         ClaimsPrincipal user,
         JoinQueueHandler handler,
+        ISuspiciousActivityDetector detector,
+        HttpContext http,
         CancellationToken ct)
     {
         // Registration grants email_verified=false until the link is clicked; the claim is a JSON boolean.
         var verified = bool.TryParse(user.FindFirstValue(AuthClaims.EmailVerified), out var value) && value;
-        var command = new JoinQueueCommand(user.UserId(), eventId, verified, request?.AccessCode);
-        return (await handler.HandleAsync(command, ct)).ToHttpResult();
+        var command = new JoinQueueCommand(user.UserId(), eventId, verified, request?.AccessCode, request?.CaptchaToken);
+        var result = await handler.HandleAsync(command, ct);
+        if (result.IsSuccess)
+        {
+            await detector.QueueJoinedAsync(command.UserId, http.Connection.RemoteIpAddress?.ToString(), ct);
+        }
+
+        return result.ToHttpResult();
     }
 
     private static async Task<IResult> StatusAsync(Guid eventId, ClaimsPrincipal user, GetQueueStatusHandler handler, CancellationToken ct) =>

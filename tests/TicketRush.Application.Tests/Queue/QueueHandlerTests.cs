@@ -21,9 +21,11 @@ public sealed class QueueHandlerTests
     private readonly IWaitingRoom _room = Substitute.For<IWaitingRoom>();
     private readonly ISaleWindowProvider _sales = Substitute.For<ISaleWindowProvider>();
     private readonly IAccessCodeHasher _hasher = Substitute.For<IAccessCodeHasher>();
+    private readonly ICaptchaVerifier _captcha = Substitute.For<ICaptchaVerifier>();
 
     public QueueHandlerTests()
     {
+        _captcha.VerifyAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(CaptchaVerdict.Passed);
         _hasher.Hash(Arg.Any<string>()).Returns(call => call.Arg<string>() == GoodCode ? GoodHash : "wrong");
         _room.JoinAsync(Arg.Any<SaleWindow>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(new JoinResult(RoomStatus.Open, 7));
         _room.StatusAsync(Arg.Any<SaleWindow>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
@@ -37,9 +39,45 @@ public sealed class QueueHandlerTests
         return window;
     }
 
-    private JoinQueueHandler JoinHandler() => new(_sales, _room, _hasher, Microsoft.Extensions.Options.Options.Create(new QueueOptions()), _time);
+    private JoinQueueHandler JoinHandler() => new(_sales, _room, _hasher, _captcha, Microsoft.Extensions.Options.Options.Create(new QueueOptions()), _time);
 
     private GetQueueStatusHandler StatusHandler() => new(_sales, _room, Microsoft.Extensions.Options.Options.Create(new QueueOptions()), _time);
+
+    [Fact]
+    public async Task A_newcomer_without_a_passing_captcha_cannot_join()
+    {
+        Phase(TimeSpan.FromMinutes(-1));
+        _captcha.VerifyAsync(null, Arg.Any<CancellationToken>()).Returns(CaptchaVerdict.Failed);
+
+        var result = await JoinHandler().HandleAsync(new JoinQueueCommand(User, EventId, EmailVerified: true, null), TestContext.Current.CancellationToken);
+
+        result.Error!.Code.ShouldBe("captcha.failed");
+        await _room.DidNotReceive().JoinAsync(Arg.Any<SaleWindow>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_captcha_provider_outage_answers_busy_and_joins_no_one()
+    {
+        Phase(TimeSpan.FromMinutes(-1));
+        _captcha.VerifyAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(CaptchaVerdict.Unavailable);
+
+        var result = await JoinHandler().HandleAsync(new JoinQueueCommand(User, EventId, EmailVerified: true, null, "token"), TestContext.Current.CancellationToken);
+
+        result.Error!.Code.ShouldBe("system.busy");
+        await _room.DidNotReceive().JoinAsync(Arg.Any<SaleWindow>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_member_coming_back_needs_no_new_captcha()
+    {
+        Phase(TimeSpan.FromMinutes(-1));
+        _room.IsMemberAsync(Arg.Any<SaleWindow>(), User, Arg.Any<CancellationToken>()).Returns(true);
+
+        var result = await JoinHandler().HandleAsync(new JoinQueueCommand(User, EventId, EmailVerified: true, null), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        await _captcha.DidNotReceive().VerifyAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task Unconfirmed_email_is_rejected()
@@ -302,10 +340,13 @@ public sealed class QueueHandlerTests
         var ct = TestContext.Current.CancellationToken;
 
         (await StatusHandler().HandleAsync(User, EventId, ct)).IsSuccess.ShouldBeTrue();
-        (await JoinHandler().HandleAsync(Join(), ct)).IsSuccess.ShouldBeTrue();
         (await LeaveHandler().HandleAsync(User, EventId, ct)).IsSuccess.ShouldBeTrue();
-
         await _room.DidNotReceiveWithAnyArgs().IsMemberAsync(default!, default, ct);
+
+        (await JoinHandler().HandleAsync(Join(), ct)).IsSuccess.ShouldBeTrue();
+
+        // Only the CAPTCHA step asks (spec 12: a member coming back needs no new one); resolving the phase never does.
+        await _room.ReceivedWithAnyArgs(1).IsMemberAsync(default!, default, ct);
     }
 
     [Fact]

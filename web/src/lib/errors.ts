@@ -58,6 +58,8 @@ const messages: Record<string, string> = {
   "storage.content_type_mismatch": "Định dạng ảnh không khớp. Vui lòng chọn lại ảnh.",
   "validation.failed": "Dữ liệu chưa hợp lệ. Vui lòng kiểm tra lại.",
   "captcha.failed": "Xác minh không thành công. Vui lòng thử lại.",
+  "captcha.required": "Vui lòng hoàn tất bước xác minh rồi đăng nhập lại.",
+  rate_limited: "Bạn thao tác quá nhanh. Vui lòng chờ một chút rồi thử lại.",
   "event.not_found": "Không tìm thấy sự kiện.",
   "event.not_editable": "Sự kiện đã xuất bản nên không thể sửa mục này.",
   "event.phase_overlap": "Các đợt mở bán không được trùng thời gian.",

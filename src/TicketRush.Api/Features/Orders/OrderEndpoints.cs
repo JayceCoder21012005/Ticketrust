@@ -1,3 +1,4 @@
+using TicketRush.Api.Common.RateLimiting;
 using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
@@ -30,6 +31,7 @@ public static class OrderEndpoints
         var orders = v1.MapGroup("/orders").WithTags("Orders").RequireAuthorization();
 
         orders.MapPost("/", CreateAsync)
+            .RequireRateLimit(RateLimitPolicies.Checkout)
             .RequireIdempotencyKey(holdTtl)
             .WithName("CreateOrder")
             .Produces<OrderResponse>(StatusCodes.Status201Created)
@@ -44,6 +46,7 @@ public static class OrderEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound);
         // The answer is a redirect into a gateway session that lives as long as the hold, so a replay is useful for that long only.
         orders.MapPost("/{id:guid}/pay", PayAsync)
+            .RequireRateLimit(RateLimitPolicies.Checkout)
             .RequireIdempotencyKey(holdTtl)
             .WithName("PayOrder")
             .Produces<PayOrderResponse>()

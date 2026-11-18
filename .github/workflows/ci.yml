@@ -1,9 +1,13 @@
 name: CI
 
+# Paused (free plan: 2,000 Actions minutes a month). Run the same checks locally before pushing:
+#   pwsh scripts/ci-local.ps1        (or: powershell -File scripts/ci-local.ps1)
+# The workflow can still be started by hand from the Actions tab. To resume it on every PR, restore:
+#   pull_request:
+#   push:
+#     branches: [main]
 on:
-  pull_request:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read

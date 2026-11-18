@@ -1,3 +1,4 @@
+using TicketRush.Api.Common.RateLimiting;
 using System.Security.Claims;
 using Microsoft.Extensions.Options;
 using TicketRush.Api.Common.Auth;
@@ -27,6 +28,7 @@ public static class HoldEndpoints
         var ttl = v1.ServiceProvider().GetRequiredService<IOptions<HoldsOptions>>().Value.Ttl;
 
         holds.MapPost("/", CreateAsync)
+            .RequireRateLimit(RateLimitPolicies.Holds)
             .RequireAdmissionToken()
             .RequireIdempotencyKey(ttl)
             .WithName("CreateHold")

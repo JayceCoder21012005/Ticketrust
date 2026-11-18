@@ -57,7 +57,7 @@ function reducer(state: QueueView, action: Action): QueueView {
 
 type Deps = {
   createTransport?: (handlers: TransportHandlers) => QueueTransport;
-  join?: (eventId: string, accessCode?: string) => Promise<QueueStatus>;
+  join?: (eventId: string, accessCode?: string, captchaToken?: string | null) => Promise<QueueStatus>;
   leave?: (eventId: string) => Promise<void>;
   getToken?: () => string | null;
   refresh?: () => Promise<string | null>;
@@ -110,10 +110,10 @@ export function useQueue(eventId: string, slug: string, deps: Deps = {}) {
   }, []);
 
   const doJoin = useCallback(
-    async (accessCode?: string) => {
+    async (accessCode?: string, captchaToken?: string | null) => {
       dispatch({ type: "joining" });
       try {
-        const status = await join(eventId, accessCode);
+        const status = await join(eventId, accessCode, captchaToken);
         if (!mounted.current) {
           return;
         }

@@ -47,6 +47,14 @@ public static class CommonErrors
     /// </summary>
     public const string RetryAfterExtension = "retryAfterSeconds";
 
+    /// <summary>The standard 429 (spec 12): every rate-limit policy answers with this code and a <c>Retry-After</c>.</summary>
+    public static Error RateLimited(TimeSpan retryAfter) =>
+        new(
+            "rate_limited",
+            "Too many requests. Please slow down.",
+            ErrorType.RateLimited,
+            Extensions: new Dictionary<string, object?> { [RetryAfterExtension] = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds)) });
+
     public static readonly Error SystemBusy =
         Error.Unavailable("system.busy", "The system is busy. Please try again in a moment.");
 }

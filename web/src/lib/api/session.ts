@@ -66,7 +66,11 @@ export function clearSession(): void {
   setSession(null);
 }
 
-export async function login(credentials: { email: string; password: string }, fetchImpl: Fetch = fetch): Promise<Session> {
+/** `captchaToken`: Turnstile's, sent once the api asked for one (`captcha.required`, after 3 failed sign-ins: spec 12). */
+export async function login(
+  credentials: { email: string; password: string; captchaToken?: string | null },
+  fetchImpl: Fetch = fetch,
+): Promise<Session> {
   const response = await fetchImpl("/api/v1/auth/login", {
     method: "POST",
     credentials: "same-origin",

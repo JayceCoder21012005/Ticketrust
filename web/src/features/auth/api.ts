@@ -15,7 +15,9 @@ async function post(path: string, body: unknown): Promise<void> {
   }
 }
 
-export const register = (body: { fullName: string; email: string; password: string }) => post("/api/v1/auth/register", body);
+/** `captchaToken` is Turnstile's (spec 12); `website` is the honeypot, empty for people. */
+export const register = (body: { fullName: string; email: string; password: string; captchaToken: string | null; website: string }) =>
+  post("/api/v1/auth/register", body);
 
 export const confirmEmail = (body: { userId: string; token: string }) => post("/api/v1/auth/confirm-email", body);
 

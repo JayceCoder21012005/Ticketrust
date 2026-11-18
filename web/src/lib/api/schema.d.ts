@@ -2179,6 +2179,7 @@ export interface components {
         LoginCommand: {
             email: string;
             password: string;
+            captchaToken?: null | string;
         };
         LoginResponse: {
             accessToken: string;
@@ -2446,6 +2447,8 @@ export interface components {
             email: string;
             password: string;
             fullName: string;
+            captchaToken?: null | string;
+            website?: null | string;
         };
         RemoveGateStaffRequest: {
             email: string;

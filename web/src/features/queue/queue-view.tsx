@@ -7,6 +7,7 @@ import { EventPoster } from "@/components/catalog/event-poster";
 import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Turnstile } from "@/lib/captcha/turnstile";
 import { ApiError, toFriendlyMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n.buyer";
 import { useQueue } from "@/lib/queue/use-queue";
@@ -33,15 +34,27 @@ export function QueueView({ event }: { event: QueueEvent }) {
   const { join, leave, status, error, phase } = queue;
   const joined = useRef(false);
   const [codeTried, setCodeTried] = useState(false);
+  // Spec 12: entering the line takes a Turnstile token. Tokens are single-use, so each join spends one and asks for the next.
+  const [captcha, setCaptcha] = useState<string | null>(null);
+  const [captchaRound, setCaptchaRound] = useState(0);
   // Only read after the first client render: the waiting card that shows it is never part of the server HTML.
   const [notification, setNotification] = useState<NotificationPermission | "unsupported">(notificationPermission);
 
+  const joinWith = (code?: string) => {
+    const token = captcha;
+    setCaptcha(null);
+    setCaptchaRound((n) => n + 1);
+    void join(code, token);
+  };
+
   useEffect(() => {
-    if (!joined.current) {
+    if (!joined.current && captcha) {
       joined.current = true;
-      void join();
+      setCaptcha(null);
+      setCaptchaRound((n) => n + 1);
+      void join(undefined, captcha);
     }
-  }, [join]);
+  }, [captcha, join]);
 
   const waiting = status?.status === "Waiting";
   useTabTitle(waiting ? status.position : null);
@@ -50,7 +63,7 @@ export function QueueView({ event }: { event: QueueEvent }) {
 
   const submitCode = (code: string) => {
     setCodeTried(true);
-    void join(code);
+    joinWith(code);
   };
 
   const leaveRoom = async () => {
@@ -81,6 +94,7 @@ export function QueueView({ event }: { event: QueueEvent }) {
         </p>
 
         {renderBody()}
+        <Turnstile onToken={setCaptcha} resetKey={captchaRound} />
 
         {status && ["Pre", "Waiting", "Admitted"].includes(status.status) ? (
           <Button variant="ghost" size="sm" className="self-center text-muted-foreground" onClick={leaveRoom}>
@@ -109,7 +123,7 @@ export function QueueView({ event }: { event: QueueEvent }) {
         case "Admitted":
           return <AdmittedState status={status} slug={event.slug} />;
         default:
-          return <ClosedState kind={status.status} slug={event.slug} onRejoin={() => void join()} />;
+          return <ClosedState kind={status.status} slug={event.slug} onRejoin={() => joinWith()} />;
       }
     }
 
@@ -135,7 +149,7 @@ export function QueueView({ event }: { event: QueueEvent }) {
       default:
         return (
           <div className="flex flex-col items-center gap-3">
-            <ErrorState title={t("queue.failed.title")} description={toFriendlyMessage(failure)} onRetry={() => void join()} />
+            <ErrorState title={t("queue.failed.title")} description={toFriendlyMessage(failure)} onRetry={() => joinWith()} />
             <Button asChild variant="ghost" size="sm">
               <Link href={`/events/${event.slug}`}>{t("queue.failed.back")}</Link>
             </Button>

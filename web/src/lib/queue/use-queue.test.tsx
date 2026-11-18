@@ -57,7 +57,7 @@ describe("useQueue", () => {
 
     await act(() => hook.result.current.join("VIP"));
 
-    expect(join).toHaveBeenCalledWith("evt-1", "VIP");
+    expect(join).toHaveBeenCalledWith("evt-1", "VIP", undefined);
     expect(hook.result.current.phase).toBe("active");
     expect(hook.result.current.status?.position).toBe(800);
     expect(transport.start).toHaveBeenCalledWith("evt-1", "access-token");

@@ -91,6 +91,7 @@ public static class DependencyInjection
         services.AddSingleton<IAdmissionTokenFactory, AdmissionTokenFactory>();
         services.AddSingleton<IQrCodeService, QrCodeService>();
         services.AddSingleton<IQrKeyThrottle, RedisQrKeyThrottle>();
+        services.AddSingleton<TicketRush.Application.Abstractions.Security.ISlidingWindowStore, RateLimiting.RedisSlidingWindowStore>();
         services.AddSingleton<TicketRush.Application.Abstractions.Gates.IScanGuard, Gates.RedisScanGuard>();
         services.AddSingleton<IWaitingRoom, RedisWaitingRoom>();
         services.AddSingleton<IQueuePhaseSource, QueuePhaseSource>();
@@ -169,6 +170,21 @@ public static class DependencyInjection
         services.AddSingleton<IAccessCodeHasher, AccessCodeHasher>();
         services.AddScoped<DevDataSeeder>();
         return builder;
+    }
+
+    /// <summary>Spec 12, api only: the CAPTCHA strategy picked by <c>Captcha:Provider</c> and the per-email failed sign-in counter.</summary>
+    public static IServiceCollection AddCaptcha(this IServiceCollection services)
+    {
+        services.AddValidatedOptions<Security.CaptchaOptions>(Security.CaptchaOptions.SectionName);
+        services.AddHttpClient<Security.TurnstileVerifier>(client => client.Timeout = TimeSpan.FromSeconds(5));
+        services.AddSingleton<Security.FakeCaptchaVerifier>();
+        services.AddTransient<TicketRush.Application.Abstractions.Security.ICaptchaVerifier>(sp =>
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Security.CaptchaOptions>>().Value.Provider == Security.CaptchaProvider.Turnstile
+                ? sp.GetRequiredService<Security.TurnstileVerifier>()
+                : sp.GetRequiredService<Security.FakeCaptchaVerifier>());
+        services.AddSingleton<TicketRush.Application.Abstractions.Security.ILoginFailureCounter, Security.RedisLoginFailureCounter>();
+        services.AddScoped<TicketRush.Application.Abstractions.Security.ISuspiciousActivityDetector, Security.SuspiciousActivityDetector>();
+        return services;
     }
 
     public static IServiceCollection AddValidatedOptions<TOptions>(this IServiceCollection services, string sectionName)

@@ -5,6 +5,7 @@ using TicketRush.Api.Common.Auth;
 using TicketRush.Api.Common.Idempotency;
 using TicketRush.Api.Common.Errors;
 using TicketRush.Api.Common.Middleware;
+using TicketRush.Api.Common.RateLimiting;
 using TicketRush.Api.Features.Auth;
 using TicketRush.Api.Features.Catalog;
 using TicketRush.Api.Features.Organizer;
@@ -22,6 +23,7 @@ using TicketRush.Api.Features.Users;
 using TicketRush.Api.Features.Webhooks;
 using TicketRush.Infrastructure.Realtime;
 using TicketRush.Application.Options;
+using TicketRush.Infrastructure;
 
 namespace TicketRush.Api;
 
@@ -45,15 +47,23 @@ public static class ApiServiceCollectionExtensions
                 .AllowAnyMethod()
                 .AllowCredentials()));
 
-        services.Configure<ForwardedHeadersOptions>(options =>
+        services.AddOptions<ForwardedHeadersOptions>().Configure<IConfiguration>((options, configuration) =>
         {
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-            // The reverse proxy / Next.js runs on a private network in every deployment we support.
             options.KnownIPNetworks.Clear();
             options.KnownProxies.Clear();
+            // Spec 12: per-ip rate limits are only as good as the client ip. With ForwardedHeaders:KnownNetworks set (the
+            // reverse proxy's subnet, CIDR) X-Forwarded-For is trusted from those hops only. Unset, every hop is trusted:
+            // fine while the api is reachable only through the proxy on a private network (docker-compose.prod.yml).
+            foreach (var cidr in configuration.GetSection("ForwardedHeaders:KnownNetworks").Get<string[]>() ?? [])
+            {
+                options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(cidr));
+            }
         });
 
         services.AddApiAuthentication();
+        services.AddApiRateLimiting();
+        services.AddCaptcha();
         services.AddSingleton<PaymentWebhookMetrics>();
         services.AddScoped<PaymentWebhookReceiver>();
         return services;
@@ -76,6 +86,8 @@ public static class ApiServiceCollectionExtensions
         app.UseCors(WebCorsPolicy);
         app.UseLocalMedia();
         app.UseAuthentication();
+        // After authentication (the per-user policies need the user), before authorization (refused requests count too).
+        app.UseRateLimiter();
         app.UseAuthorization();
         app.UseIdempotencyBuffering();
         return app;

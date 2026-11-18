@@ -25,7 +25,7 @@ type AuthContextValue = {
    * `anonymous`). Only the offline ticket wallet acts on it; every other guarded page still goes to login.
    */
   offline: boolean;
-  signIn: (credentials: { email: string; password: string }) => Promise<Session>;
+  signIn: (credentials: { email: string; password: string; captchaToken?: string | null }) => Promise<Session>;
   signOut: () => Promise<void>;
 };
 

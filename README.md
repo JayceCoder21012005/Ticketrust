@@ -201,9 +201,25 @@ Bản tự động của cùng truy vấn là `SaleInvariantTests` (dòng `dotne
 `check-sale-invariants.sh` thoát với mã 0 (ngay sau khi chạy và 3 phút sau, khi webhook trễ đã về). p99 giữ ghế 244 ms và checkout 764 ms nên chỉ qua với ngưỡng cho laptop (`HOLD_P99_MS=1000 CHECKOUT_P99_MS=2000`); mức mặc định 150/300 ms là ngân sách spec 17 cho máy riêng. 
 Với `VUS=100` bất biến vẫn đúng nhưng 6 lần đăng nhập trả 500 vì Postgres hết kết nối (`max_connections` 100): giữ `VUS` ở 50 với cấu hình mặc định. Chi tiết và ghi chú chạy ở [load-tests/README.md](load-tests/README.md).
 
-CI (`.github/workflows/ci.yml`) chạy tất cả các bước trên (trừ lần chạy k6). Nó cũng kiểm tra API client không bị lệch so với
+CI (`.github/workflows/ci.yml`) gồm tất cả các bước trên (trừ lần chạy k6). Nó cũng kiểm tra API client không bị lệch so với
 OpenAPI, và audit dependency: code ship ra production không được có lỗ hổng nào, công cụ dev không được có
 lỗ hổng high/critical.
+
+### Chạy CI ở máy trước khi push
+
+CI trên GitHub đang **tạm dừng** (gói miễn phí chỉ có 2.000 phút Actions mỗi tháng): workflow chỉ chạy khi bấm tay ở tab
+Actions (`workflow_dispatch`). Trước mỗi lần push, chạy cùng các bước đó ở máy bằng `scripts/ci-local.ps1`. Script chạy
+đúng thứ tự như CI và dừng ở bước lỗi đầu tiên:
+
+```powershell
+powershell -File scripts/ci-local.ps1                  # đầy đủ như CI
+powershell -File scripts/ci-local.ps1 -Only backend    # chỉ backend
+powershell -File scripts/ci-local.ps1 -Only web        # chỉ web
+powershell -File scripts/ci-local.ps1 -SkipLighthouse  # bỏ Lighthouse, bước chậm nhất
+```
+
+Test tích hợp cần Docker Desktop đang chạy. Có thêm `-SkipIntegration` và `-SkipE2E` khi chỉ muốn kiểm tra nhanh. Để bật lại
+CI trên GitHub, khôi phục trigger `pull_request` và `push` ở đầu `ci.yml` (comment trong file ghi sẵn).
 
 ## Xử lý sự cố
 
@@ -241,7 +257,7 @@ cp .env.example .env        # điền các secret
 docker compose -f docker-compose.prod.yml --env-file .env up -d
 ```
 
-Mỗi lần push lên `main`, CI build và publish image lên GHCR.
+Khi bật lại trigger `push`, mỗi lần push lên `main` CI build và publish image lên GHCR (chạy tay thì không publish). CI đang tạm dừng (xem [Chạy CI ở máy trước khi push](#chạy-ci-ở-máy-trước-khi-push)), nên hiện tại build image ngay trên server bằng `--build`.
 
 SignalR (`/hubs/*`) đi thẳng từ Caddy tới `api:8080`, không qua Next (bản `standalone` không proxy được WebSocket).
 `CaddyWebSocketTests` kiểm tra điều này bằng thật: chạy image `caddy:2` với đúng `deploy/Caddyfile` (chỉ thay địa chỉ site

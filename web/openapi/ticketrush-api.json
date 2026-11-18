@@ -3802,6 +3802,12 @@
           },
           "password": {
             "type": "string"
+          },
+          "captchaToken": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -4830,6 +4836,18 @@
           },
           "fullName": {
             "type": "string"
+          },
+          "captchaToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "website": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

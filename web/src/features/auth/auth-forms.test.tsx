@@ -1,9 +1,11 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode, type ReactNode } from "react";
+import { Toaster } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { clearSession } from "@/lib/api/session";
+import { TEST_TOKEN } from "@/lib/captcha/turnstile";
 import { ForgotPasswordForm } from "./forgot-password-form";
 import { LoginForm } from "./login-form";
 import { RegisterForm } from "./register-form";
@@ -54,7 +56,7 @@ describe("LoginForm", () => {
     await userEvent.type(screen.getByLabelText("Mật khẩu"), "matkhau123{Enter}");
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/account?tab=1"));
-    expect(requestBody()).toEqual({ email: "an@example.com", password: "matkhau123" });
+    expect(requestBody()).toEqual({ email: "an@example.com", password: "matkhau123", captchaToken: null });
   });
 
   it("ignores an off-site returnUrl", async () => {
@@ -78,6 +80,36 @@ describe("LoginForm", () => {
     expect(await screen.findByText("Email hoặc mật khẩu không đúng.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Đăng nhập" })).toBeEnabled();
     expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("sends a Turnstile token once the api asks for one after repeated failures", async () => {
+    fetchMock.mockResolvedValueOnce(json({ code: "captcha.required", status: 400 }, 400)).mockResolvedValueOnce(json(loginResponse));
+    withAuth(<LoginForm />);
+
+    await userEvent.type(screen.getByLabelText("Email"), "an@example.com");
+    await userEvent.type(screen.getByLabelText("Mật khẩu"), "matkhau123{Enter}");
+    expect(await screen.findByText("Vui lòng hoàn tất bước xác minh rồi đăng nhập lại.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalled());
+    expect(requestBody(0).captchaToken).toBeNull();
+    expect(requestBody(1).captchaToken).toBe(TEST_TOKEN);
+  });
+
+  it("shows a 429 as a countdown toast instead of retrying", async () => {
+    fetchMock.mockResolvedValue(json({ code: "rate_limited", status: 429, retryAfterSeconds: 42 }, 429));
+    render(
+      <AuthProvider>
+        <LoginForm />
+        <Toaster />
+      </AuthProvider>,
+    );
+
+    await userEvent.type(screen.getByLabelText("Email"), "an@example.com");
+    await userEvent.type(screen.getByLabelText("Mật khẩu"), "matkhau123{Enter}");
+
+    expect(await screen.findByText("Thử lại sau 42 giây.")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("disables the submit button while the request is pending", async () => {
@@ -136,7 +168,16 @@ describe("RegisterForm", () => {
     expect(await screen.findByRole("heading", { name: "Kiểm tra hộp thư" })).toBeInTheDocument();
     expect(screen.getByText(/an@example\.com/)).toBeInTheDocument();
     expect(String(fetchMock.mock.calls[0][0])).toBe("/api/v1/auth/register");
-    expect(requestBody()).toEqual({ fullName: "Nguyễn An", email: "an@example.com", password: "matkhau123" });
+    // No site key in tests: the widget is not loaded and the token is Cloudflare's test token; the honeypot stays empty.
+    expect(requestBody()).toEqual({ fullName: "Nguyễn An", email: "an@example.com", password: "matkhau123", captchaToken: TEST_TOKEN, website: "" });
+  });
+
+  it("keeps the honeypot out of sight and out of the tab order", () => {
+    render(<RegisterForm />);
+
+    const trap = document.getElementById("register-website")!;
+    expect(trap).toHaveAttribute("tabindex", "-1");
+    expect(trap.closest("[aria-hidden]")).not.toBeNull();
   });
 
   it("shows server-side errors", async () => {

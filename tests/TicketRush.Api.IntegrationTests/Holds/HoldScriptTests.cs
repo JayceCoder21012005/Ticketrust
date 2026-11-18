@@ -175,6 +175,25 @@ public sealed class HoldScriptTests(ContainersFixture containers) : IAsyncLifeti
     }
 
     [Fact]
+    public async Task Concurrent_holds_of_one_buyer_never_hold_more_than_the_cap_together()
+    {
+        // Spec 12: a buyer with 2 bought tickets and a cap of 4 fires many holds at once, each within the cap on its own but over
+        // it together. One hold per account is enforced inside the same script, so exactly one is written.
+        var user = Guid.NewGuid();
+        await _h.Db.StringSetAsync(_h.Keys.InvBought(_h.EventId, user), 2);
+        var selections = Enumerable.Range(0, 20).Select(i => new[] { 10 + (2 * i), 11 + (2 * i) }).ToArray();
+
+        var outcomes = await Task.WhenAll(selections.Select(seats =>
+            Task.Run(() => _h.Store.CreateHoldAsync(_h.Request(user, seats, maxTickets: 4), CancellationToken.None))));
+
+        outcomes.Count(o => o.Status == HoldStatus.Ok).ShouldBe(1);
+        var held = await _h.Db.HashGetAllAsync(_h.Keys.InvHeld(_h.EventId));
+        held.Length.ShouldBe(2, "2 bought + 2 held = the cap of 4");
+        (await _h.Store.CreateHoldAsync(_h.Request(user, [90, 91, 92], maxTickets: 4, replace: true), CancellationToken.None))
+            .Status.ShouldBe(HoldStatus.LimitExceeded, "a replacement is checked against the cap too");
+    }
+
+    [Fact]
     public async Task Releasing_frees_only_seats_still_owned_by_the_hold()
     {
         var a = await _h.HoldAsync(Guid.NewGuid(), 5, 6);
