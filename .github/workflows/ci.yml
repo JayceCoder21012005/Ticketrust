@@ -75,7 +75,8 @@ jobs:
           # Shipped code: no known vulnerability of any severity.
           npm audit --omit=dev --audit-level=low
           # Build and test tooling: nothing high or critical.
-          npm audit --audit-level=high
+          # Exceptions are listed, dated and explained in scripts/audit-tooling.mjs.
+          node scripts/audit-tooling.mjs
 
   publish-images:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
