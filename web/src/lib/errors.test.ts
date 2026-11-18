@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ApiError, toFriendlyMessage } from "./errors";
+import { ApiError, NetworkError, toFriendlyMessage } from "./errors";
 
 describe("toFriendlyMessage", () => {
   it("maps a known ProblemDetails code to its Vietnamese message", () => {
@@ -25,6 +25,7 @@ describe("toFriendlyMessage", () => {
 
   it("treats non-API failures (network down) as a connection problem", () => {
     expect(toFriendlyMessage(new TypeError("Failed to fetch"))).toMatch(/kết nối/i);
+    expect(toFriendlyMessage(new NetworkError({ cause: new TypeError("Failed to fetch") }))).toMatch(/kết nối/i);
   });
 });
 

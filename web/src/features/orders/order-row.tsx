@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { isPayable, orderCode } from "@/lib/checkout/order-state";
 import type { OrderSummary } from "@/lib/checkout/types";
 import { formatDateTime, formatVnd } from "@/lib/format";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { StatusBadge } from "./status-badge";
 
 export const orderLinkId = (id: string) => `order-link-${id}`;

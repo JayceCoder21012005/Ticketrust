@@ -2222,6 +2222,157 @@
         }
       }
     },
+    "/api/v1/me/tickets": {
+      "get": {
+        "tags": [
+          "Tickets"
+        ],
+        "operationId": "ListMyTickets",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyTicketsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id}": {
+      "get": {
+        "tags": [
+          "Tickets"
+        ],
+        "operationId": "GetTicket",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id}/qr-key": {
+      "get": {
+        "tags": [
+          "Tickets"
+        ],
+        "operationId": "GetTicketQrKey",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QrKeyResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/events/{id}/follow": {
       "get": {
         "tags": [
@@ -3397,6 +3548,20 @@
           }
         }
       },
+      "MyTicketsResponse": {
+        "required": [
+          "events"
+        ],
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TicketEventGroup"
+            }
+          }
+        }
+      },
       "NotificationItem": {
         "required": [
           "id",
@@ -4192,6 +4357,35 @@
           }
         }
       },
+      "QrKeyResponse": {
+        "required": [
+          "ticketId",
+          "secret",
+          "stepSeconds",
+          "format"
+        ],
+        "type": "object",
+        "properties": {
+          "ticketId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "secret": {
+            "type": "string"
+          },
+          "stepSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "format": {
+            "type": "string"
+          }
+        }
+      },
       "QueueClientStatus": {
         "enum": [
           "Pre",
@@ -4560,10 +4754,234 @@
           }
         }
       },
+      "TicketDetail": {
+        "required": [
+          "id",
+          "orderId",
+          "tierName",
+          "seat",
+          "status",
+          "holderName",
+          "event",
+          "orderTicketIds"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tierName": {
+            "type": "string"
+          },
+          "seat": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TicketSeat"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/TicketStatus"
+          },
+          "holderName": {
+            "type": "string"
+          },
+          "event": {
+            "$ref": "#/components/schemas/TicketEventSummary"
+          },
+          "orderTicketIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "TicketEventGroup": {
+        "required": [
+          "eventId",
+          "slug",
+          "title",
+          "coverImageUrl",
+          "startsAt",
+          "endsAt",
+          "venueName",
+          "city",
+          "status",
+          "tickets"
+        ],
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "coverImageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "venueName": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EventStatus"
+          },
+          "tickets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TicketItem"
+            }
+          }
+        }
+      },
+      "TicketEventSummary": {
+        "required": [
+          "eventId",
+          "slug",
+          "title",
+          "coverImageUrl",
+          "startsAt",
+          "endsAt",
+          "venueName",
+          "city",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "coverImageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "venueName": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EventStatus"
+          }
+        }
+      },
+      "TicketItem": {
+        "required": [
+          "id",
+          "orderId",
+          "tierName",
+          "seat",
+          "status",
+          "holderName"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tierName": {
+            "type": "string"
+          },
+          "seat": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TicketSeat"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/TicketStatus"
+          },
+          "holderName": {
+            "type": "string"
+          }
+        }
+      },
       "TicketKind": {
         "enum": [
           "Seated",
           "GeneralAdmission"
+        ]
+      },
+      "TicketSeat": {
+        "required": [
+          "section",
+          "row",
+          "number"
+        ],
+        "type": "object",
+        "properties": {
+          "section": {
+            "type": "string"
+          },
+          "row": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          }
+        }
+      },
+      "TicketStatus": {
+        "enum": [
+          "Valid",
+          "CheckedIn",
+          "Listed",
+          "Voided"
         ]
       },
       "TierInfo": {
@@ -4978,6 +5396,9 @@
     },
     {
       "name": "Notifications"
+    },
+    {
+      "name": "Tickets"
     },
     {
       "name": "Follows"

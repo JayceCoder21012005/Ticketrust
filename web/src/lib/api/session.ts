@@ -1,4 +1,6 @@
+import { hasSessionHint } from "@/lib/auth/session-hint";
 import { ApiError, type ProblemDetails } from "@/lib/errors";
+import { forgetOfflineTicketsLater } from "@/lib/tickets/forget-offline";
 import type { components } from "./schema";
 
 export type SessionUser = components["schemas"]["UserAccount"];
@@ -10,6 +12,8 @@ export type Session = components["schemas"]["LoginResponse"];
  * `/api/v1/auth` by itself; a reload restores the session through one refresh call.
  */
 let session: Session | null = null;
+/** The last refresh got no answer at all (no signal): the session may well still exist, it just cannot be restored now. */
+let unreachable = false;
 let inFlightRefresh: Promise<string | null> | null = null;
 const listeners = new Set<() => void>();
 
@@ -33,6 +37,21 @@ export function subscribe(listener: () => void): () => void {
 
 export function setSession(next: Session | null): void {
   session = next;
+  if (next) unreachable = false;
+  listeners.forEach((listener) => listener());
+}
+
+/**
+ * True when the last session refresh got no usable answer: no network, or a busy one (5xx, 429, 511), not a refusal. The offline ticket
+ * wallet reads this to stay on screen instead of sending the visitor to a login page that cannot load anyway.
+ */
+export function isSessionUnreachable(): boolean {
+  return unreachable;
+}
+
+function setUnreachable(next: boolean): void {
+  if (unreachable === next) return;
+  unreachable = next;
   listeners.forEach((listener) => listener());
 }
 
@@ -103,11 +122,21 @@ export function loginRedirectUrl(currentPathAndQuery: string): string {
   return `/login?returnUrl=${encodeURIComponent(currentPathAndQuery)}`;
 }
 
+/** The api answered that nobody is signed in (not "busy", not "too many requests"). */
+const refusesSession = (status: number) => status >= 400 && status < 500 && status !== 429;
+
 async function doRefresh(fetchImpl: Fetch): Promise<string | null> {
+  const hinted = typeof document !== "undefined" && hasSessionHint(document.cookie);
   try {
     const response = await fetchImpl("/api/v1/auth/refresh", { method: "POST", credentials: "same-origin", headers: CSRF_HEADERS });
+    // A busy answer (5xx, 429, a captive portal's 511) says nothing about the session, like no network at all: the
+    // visitor counts as unreachable so the offline wallet stays, and only a real refusal wipes what is kept offline.
+    setUnreachable(!response.ok && !refusesSession(response.status));
     if (!response.ok) {
       clearSession();
+      // The hint said signed in, the api says the session is over (expired, revoked, signed out elsewhere): what this
+      // device kept for offline use goes too. A network failure (below) never wipes: that is the offline case.
+      if (hinted && refusesSession(response.status)) void forgetOfflineTicketsLater({ onlyIfStored: true });
       return null;
     }
 
@@ -115,6 +144,7 @@ async function doRefresh(fetchImpl: Fetch): Promise<string | null> {
     setSession(next);
     return next.accessToken;
   } catch {
+    setUnreachable(true);
     return null;
   }
 }

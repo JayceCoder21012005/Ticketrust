@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calendarTile, formatDateTime, formatDayMonth, formatEventDate, formatTime, formatTimeRange, formatVnd } from "./format";
+import { calendarTile, formatClock, formatDateTime, formatDayMonth, formatEventDate, formatTime, formatTimeRange, formatVnd } from "./format";
 
 // Intl uses non-breaking spaces; compare on normal spaces for readability.
 const plain = (s: string) => s.replace(/\u00a0|\u202f/g, " ");
@@ -20,6 +20,11 @@ describe("dates are shown in Asia/Ho_Chi_Minh regardless of the device time zone
 
   it("formatTime", () => {
     expect(formatTime(instant)).toBe("00:30");
+  });
+
+  it("formatClock has seconds, on a 24-hour clock", () => {
+    expect(formatClock(Date.parse(instant) + 7_000)).toBe("00:30:07");
+    expect(formatClock("2026-11-12T12:00:07Z")).toBe("19:00:07");
   });
 
   it("formatDateTime", () => {

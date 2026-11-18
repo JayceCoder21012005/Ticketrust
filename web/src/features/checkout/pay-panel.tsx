@@ -13,7 +13,7 @@ import { cancelOrder } from "@/lib/checkout/orders-api";
 import type { RememberedEvent } from "@/lib/checkout/event-memory";
 import type { Order } from "@/lib/checkout/types";
 import { ApiError, toFriendlyMessage } from "@/lib/errors";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { OrderLines } from "./order-lines";
 import { usePay } from "./use-pay";
 

@@ -61,6 +61,8 @@ async function arrange(context: BrowserContext, page: Page, baseURL: string, scr
 }
 
 async function axe(page: Page) {
+  // A colour transition still running (theme class applied after hydration) makes axe read a half-faded colour.
+  await page.waitForFunction(() => document.getAnimations().length === 0);
   const { violations } = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   return violations
     .filter((v) => v.impact === "serious" || v.impact === "critical")

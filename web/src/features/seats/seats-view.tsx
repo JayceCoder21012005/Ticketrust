@@ -5,7 +5,7 @@ import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { Skeleton } from "@/components/ui/skeleton";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { HoldExpiredDialog, HoldSummary } from "./hold-panel";
 import { LazySeatMap } from "./lazy-seat-map";
 import { PANEL_TITLE_SELECTOR, SeatLegend, SelectionPanel } from "./selection-panel";

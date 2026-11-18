@@ -1,5 +1,5 @@
 import { LOCALE } from "@/lib/format";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 
 /** "#1.234": the place in line, with Vietnamese thousands separators. */
 export function formatPosition(position: number): string {

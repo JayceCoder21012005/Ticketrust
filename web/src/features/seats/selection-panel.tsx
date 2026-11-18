@@ -4,7 +4,7 @@ import { Minus, Plus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { TicketTier } from "@/lib/catalog/types";
 import { formatVnd } from "@/lib/format";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { seatPlace } from "@/lib/seats/format";
 import type { SeatStore } from "@/lib/seats/seat-store";
 import type { SeatMap } from "@/lib/seats/types";

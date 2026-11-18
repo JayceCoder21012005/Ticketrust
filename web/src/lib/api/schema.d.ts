@@ -1573,6 +1573,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListMyTickets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tickets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetTicket"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tickets/{id}/qr-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetTicketQrKey"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/events/{id}/follow": {
         parameters: {
             query?: never;
@@ -2069,6 +2117,9 @@ export interface components {
             /** Format: date-time */
             serverNow: string;
         };
+        MyTicketsResponse: {
+            events: components["schemas"]["TicketEventGroup"][];
+        };
         NotificationItem: {
             /** Format: uuid */
             id: string;
@@ -2274,6 +2325,14 @@ export interface components {
             step: string;
             message: string;
         };
+        QrKeyResponse: {
+            /** Format: uuid */
+            ticketId: string;
+            secret: string;
+            /** Format: int32 */
+            stepSeconds: number | string;
+            format: string;
+        };
         /** @enum {unknown} */
         QueueClientStatus: "Pre" | "Waiting" | "Admitted" | "AllHeld" | "SoldOut" | "Closed" | "Expired";
         QueueStatusResponse: {
@@ -2369,8 +2428,66 @@ export interface components {
             /** Format: date-time */
             serverNow: string;
         };
+        TicketDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            orderId: string;
+            tierName: string;
+            seat: null | components["schemas"]["TicketSeat"];
+            status: components["schemas"]["TicketStatus"];
+            holderName: string;
+            event: components["schemas"]["TicketEventSummary"];
+            orderTicketIds: string[];
+        };
+        TicketEventGroup: {
+            /** Format: uuid */
+            eventId: string;
+            slug: string;
+            title: string;
+            coverImageUrl: null | string;
+            /** Format: date-time */
+            startsAt: string;
+            /** Format: date-time */
+            endsAt: string;
+            venueName: string;
+            city: string;
+            status: components["schemas"]["EventStatus"];
+            tickets: components["schemas"]["TicketItem"][];
+        };
+        TicketEventSummary: {
+            /** Format: uuid */
+            eventId: string;
+            slug: string;
+            title: string;
+            coverImageUrl: null | string;
+            /** Format: date-time */
+            startsAt: string;
+            /** Format: date-time */
+            endsAt: string;
+            venueName: string;
+            city: string;
+            status: components["schemas"]["EventStatus"];
+        };
+        TicketItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            orderId: string;
+            tierName: string;
+            seat: null | components["schemas"]["TicketSeat"];
+            status: components["schemas"]["TicketStatus"];
+            holderName: string;
+        };
         /** @enum {unknown} */
         TicketKind: "Seated" | "GeneralAdmission";
+        TicketSeat: {
+            section: string;
+            row: string;
+            number: string;
+        };
+        /** @enum {unknown} */
+        TicketStatus: "Valid" | "CheckedIn" | "Listed" | "Voided";
         TierInfo: {
             /** Format: uuid */
             id: string;
@@ -3344,6 +3461,126 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    ListMyTickets: {
+        parameters: {
+            query?: {
+                scope?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyTicketsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketDetail"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetTicketQrKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QrKeyResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
             };
         };
     };

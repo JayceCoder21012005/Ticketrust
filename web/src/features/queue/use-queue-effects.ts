@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { formatPosition } from "@/lib/queue/format";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 
 /** "(#1.234) TicketRush" in the tab, so the place is visible from another tab. The old title comes back on exit. */
 export function useTabTitle(position: number | null): void {

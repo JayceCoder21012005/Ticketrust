@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/errors";
+
+const offline = vi.hoisted(() => ({ forgetOfflineTickets: vi.fn(async () => undefined) }));
+vi.mock("@/lib/tickets/register-sw", () => offline);
+
 import {
   clearSession,
   getAccessToken,
@@ -7,6 +11,7 @@ import {
   login,
   loginRedirectUrl,
   logout,
+  isSessionUnreachable,
   refreshAccessToken,
   subscribe,
   type Session,
@@ -108,6 +113,72 @@ describe("refreshAccessToken", () => {
 
   it("returns null when the network fails", async () => {
     expect(await refreshAccessToken(vi.fn().mockRejectedValue(new TypeError("offline")))).toBeNull();
+  });
+});
+
+describe("refreshAccessToken and the offline wallet", () => {
+  const signedInHint = () => (document.cookie = "tr_session=1; path=/");
+  beforeEach(() => {
+    offline.forgetOfflineTickets.mockClear();
+    window.localStorage.setItem("tr.wallet.owner", "0193");
+  });
+  afterEach(() => {
+    document.cookie = "tr_session=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+  });
+
+  it("Session_refused_wipes_the_offline_tickets: the api says nobody is signed in although the hint said so", async () => {
+    signedInHint();
+    await refreshAccessToken(vi.fn().mockResolvedValue(json({ code: "auth.refresh_invalid" }, 401)));
+
+    await vi.waitFor(() => expect(offline.forgetOfflineTickets).toHaveBeenCalledTimes(1));
+  });
+
+  it("Network_failure_never_wipes_the_offline_tickets (that is the offline case)", async () => {
+    signedInHint();
+    await refreshAccessToken(vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    // A busy api did not say anything about the session either.
+    await refreshAccessToken(vi.fn().mockResolvedValue(json({ code: "system.busy" }, 503)));
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(offline.forgetOfflineTickets).not.toHaveBeenCalled();
+  });
+
+  it.each([503, 429, 511])("Busy_answer_%i_is_like_no_network: no wipe, and the visitor counts as unreachable (the wallet stays)", async (status) => {
+    signedInHint();
+    await login({ email: "an@example.com", password: "matkhau123" }, vi.fn().mockResolvedValue(json(session("old"))));
+
+    expect(await refreshAccessToken(vi.fn().mockResolvedValue(json({ code: "system.busy" }, status)))).toBeNull();
+
+    expect(getSession()).toBeNull();
+    expect(isSessionUnreachable()).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(offline.forgetOfflineTickets).not.toHaveBeenCalled();
+  });
+
+  it.each([401, 403])("a real refusal (%i) is not unreachable and wipes the offline tickets", async (status) => {
+    signedInHint();
+    await refreshAccessToken(vi.fn().mockResolvedValue(json({ code: "auth.refresh_invalid" }, status)));
+
+    expect(isSessionUnreachable()).toBe(false);
+    await vi.waitFor(() => expect(offline.forgetOfflineTickets).toHaveBeenCalledTimes(1));
+  });
+
+  it("a network failure is unreachable, and the next answer from the api resets it", async () => {
+    signedInHint();
+    await refreshAccessToken(vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    expect(isSessionUnreachable()).toBe(true);
+
+    await refreshAccessToken(vi.fn().mockResolvedValue(json({ code: "auth.refresh_invalid" }, 401)));
+    expect(isSessionUnreachable()).toBe(false);
+  });
+
+  it("does not load the cleanup when nothing was stored offline", async () => {
+    signedInHint();
+    window.localStorage.removeItem("tr.wallet.owner");
+    await refreshAccessToken(vi.fn().mockResolvedValue(json({ code: "auth.refresh_invalid" }, 401)));
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(offline.forgetOfflineTickets).not.toHaveBeenCalled();
   });
 });
 

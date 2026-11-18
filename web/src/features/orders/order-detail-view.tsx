@@ -16,7 +16,7 @@ import { getOrder } from "@/lib/checkout/orders-api";
 import type { Buyer, Order, OrderPage } from "@/lib/checkout/types";
 import { formatDateTime } from "@/lib/format";
 import { ApiError } from "@/lib/errors";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { OrderLines } from "@/features/checkout/order-lines";
 import { ORDERS_HREF } from "./orders-view";
 import { StatusBadge } from "./status-badge";
@@ -111,7 +111,7 @@ function BuyerSnapshot({ buyer }: { buyer: Buyer }) {
   );
 }
 
-/** Paying while the order is open; a paid order's tickets page (spec 10) is not built, so "Xem vé" is shown but off. */
+/** Paying while the order is open; a paid order's tickets are in the wallet (spec 10). */
 function Actions({ order }: { order: Order }) {
   if (isPayable(order.status)) {
     return isPastDeadline(order) ? (
@@ -127,13 +127,9 @@ function Actions({ order }: { order: Order }) {
     return (
       <div className="flex flex-col items-start gap-2 text-sm">
         {order.ticketCount ? <p className="font-medium">{t("orders.detail.tickets", "vi", { count: order.ticketCount })}</p> : null}
-        {/* aria-disabled, not disabled: it stays in the tab order so its reason is found; activating it does nothing. */}
-        <Button aria-disabled="true" aria-describedby="tickets-soon" onClick={(event) => event.preventDefault()} className="cursor-not-allowed opacity-60">
-          {t("orders.detail.viewTickets")}
+        <Button asChild>
+          <Link href="/account/tickets">{t("orders.detail.viewTickets")}</Link>
         </Button>
-        <p id="tickets-soon" className="text-muted-foreground">
-          {t("orders.detail.ticketsSoon")}
-        </p>
       </div>
     );
   }

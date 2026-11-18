@@ -3,7 +3,11 @@ import { useEffect } from "react";
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearSession, setSession, type Session } from "@/lib/api/session";
-import { AppProviders } from "./app-providers";
+
+const offline = vi.hoisted(() => ({ forgetOfflineTickets: vi.fn(async () => undefined) }));
+vi.mock("@/lib/tickets/register-sw", () => offline);
+
+const { AppProviders } = await import("./app-providers");
 
 const session = (id: string, token = "t"): Session => ({
   accessToken: token,
@@ -32,6 +36,7 @@ function mount() {
 }
 
 beforeEach(() => {
+  offline.forgetOfflineTickets.mockClear();
   // The toaster reads the colour scheme.
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query, addEventListener: () => undefined, removeEventListener: () => undefined }));
 });
@@ -81,5 +86,35 @@ describe("AppProviders query cache", () => {
     act(() => setSession(session("a")));
 
     expect(cache().getQueryData(["public"])).toEqual({ x: 1 });
+  });
+});
+
+describe("AppProviders offline tickets", () => {
+  it("Sign_out_does_not_wipe_here: only a different user does (sign-out wipes in AuthProvider.signOut, a refusal in doRefresh)", async () => {
+    act(() => setSession(session("a")));
+    mount();
+
+    act(() => clearSession());
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(offline.forgetOfflineTickets).not.toHaveBeenCalled();
+  });
+
+  it("User_change_clears_the_offline_tickets", async () => {
+    act(() => setSession(session("a")));
+    mount();
+
+    act(() => setSession(session("b")));
+
+    await vi.waitFor(() => expect(offline.forgetOfflineTickets).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps them across a token refresh of the same user and while the session is being restored", async () => {
+    mount();
+    act(() => setSession(session("a")));
+    act(() => setSession(session("a", "refreshed")));
+
+    await Promise.resolve();
+    expect(offline.forgetOfflineTickets).not.toHaveBeenCalled();
   });
 });

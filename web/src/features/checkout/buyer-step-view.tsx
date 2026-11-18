@@ -20,7 +20,7 @@ import { createKeyKeeper } from "@/lib/checkout/idempotency";
 import { createOrder } from "@/lib/checkout/orders-api";
 import { clockOffsetMs } from "@/lib/clock";
 import { ApiError, toFriendlyMessage } from "@/lib/errors";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { getMyHold } from "@/lib/seats/holds-api";
 import type { Hold } from "@/lib/seats/types";
 import { CheckoutSkeleton } from "./checkout-view";

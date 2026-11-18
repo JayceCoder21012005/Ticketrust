@@ -29,7 +29,8 @@ nhanh và **không bao giờ bán trùng một ghế**. Toàn bộ đặc tả n
 | [07](specs/07-seat-selection-and-hold.md) | Chọn ghế trên sơ đồ trực tiếp, giữ ghế 8 phút bằng Lua nguyên tử trên Redis, cập nhật thời gian thực qua SignalR | ✅ Hoàn thành |
 | [08](specs/08-checkout-and-payment.md) | Thanh toán: đơn hàng từ lượt giữ ghế, cổng thanh toán giả lập (ký webhook, chống gửi trùng, thanh toán trễ), phát vé đúng một lần, hoàn tiền tự động, các trang checkout và `/account/orders`. Đã chạy k6 `load-tests/sale.js` trên stack compose (50 người mua đồng thời, 0 vi phạm bất biến) | ✅ Hoàn thành |
 | [09](specs/09-notifications-and-email.md) | Thông báo và email: chuông thông báo, trang `/account/notifications`, toast thời gian thực qua SignalR, email giao qua bảng `email_deliveries` và worker (thử lại, dead-letter), 8 mẫu email tiếng Việt kiểm tra bằng Mailpit, nút "Nhắc tôi" và nhắc lịch (mở bán trước 30 phút, sự kiện trước 24 giờ). Xem [runbook email](docs/runbooks/email-delivery.md). Còn lại cho spec 13 và 14: thông báo waitlist và chuyển vé | ✅ Hoàn thành |
-| [10](specs/10-e-tickets-and-rotating-qr.md) – [17](specs/17-load-testing-and-observability.md) | Vé điện tử… (spec 17 mới có kịch bản bán vé và bộ kiểm tra bất biến trong `load-tests/`) | ⏳ Chưa làm |
+| [10](specs/10-e-tickets-and-rotating-qr.md) | Vé điện tử: trang `/account/tickets`, ví vé `/tickets/[id]` với mã QR đổi mỗi 15 giây (tính phía trình duyệt bằng Web Crypto, bộ mã hoá QR viết trong repo, kiểm tra bằng zxing-cpp 1049/1049), `GET /me/tickets`, `/tickets/{id}`, `/tickets/{id}/qr-key` (chỉ chủ vé, giới hạn 10 lần/phút), dùng được khi mất mạng nhờ kho khoá IndexedDB và service worker (chỉ vé đã mở khi có mạng trên thiết bị đó). Xem [runbook khoá QR](docs/runbooks/ticket-qr-keys.md). Còn lại cho spec 11 (quét tại cổng, giờ check-in), 12 (giới hạn tốc độ `qr-key` thay bản Redis tạm) và 14 (đổi bí mật khi chuyển vé) | ✅ Hoàn thành |
+| [11](specs/11-gate-check-in.md) – [17](specs/17-load-testing-and-observability.md) | Quét vé tại cổng… (spec 17 mới có kịch bản bán vé và bộ kiểm tra bất biến trong `load-tests/`) | ⏳ Chưa làm |
 
 ## Yêu cầu
 
@@ -228,7 +229,7 @@ lỗ hổng high/critical.
 | `web/` | Next.js 16; `/api/*` được chuyển tiếp sang `api` (cùng origin) |
 | `tests/` | Unit, architecture và integration test (.NET) |
 | `load-tests/` | Kịch bản k6 bán vé, truy vấn SQL kiểm tra bất biến, compose overlay cho load test |
-| `docs/runbooks/` | Quy trình vận hành (hoàn tiền bị treo: [parked-refunds.md](docs/runbooks/parked-refunds.md); giao email: [email-delivery.md](docs/runbooks/email-delivery.md)) |
+| `docs/runbooks/` | Quy trình vận hành (hoàn tiền bị treo: [parked-refunds.md](docs/runbooks/parked-refunds.md); giao email: [email-delivery.md](docs/runbooks/email-delivery.md); khoá QR của vé: [ticket-qr-keys.md](docs/runbooks/ticket-qr-keys.md)) |
 | `specs/` | Đặc tả cho từng phần, từ 00 đến 17 |
 
 ## Triển khai production
@@ -322,4 +323,4 @@ Việc cần làm ở production:
   Đã kiểm chứng vòng sao lưu, `FLUSHALL`, khôi phục trên container `redis:7.4` dùng một lần (cùng dạng lệnh `redis-cli` qua `docker exec -i`, tương đương `compose exec -T`): hai phần tử XML có dấu nháy, `+/=` và chú thích giống key thật, mỗi phần tử khớp từng byte (`cmp`) với bản gốc. Chưa chạy trực tiếp trên stack compose.
 - ⚠️ **Tệp sao lưu là khoá chủ ở dạng văn bản thường**: Data Protection không mã hoá key ring khi lưu (chính XML có dòng cảnh báo "the key below is in an unencrypted form"). Ai có tệp này giải mã được mọi bí mật QR và token. Hãy coi nó là **secret**: mã hoá (age/gpg) ngay khi tạo, không để bản rõ trên đĩa (`umask 077`, xoá thư mục tạm), không commit, không gửi qua chat, và cất ở nơi có quyền truy cập **tách biệt** với bản dump Postgres (người đọc được dump không đồng thời đọc được khoá).
 - Sao lưu Postgres mà thiếu key ring thì các vé trong bản sao lưu đó không dùng lại được. Hai thứ phải đi cùng nhau.
-- Spec 10 (vé điện tử) có thể suy ra bí mật QR từ khoá ký riêng thay vì lưu ngẫu nhiên, khi đó rủi ro này giảm; cho đến lúc đó phải coi key ring như dữ liệu quan trọng ngang database.
+- Spec 10 (vé điện tử) vẫn dùng bí mật ngẫu nhiên lưu mã hoá như trên (không suy ra từ khoá ký), nên key ring phải được coi như dữ liệu quan trọng ngang database: mất nó thì `GET /tickets/{id}/qr-key` trả 500. Xem [docs/runbooks/ticket-qr-keys.md](docs/runbooks/ticket-qr-keys.md).

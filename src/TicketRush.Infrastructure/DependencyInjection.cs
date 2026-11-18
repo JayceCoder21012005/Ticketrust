@@ -32,6 +32,8 @@ using TicketRush.Infrastructure.Persistence;
 using TicketRush.Infrastructure.Persistence.Interceptors;
 using TicketRush.Infrastructure.Persistence.Seed;
 using TicketRush.Application.Abstractions.Queue;
+using TicketRush.Application.Abstractions.Tickets;
+using TicketRush.Infrastructure.Tickets;
 using TicketRush.Infrastructure.Queue;
 using TicketRush.Infrastructure.Redis;
 using TicketRush.Infrastructure.Storage;
@@ -87,6 +89,8 @@ public static class DependencyInjection
         services.AddSingleton<OutboxProcessor>();
 
         services.AddSingleton<IAdmissionTokenFactory, AdmissionTokenFactory>();
+        services.AddSingleton<IQrCodeService, QrCodeService>();
+        services.AddSingleton<IQrKeyThrottle, RedisQrKeyThrottle>();
         services.AddSingleton<IWaitingRoom, RedisWaitingRoom>();
         services.AddSingleton<IQueuePhaseSource, QueuePhaseSource>();
         services.AddScoped<ISaleWindowProvider, SaleWindowProvider>();

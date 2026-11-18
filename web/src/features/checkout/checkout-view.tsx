@@ -14,7 +14,7 @@ import { getOrder } from "@/lib/checkout/orders-api";
 import { recallEvent } from "@/lib/checkout/event-memory";
 import { clockOffsetMs } from "@/lib/clock";
 import { ApiError } from "@/lib/errors";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { PayPanel } from "./pay-panel";
 
 export const orderKey = (orderId: string) => ["order", orderId] as const;

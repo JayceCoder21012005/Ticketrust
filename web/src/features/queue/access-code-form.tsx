@@ -5,7 +5,7 @@ import { useId, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 
 /** Presale phases ask for a code before the buyer may enter the waiting room. */
 export function AccessCodeForm({ onSubmit, error, pending = false }: { onSubmit: (code: string) => void; error?: string; pending?: boolean }) {

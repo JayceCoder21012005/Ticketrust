@@ -2,7 +2,7 @@ import { CircleCheck, CircleDot, CircleX, Circle, type LucideIcon } from "lucide
 import { buildTimeline, type TimelineStep } from "@/lib/checkout/order-timeline";
 import type { Order } from "@/lib/checkout/types";
 import { formatDateTime } from "@/lib/format";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { cn } from "@/lib/utils";
 
 /** The shape tells the state (check, dot, empty ring, cross); the colour only reinforces it, and the words are read aloud. */
