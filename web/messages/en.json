@@ -34,7 +34,8 @@
   },
   "footer": {
     "tagline": "Fast, fair tickets. Never the same seat twice.",
-    "rights": "© {year} TicketRush"
+    "rights": "© {year} TicketRush",
+    "photos": "Backdrop photos: Unsplash"
   },
   "event": {
     "buy": "Buy tickets"
@@ -244,5 +245,9 @@
     "venues": "Venues",
     "cities": "Cities",
     "seeAll": "See all results for “{q}”"
+  },
+  "home": {
+    "forYou": "For you",
+    "forYouDescription": "Picked from the events you follow."
   }
 }

@@ -34,7 +34,8 @@
   },
   "footer": {
     "tagline": "Săn vé nhanh, công bằng, không bao giờ bán trùng ghế.",
-    "rights": "© {year} TicketRush"
+    "rights": "© {year} TicketRush",
+    "photos": "Ảnh nền: Unsplash"
   },
   "event": {
     "buy": "Mua vé"
@@ -244,5 +245,9 @@
     "venues": "Địa điểm",
     "cities": "Thành phố",
     "seeAll": "Xem tất cả kết quả cho “{q}”"
+  },
+  "home": {
+    "forYou": "Dành cho bạn",
+    "forYouDescription": "Gợi ý từ những sự kiện bạn đang theo dõi."
   }
 }

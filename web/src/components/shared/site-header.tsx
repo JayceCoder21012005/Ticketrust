@@ -25,7 +25,7 @@ export function SiteHeader() {
           <Ticket aria-hidden className="size-6 text-primary" />
           <span>TicketRush</span>
         </Link>
-        <div role="search" aria-label={t("common.searchLabel")} className="ml-auto flex max-w-sm flex-1 justify-end sm:justify-start">
+        <div role="search" aria-label={t("common.searchLabel")} className="ml-auto flex min-w-0 max-w-sm flex-1 justify-end sm:justify-start">
           <SearchTrigger variant="header" />
         </div>
         <nav className="ml-auto flex items-center gap-1 sm:ml-0">

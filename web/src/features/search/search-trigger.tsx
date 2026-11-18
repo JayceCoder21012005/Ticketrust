@@ -46,12 +46,15 @@ export function SearchTrigger({ variant, className }: { variant: "header" | "her
         aria-haspopup="dialog"
         className={cn(
           "group flex items-center gap-2 rounded-full border bg-background/80 text-left text-muted-foreground shadow-xs backdrop-blur transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-          variant === "header" ? "h-9 w-full max-w-sm px-3 text-sm" : "h-14 w-full max-w-2xl px-5 text-base shadow-lg ring-1 ring-primary/20",
+          // On a phone the header button is just the icon (its text stays the accessible name), so the header never overflows.
+          variant === "header"
+            ? "h-9 w-9 min-w-0 justify-center px-0 text-sm sm:w-full sm:max-w-sm sm:justify-start sm:px-3"
+            : "h-14 w-full min-w-0 max-w-2xl px-5 text-base shadow-lg ring-1 ring-primary/20",
           className,
         )}
       >
         <Search aria-hidden className={variant === "header" ? "size-4" : "size-5 text-primary"} />
-        <span className="flex-1 truncate">{t("common.search")}</span>
+        <span className={cn("min-w-0 flex-1 truncate", variant === "header" && "sr-only sm:not-sr-only")}>{t("common.search")}</span>
         <kbd aria-hidden className="hidden rounded border bg-muted px-1.5 py-0.5 font-mono text-[11px] font-medium sm:inline">
           Ctrl K
         </kbd>

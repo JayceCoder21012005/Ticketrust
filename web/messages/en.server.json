@@ -7,11 +7,17 @@
       "openingSoon": "On sale soon",
       "openingSoonDescription": "Watch the clock and join the waiting room 30 minutes early.",
       "categories": "Browse by category",
-      "byCity": "Events by city",
+      "byCity": "Explore by city",
       "upcoming": "Upcoming events",
       "viewAll": "View all",
       "empty": "No events on sale yet",
-      "emptyDescription": "Check back soon, new events are added every week."
+      "emptyDescription": "Check back soon, new events are added every week.",
+      "heroTitle": "Fast, fair ticketing.",
+      "heroSubtitle": "A transparent waiting room, safe seat holds, and the price you see is the price you pay.",
+      "hot": "Hot now",
+      "hotDescription": "Selling fastest in the last 24 hours.",
+      "thisWeek": "This week",
+      "eventsCount": "{count} events"
     },
     "detail": {
       "addToCalendar": "Add to calendar",
