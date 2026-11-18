@@ -56,6 +56,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataPr
 
     public DbSet<CheckIn> CheckIns => Set<CheckIn>();
 
+    public DbSet<TicketRush.Domain.Users.AccountFlag> AccountFlags => Set<TicketRush.Domain.Users.AccountFlag>();
+
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     public DbSet<ConsumerReceipt> ConsumerReceipts => Set<ConsumerReceipt>();

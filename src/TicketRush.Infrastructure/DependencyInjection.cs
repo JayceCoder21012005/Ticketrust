@@ -183,6 +183,7 @@ public static class DependencyInjection
                 ? sp.GetRequiredService<Security.TurnstileVerifier>()
                 : sp.GetRequiredService<Security.FakeCaptchaVerifier>());
         services.AddSingleton<TicketRush.Application.Abstractions.Security.ILoginFailureCounter, Security.RedisLoginFailureCounter>();
+        services.AddScoped<TicketRush.Application.Abstractions.Security.ISuspiciousActivityDetector, Security.SuspiciousActivityDetector>();
         return services;
     }
 

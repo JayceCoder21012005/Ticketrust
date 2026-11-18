@@ -86,7 +86,7 @@ services:
 
   web:
     image: ${REGISTRY:-ghcr.io/ticketrush}/web:${TAG:-latest}
-    build: { context: web, args: { API_URL: "http://api:8080" } }
+    build: { context: web, args: { API_URL: "http://api:8080", NEXT_PUBLIC_TURNSTILE_SITE_KEY: "${TURNSTILE_SITE_KEY:?set TURNSTILE_SITE_KEY}" } }
     restart: unless-stopped
     environment:
       API_URL: http://api:8080

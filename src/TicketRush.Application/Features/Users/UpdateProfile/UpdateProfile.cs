@@ -1,5 +1,6 @@
 using FluentValidation;
 using TicketRush.Application.Abstractions.Identity;
+using TicketRush.Application.Abstractions.Security;
 using TicketRush.Application.Abstractions.Storage;
 using TicketRush.Domain.Primitives;
 
@@ -19,16 +20,23 @@ public sealed class UpdateProfileValidator : AbstractValidator<UpdateProfileComm
     }
 }
 
-public sealed class UpdateProfileHandler(IIdentityService identity, IFileStorage storage)
+public sealed class UpdateProfileHandler(IIdentityService identity, IFileStorage storage, ISuspiciousActivityDetector detector)
 {
-    public Task<Result<UserAccount>> HandleAsync(UpdateProfileCommand command, CancellationToken ct)
+    public async Task<Result<UserAccount>> HandleAsync(UpdateProfileCommand command, CancellationToken ct)
     {
         // Only accept avatars this user uploaded through their presigned URL, never arbitrary URLs.
         if (command.AvatarUrl is { } url && !storage.IsPublicUrlUnder(url, AvatarKeys.PrefixFor(command.UserId)))
         {
-            return Task.FromResult(Result.Failure<UserAccount>(UserErrors.AvatarNotOwned));
+            return UserErrors.AvatarNotOwned;
         }
 
-        return identity.UpdateProfileAsync(command.UserId, command.FullName.Trim(), command.PhoneNumber, command.AvatarUrl, ct);
+        var updated = await identity.UpdateProfileAsync(command.UserId, command.FullName.Trim(), command.PhoneNumber, command.AvatarUrl, ct);
+        if (updated.IsSuccess)
+        {
+            // Spec 12: one phone number on many accounts is flagged for review (never blocked).
+            await detector.PhoneNumberSavedAsync(command.UserId, command.PhoneNumber, ct);
+        }
+
+        return updated;
     }
 }

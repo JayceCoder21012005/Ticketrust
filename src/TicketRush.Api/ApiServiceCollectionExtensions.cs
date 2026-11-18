@@ -47,12 +47,18 @@ public static class ApiServiceCollectionExtensions
                 .AllowAnyMethod()
                 .AllowCredentials()));
 
-        services.Configure<ForwardedHeadersOptions>(options =>
+        services.AddOptions<ForwardedHeadersOptions>().Configure<IConfiguration>((options, configuration) =>
         {
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-            // The reverse proxy / Next.js runs on a private network in every deployment we support.
             options.KnownIPNetworks.Clear();
             options.KnownProxies.Clear();
+            // Spec 12: per-ip rate limits are only as good as the client ip. With ForwardedHeaders:KnownNetworks set (the
+            // reverse proxy's subnet, CIDR) X-Forwarded-For is trusted from those hops only. Unset, every hop is trusted:
+            // fine while the api is reachable only through the proxy on a private network (docker-compose.prod.yml).
+            foreach (var cidr in configuration.GetSection("ForwardedHeaders:KnownNetworks").Get<string[]>() ?? [])
+            {
+                options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(cidr));
+            }
         });
 
         services.AddApiAuthentication();

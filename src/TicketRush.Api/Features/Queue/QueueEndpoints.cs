@@ -2,6 +2,7 @@ using TicketRush.Api.Common.RateLimiting;
 using System.Security.Claims;
 using TicketRush.Api.Common.Auth;
 using TicketRush.Api.Common.Http;
+using TicketRush.Application.Abstractions.Security;
 using TicketRush.Application.Features.Queue;
 using TicketRush.Infrastructure.Identity;
 
@@ -45,12 +46,20 @@ public static class QueueEndpoints
         JoinQueueRequest? request,
         ClaimsPrincipal user,
         JoinQueueHandler handler,
+        ISuspiciousActivityDetector detector,
+        HttpContext http,
         CancellationToken ct)
     {
         // Registration grants email_verified=false until the link is clicked; the claim is a JSON boolean.
         var verified = bool.TryParse(user.FindFirstValue(AuthClaims.EmailVerified), out var value) && value;
         var command = new JoinQueueCommand(user.UserId(), eventId, verified, request?.AccessCode, request?.CaptchaToken);
-        return (await handler.HandleAsync(command, ct)).ToHttpResult();
+        var result = await handler.HandleAsync(command, ct);
+        if (result.IsSuccess)
+        {
+            await detector.QueueJoinedAsync(command.UserId, http.Connection.RemoteIpAddress?.ToString(), ct);
+        }
+
+        return result.ToHttpResult();
     }
 
     private static async Task<IResult> StatusAsync(Guid eventId, ClaimsPrincipal user, GetQueueStatusHandler handler, CancellationToken ct) =>

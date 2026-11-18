@@ -1161,6 +1161,51 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                     b.ToTable("tickets", (string)null);
                 });
 
+            modelBuilder.Entity("TicketRush.Domain.Users.AccountFlag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Detail")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("detail");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolved_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_account_flags");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_account_flags_created_at")
+                        .HasFilter("resolved_at IS NULL");
+
+                    b.HasIndex("UserId", "Reason")
+                        .IsUnique()
+                        .HasDatabaseName("ix_account_flags_user_id_reason")
+                        .HasFilter("resolved_at IS NULL");
+
+                    b.ToTable("account_flags", (string)null);
+                });
+
             modelBuilder.Entity("TicketRush.Domain.Users.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
