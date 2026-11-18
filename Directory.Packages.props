@@ -3,7 +3,7 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
     <AspireVersion>13.6.5</AspireVersion>
-    <OTelVersion>1.20.1</OTelVersion>
+    <OTelVersion>1.21.0</OTelVersion>
     <AspNetCoreVersion>10.0.15</AspNetCoreVersion>
     <ExtensionsVersion>10.11.0</ExtensionsVersion>
   </PropertyGroup>
