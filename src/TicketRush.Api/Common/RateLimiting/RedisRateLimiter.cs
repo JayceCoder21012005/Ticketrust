@@ -24,8 +24,11 @@ public sealed partial class RedisRateLimiter(
 
     public override RateLimiterStatistics? GetStatistics(HttpContext resource) => null;
 
-    protected override RateLimitLease AttemptAcquireCore(HttpContext resource, int permitCount) =>
-        throw new NotSupportedException("Redis counting is asynchronous.");
+    /// <summary>
+    /// The middleware tries this synchronous path first and, when it is not acquired, awaits <see cref="AcquireAsyncCore"/>.
+    /// Counting needs a Redis round trip, so the answer here is always "not yet".
+    /// </summary>
+    protected override RateLimitLease AttemptAcquireCore(HttpContext resource, int permitCount) => NotYet.Instance;
 
     protected override async ValueTask<RateLimitLease> AcquireAsyncCore(HttpContext resource, int permitCount, CancellationToken cancellationToken)
     {
@@ -120,6 +123,21 @@ public sealed partial class RedisRateLimiter(
         public static readonly Granted Instance = new();
 
         public override bool IsAcquired => true;
+
+        public override IEnumerable<string> MetadataNames => [];
+
+        public override bool TryGetMetadata(string metadataName, out object? metadata)
+        {
+            metadata = null;
+            return false;
+        }
+    }
+
+    private sealed class NotYet : RateLimitLease
+    {
+        public static readonly NotYet Instance = new();
+
+        public override bool IsAcquired => false;
 
         public override IEnumerable<string> MetadataNames => [];
 

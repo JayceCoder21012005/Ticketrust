@@ -98,7 +98,7 @@ public sealed class AdjacentPhasesApiTests(ContainersFixture containers) : IAsyn
     }
 
     private Task<HttpResponseMessage> JoinAsync(Guid eventId, string accessToken, string? code = null) =>
-        SendAsync(HttpMethod.Post, $"/api/v1/events/{eventId}/queue/join", accessToken, new { accessCode = code });
+        SendAsync(HttpMethod.Post, $"/api/v1/events/{eventId}/queue/join", accessToken, new { accessCode = code, captchaToken = TicketRush.Infrastructure.Security.CaptchaOptions.FakePassToken });
 
     private Task<HttpResponseMessage> MeAsync(Guid eventId, string accessToken) =>
         SendAsync(HttpMethod.Get, $"/api/v1/events/{eventId}/queue/me", accessToken);

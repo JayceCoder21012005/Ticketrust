@@ -48,7 +48,7 @@ public sealed class HoldApiTests(ContainersFixture containers) : IAsyncLifetime
     private async Task<Buyer> AdmittedBuyerAsync(HttpClient? client = null)
     {
         var access = (await _auth.SignInWithRoleAsync($"buyer-{Guid.NewGuid():N}@example.com", "Customer")).AccessToken;
-        (await SendAsync(HttpMethod.Post, $"/api/v1/events/{_event}/queue/join", access, new { }, client: client)).EnsureSuccessStatusCode();
+        (await SendAsync(HttpMethod.Post, $"/api/v1/events/{_event}/queue/join", access, new { captchaToken = TicketRush.Infrastructure.Security.CaptchaOptions.FakePassToken }, client: client)).EnsureSuccessStatusCode();
         var admitter = _factory.Services.GetRequiredService<WaitingRoomAdmitter>();
         for (var i = 0; i < 200; i++)
         {

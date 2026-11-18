@@ -21,6 +21,7 @@ public static class TestSettings
         ["Frontend:BaseUrl"] = "http://localhost:3000",
         // Every test host shares one Redis and one "ip": the spec 12 tests turn limiting back on for their own hosts.
         ["RateLimits:Enabled"] = "false",
+        ["Captcha:Provider"] = "Fake",
         ["Catalog:AccessCodePepper"] = "test-access-code-pepper-0123456789abcdef",
     };
 }

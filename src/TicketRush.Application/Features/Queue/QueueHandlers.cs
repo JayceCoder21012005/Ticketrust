@@ -96,6 +96,7 @@ public sealed class JoinQueueHandler(
     ISaleWindowProvider sales,
     IWaitingRoom room,
     IAccessCodeHasher hasher,
+    ICaptchaVerifier captcha,
     IOptions<QueueOptions> options,
     TimeProvider time)
 {
@@ -131,6 +132,13 @@ public sealed class JoinQueueHandler(
             if (accessCodeHash is not null && !CodeMatches(command.AccessCode, accessCodeHash) && !await room.IsMemberAsync(sale, command.UserId, ct))
             {
                 return QueueErrors.InvalidAccessCode;
+            }
+
+            // Spec 12: joining takes a CAPTCHA; a member reloading the page or opening a second tab already passed it.
+            if (!await room.IsMemberAsync(sale, command.UserId, ct)
+                && CaptchaErrors.For(await captcha.VerifyAsync(command.CaptchaToken, ct)) is { } captchaError)
+            {
+                return captchaError;
             }
 
             await room.JoinAsync(sale, command.UserId, ct);

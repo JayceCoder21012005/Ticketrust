@@ -34,10 +34,11 @@ public sealed partial class AuthApi(ApiFactory factory, HttpClient client)
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     public Task<HttpResponseMessage> RegisterAsync(string email, string password = Password, string fullName = "Nguyễn An") =>
-        client.PostAsJsonAsync("/api/v1/auth/register", new { email, password, fullName }, Ct);
+        client.PostAsJsonAsync("/api/v1/auth/register", new { email, password, fullName, captchaToken = TicketRush.Infrastructure.Security.CaptchaOptions.FakePassToken }, Ct);
 
+    /// <summary>Sends a passing CAPTCHA token too, so tests that fail sign-in on purpose are not stopped by spec 12's CAPTCHA.</summary>
     public Task<HttpResponseMessage> LoginAsync(string email, string password = Password) =>
-        client.PostAsJsonAsync("/api/v1/auth/login", new { email, password }, Ct);
+        client.PostAsJsonAsync("/api/v1/auth/login", new { email, password, captchaToken = TicketRush.Infrastructure.Security.CaptchaOptions.FakePassToken }, Ct);
 
     public Task<HttpResponseMessage> RefreshAsync(string? refreshToken, bool csrfHeader = true) =>
         SendWithCookieAsync("/api/v1/auth/refresh", refreshToken, csrfHeader);

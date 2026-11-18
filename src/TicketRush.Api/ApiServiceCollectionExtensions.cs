@@ -23,6 +23,7 @@ using TicketRush.Api.Features.Users;
 using TicketRush.Api.Features.Webhooks;
 using TicketRush.Infrastructure.Realtime;
 using TicketRush.Application.Options;
+using TicketRush.Infrastructure;
 
 namespace TicketRush.Api;
 
@@ -56,6 +57,7 @@ public static class ApiServiceCollectionExtensions
 
         services.AddApiAuthentication();
         services.AddApiRateLimiting();
+        services.AddCaptcha();
         services.AddSingleton<PaymentWebhookMetrics>();
         services.AddScoped<PaymentWebhookReceiver>();
         return services;

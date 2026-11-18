@@ -17,7 +17,8 @@ public enum QueueClientStatus
     Expired,
 }
 
-public sealed record JoinQueueCommand(Guid UserId, Guid EventId, bool EmailVerified, string? AccessCode);
+/// <param name="CaptchaToken">Turnstile token (spec 12); checked only when the user is not in the line yet.</param>
+public sealed record JoinQueueCommand(Guid UserId, Guid EventId, bool EmailVerified, string? AccessCode, string? CaptchaToken = null);
 
 /// <param name="Position">1 = next in line. Null outside <see cref="QueueClientStatus.Waiting"/>.</param>
 /// <param name="ServerNow">Lets the client correct its clock for countdowns (C10).</param>

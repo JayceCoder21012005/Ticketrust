@@ -78,7 +78,7 @@ public sealed class QueueApiTests(ContainersFixture containers) : IAsyncLifetime
     }
 
     private Task<HttpResponseMessage> JoinAsync(Guid eventId, string accessToken, object? body = null, HttpClient? client = null) =>
-        SendAsync(HttpMethod.Post, $"/api/v1/events/{eventId}/queue/join", accessToken, body ?? new { }, client: client);
+        SendAsync(HttpMethod.Post, $"/api/v1/events/{eventId}/queue/join", accessToken, body ?? new { captchaToken = TicketRush.Infrastructure.Security.CaptchaOptions.FakePassToken }, client: client);
 
     private Task<HttpResponseMessage> MeAsync(Guid eventId, string accessToken) =>
         SendAsync(HttpMethod.Get, $"/api/v1/events/{eventId}/queue/me", accessToken);
@@ -117,6 +117,20 @@ public sealed class QueueApiTests(ContainersFixture containers) : IAsyncLifetime
         }
 
         throw new InvalidOperationException("The user was never admitted.");
+    }
+
+    [Fact]
+    public async Task A_script_that_skips_turnstile_cannot_join_but_a_member_coming_back_needs_no_new_token()
+    {
+        var buyer = await NewBuyerAsync();
+
+        await ShouldFailWithAsync(await JoinAsync(_onSaleEvent, buyer, new { }), HttpStatusCode.BadRequest, "captcha.failed");
+        await ShouldFailWithAsync(await JoinAsync(_onSaleEvent, buyer, new { captchaToken = "forged" }), HttpStatusCode.BadRequest, "captcha.failed");
+        await ShouldFailWithAsync(await MeAsync(_onSaleEvent, buyer), HttpStatusCode.NotFound, "queue.not_joined");
+
+        var joined = await BodyAsync(await JoinAsync(_onSaleEvent, buyer));
+        var again = await BodyAsync(await JoinAsync(_onSaleEvent, buyer, new { }));
+        again.GetProperty("position").GetInt64().ShouldBeLessThanOrEqualTo(joined.GetProperty("position").GetInt64());
     }
 
     [Fact]

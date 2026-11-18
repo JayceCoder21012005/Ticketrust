@@ -88,7 +88,7 @@ public sealed class RateLimitingTests(ContainersFixture containers) : IAsyncLife
             await LoginAsync(_a, "flood@example.com");
         }
 
-        var register = await _a.PostAsJsonAsync("/api/v1/auth/register", new { email = "flood@example.com", password = "Sup3r-secret!pw", fullName = "Flood" }, Ct);
+        var register = await _a.PostAsJsonAsync("/api/v1/auth/register", new { email = "flood@example.com", password = "Sup3r-secret!pw", fullName = "Flood", captchaToken = TicketRush.Infrastructure.Security.CaptchaOptions.FakePassToken }, Ct);
 
         register.StatusCode.ShouldBe(HttpStatusCode.TooManyRequests);
         await _first.DrainOutboxAsync(Ct);
