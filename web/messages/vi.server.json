@@ -54,6 +54,9 @@
       "resultsMore": "Hơn {count} sự kiện",
       "noResults": "Không tìm thấy sự kiện phù hợp",
       "noResultsHint": "Thử bỏ bớt bộ lọc hoặc tìm với từ khoá khác."
+    },
+    "card": {
+      "hot": "Đang hot"
     }
   }
 }

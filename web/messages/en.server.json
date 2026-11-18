@@ -54,6 +54,9 @@
       "resultsMore": "More than {count} events",
       "noResults": "No matching events",
       "noResultsHint": "Try removing a filter or searching for something else."
+    },
+    "card": {
+      "hot": "Hot"
     }
   }
 }
