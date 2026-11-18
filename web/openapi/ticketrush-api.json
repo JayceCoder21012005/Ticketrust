@@ -81,6 +81,45 @@
         }
       }
     },
+    "/api/v1/search/suggest": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "operationId": "SuggestSearch",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchSuggestions"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/webhooks/payments/{provider}": {
       "post": {
         "tags": [
@@ -3447,6 +3486,41 @@
           "Cancelled"
         ]
       },
+      "EventSuggestion": {
+        "required": [
+          "slug",
+          "title",
+          "startsAt",
+          "venueName",
+          "city",
+          "coverImageUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "venueName": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "coverImageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "EventSummary": {
         "required": [
           "id",
@@ -5148,6 +5222,41 @@
           }
         }
       },
+      "SearchSuggestions": {
+        "required": [
+          "events",
+          "artists",
+          "venues",
+          "cities"
+        ],
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventSuggestion"
+            }
+          },
+          "artists": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "venues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VenueSuggestion"
+            }
+          },
+          "cities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "SeatInfo": {
         "required": [
           "index",
@@ -5942,6 +6051,21 @@
           },
           "shared": {
             "type": "boolean"
+          }
+        }
+      },
+      "VenueSuggestion": {
+        "required": [
+          "name",
+          "city"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
           }
         }
       }

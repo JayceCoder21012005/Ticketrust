@@ -105,6 +105,7 @@ public static class ApiServiceCollectionExtensions
         v1.MapAuthEndpoints();
         v1.MapMeEndpoints();
         v1.MapCatalogEndpoints();
+        v1.MapSearchEndpoints();
         v1.MapOrganizerEndpoints();
         v1.MapQueueEndpoints();
         v1.MapHoldEndpoints();

@@ -68,6 +68,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/search/suggest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SuggestSearch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/webhooks/payments/{provider}": {
         parameters: {
             query?: never;
@@ -2098,6 +2114,15 @@ export interface components {
         };
         /** @enum {unknown} */
         EventStatus: "Draft" | "Published" | "Ended" | "Cancelled";
+        EventSuggestion: {
+            slug: string;
+            title: string;
+            /** Format: date-time */
+            startsAt: string;
+            venueName: string;
+            city: string;
+            coverImageUrl: null | string;
+        };
         EventSummary: {
             /** Format: uuid */
             id: string;
@@ -2524,6 +2549,12 @@ export interface components {
             seat: null | string;
             holderName: string;
         };
+        SearchSuggestions: {
+            events: components["schemas"]["EventSuggestion"][];
+            artists: string[];
+            venues: components["schemas"]["VenueSuggestion"][];
+            cities: string[];
+        };
         SeatInfo: {
             /** Format: int32 */
             index: number | string;
@@ -2734,6 +2765,10 @@ export interface components {
             capacity: number | string;
             shared: boolean;
         };
+        VenueSuggestion: {
+            name: string;
+            city: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -2818,6 +2853,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    SuggestSearch: {
+        parameters: {
+            query?: {
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchSuggestions"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
             };
         };
     };
