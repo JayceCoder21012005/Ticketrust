@@ -80,6 +80,12 @@ var web = builder.AddJavaScriptApp("web", "../../web", "dev")
     .WithExternalHttpEndpoints();
 
 api.WithEnvironment("Frontend__BaseUrl", web.GetEndpoint("http"));
+// Uploaded avatars and covers are served by the api under /media, through the web's /media rewrite: their public URLs must
+// use the web's own (dynamic) address, and next/image must allow that host. The appsettings default (localhost:3000) only
+// fits a web started on its own with `npm run dev`.
+var mediaUrl = ReferenceExpression.Create($"{web.GetEndpoint("http")}/media");
+api.WithEnvironment("Storage__PublicBaseUrl", mediaUrl);
+web.WithEnvironment("STORAGE_PUBLIC_URL", mediaUrl);
 // Mock payment gateway (spec 08, dev only): the redirect goes to the web page, the worker delivers webhooks to the api.
 api.WithEnvironment("Payments__Mock__WebBaseUrl", web.GetEndpoint("http"));
 worker
