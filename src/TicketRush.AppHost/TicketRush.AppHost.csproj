@@ -10,6 +10,7 @@
     <PackageReference Include="Aspire.Hosting.Redis" />
     <PackageReference Include="Aspire.Hosting.JavaScript" />
     <PackageReference Include="CommunityToolkit.Aspire.Hosting.MailPit" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" VersionOverride="1.21.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TicketRush.Api\TicketRush.Api.csproj" />
