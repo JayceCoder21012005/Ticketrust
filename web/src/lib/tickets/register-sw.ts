@@ -32,6 +32,27 @@ function loadedUrls(): string[] {
 }
 
 /**
+ * A font subset is fetched when its glyphs are first drawn, which can be after the lists above were sent and in the
+ * moment the worker takes control (that request then bypasses it). Every new static file the page loads in its first
+ * seconds schedules one more list; the worker caches only what it lacks.
+ */
+function watchLateStatics(warm: () => void): void {
+  if (typeof PerformanceObserver === "undefined") return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const observer = new PerformanceObserver((list) => {
+      if (!list.getEntries().some((entry) => new URL(entry.name, location.href).pathname.startsWith(STATIC_PREFIX))) return;
+      clearTimeout(timer);
+      timer = setTimeout(warm, 300);
+    });
+    observer.observe({ type: "resource" });
+    setTimeout(() => observer.disconnect(), 30_000);
+  } catch {
+    // Not supported: the lists above still cover the common case.
+  }
+}
+
+/**
  * Registers the wallet's service worker (scope `/`). Called by the buyer's ticket screens only (the wallet and
  * `/account/tickets`), for a visitor with a session hint, outside `next dev` (whose chunks are not content-hashed).
  * Never throws: without a worker the wallet still works online.
@@ -56,6 +77,7 @@ export function registerTicketWorker(): void {
           document.readyState === "complete" ? resolve() : window.addEventListener("load", () => resolve(), { once: true }),
         );
         void loaded.then(() => document.fonts?.ready).then(() => warm(registration), () => undefined);
+        watchLateStatics(() => warm(registration));
       })
       .catch(() => undefined);
   } catch {
