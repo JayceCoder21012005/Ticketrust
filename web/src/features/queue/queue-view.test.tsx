@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { TEST_TOKEN } from "@/lib/captcha/turnstile";
 import { ApiError } from "@/lib/errors";
 import type { QueueStatus } from "@/lib/queue/types";
 import { QueueView } from "./queue-view";
@@ -45,7 +46,7 @@ describe("QueueView", () => {
     rerender(<QueueView event={event} />);
 
     expect(queue.join).toHaveBeenCalledTimes(1);
-    expect(queue.join).toHaveBeenCalledWith();
+    expect(queue.join).toHaveBeenCalledWith(undefined, TEST_TOKEN);
   });
 
   it("shows the event, a joining message and the place in the tab title once waiting", () => {
@@ -100,7 +101,7 @@ describe("QueueView", () => {
     await userEvent.type(screen.getByLabelText("Mã truy cập"), "VIP-2026");
     await userEvent.click(screen.getByRole("button", { name: "Vào phòng chờ" }));
 
-    expect(queue.join).toHaveBeenLastCalledWith("VIP-2026");
+    expect(queue.join).toHaveBeenLastCalledWith("VIP-2026", TEST_TOKEN);
   });
 
   it("complains once a submitted code was refused", async () => {

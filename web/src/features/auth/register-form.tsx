@@ -11,14 +11,20 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field
 import { Input } from "@/components/ui/input";
 import { lazyResolver } from "@/lib/auth/lazy-resolver";
 import type { RegisterInput } from "@/lib/auth/schemas";
+import { Turnstile } from "@/lib/captcha/turnstile";
 import { toFriendlyMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
+import { showRateLimitToast } from "@/lib/rate-limit-toast";
 import { register as registerAccount } from "./api";
 import { FormAlert } from "./form-alert";
 
 export function RegisterForm() {
   const [error, setError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const [captcha, setCaptcha] = useState<string | null>(null);
+  // A Turnstile token is single-use: every submit that reached the api asks for a fresh one.
+  const [captchaRound, setCaptchaRound] = useState(0);
+  const [website, setWebsite] = useState("");
   const form = useForm<RegisterInput>({
     resolver: lazyResolver<RegisterInput>((s) => s.registerSchema),
     defaultValues: { fullName: "", email: "", password: "" },
@@ -28,11 +34,17 @@ export function RegisterForm() {
 
   const onSubmit = form.handleSubmit(async (values) => {
     setError(null);
+    if (!captcha) {
+      setError(t("auth.captcha.pending"));
+      return;
+    }
+
     try {
-      await registerAccount(values);
+      await registerAccount({ ...values, captchaToken: captcha, website });
       setSentTo(values.email);
     } catch (e) {
-      setError(toFriendlyMessage(e));
+      setCaptchaRound((n) => n + 1);
+      if (!showRateLimitToast(e)) setError(toFriendlyMessage(e));
     }
   });
 
@@ -75,6 +87,20 @@ export function RegisterForm() {
           <FieldError errors={[errors.password]} />
         </Field>
       </FieldGroup>
+      {/* Honeypot (spec 12): off-screen and out of the tab order; people never fill it, form-filling bots do. */}
+      <div aria-hidden className="absolute -left-[9999px] h-px w-px overflow-hidden">
+        <label htmlFor="register-website">{t("auth.captcha.honeypot")}</label>
+        <input
+          id="register-website"
+          name="website"
+          type="text"
+          tabIndex={-1}
+          autoComplete="off"
+          value={website}
+          onChange={(e) => setWebsite(e.target.value)}
+        />
+      </div>
+      <Turnstile onToken={setCaptcha} resetKey={captchaRound} />
       <Button type="submit" size="lg" disabled={isSubmitting}>
         {isSubmitting ? t("auth.register.pending") : t("auth.register.submit")}
       </Button>

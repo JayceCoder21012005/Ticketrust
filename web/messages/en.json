@@ -96,6 +96,10 @@
       "failed": "Could not confirm your email",
       "failedDescription": "The link is invalid or has expired. Sign in to get a new one.",
       "continue": "Continue"
+    },
+    "captcha": {
+      "pending": "Checking you are not a robot…",
+      "honeypot": "Leave this field empty"
     }
   },
   "account": {
@@ -220,5 +224,10 @@
     "completing": "Working…",
     "completeFailed": "Could not complete the payment session.",
     "backToOrder": "Back to the order"
+  },
+  "rateLimit": {
+    "title": "You are going too fast",
+    "wait": "Try again in {seconds} s.",
+    "ready": "You can try again."
   }
 }

@@ -96,6 +96,10 @@
       "failed": "Không xác nhận được email",
       "failedDescription": "Liên kết không hợp lệ hoặc đã hết hạn. Hãy đăng nhập để nhận liên kết mới.",
       "continue": "Tiếp tục"
+    },
+    "captcha": {
+      "pending": "Đang xác minh bạn không phải robot…",
+      "honeypot": "Để trống ô này"
     }
   },
   "account": {
@@ -220,5 +224,10 @@
     "completing": "Đang xử lý…",
     "completeFailed": "Không hoàn tất được phiên thanh toán.",
     "backToOrder": "Quay lại đơn hàng"
+  },
+  "rateLimit": {
+    "title": "Bạn thao tác quá nhanh",
+    "wait": "Thử lại sau {seconds} giây.",
+    "ready": "Bạn có thể thử lại."
   }
 }

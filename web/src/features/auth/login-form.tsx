@@ -12,8 +12,10 @@ import { Input } from "@/components/ui/input";
 import { safeReturnUrl } from "@/lib/auth/return-url";
 import { lazyResolver } from "@/lib/auth/lazy-resolver";
 import type { LoginInput } from "@/lib/auth/schemas";
-import { toFriendlyMessage } from "@/lib/errors";
+import { Turnstile } from "@/lib/captcha/turnstile";
+import { ApiError, toFriendlyMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
+import { showRateLimitToast } from "@/lib/rate-limit-toast";
 import { FormAlert } from "./form-alert";
 
 /**
@@ -25,6 +27,10 @@ export function LoginForm() {
   const { signIn } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [signedIn, setSignedIn] = useState(false);
+  // Spec 12: after 3 failed sign-ins the api asks for Turnstile (`captcha.required`); from then on every try sends a fresh token.
+  const [captchaNeeded, setCaptchaNeeded] = useState(false);
+  const [captcha, setCaptcha] = useState<string | null>(null);
+  const [captchaRound, setCaptchaRound] = useState(0);
   const form = useForm<LoginInput>({ resolver: lazyResolver<LoginInput>((s) => s.loginSchema), defaultValues: { email: "", password: "" } });
   const { errors, isSubmitting } = form.formState;
   // Stays disabled after success too: navigation takes a moment and a second submit would log in twice.
@@ -32,12 +38,19 @@ export function LoginForm() {
 
   const onSubmit = form.handleSubmit(async (values) => {
     setError(null);
+    if (captchaNeeded && !captcha) {
+      setError(t("auth.captcha.pending"));
+      return;
+    }
+
     try {
-      await signIn(values);
+      await signIn({ ...values, captchaToken: captchaNeeded ? captcha : null });
       setSignedIn(true);
       router.replace(safeReturnUrl(new URLSearchParams(window.location.search).get("returnUrl")));
     } catch (e) {
-      setError(toFriendlyMessage(e));
+      if (captchaNeeded) setCaptchaRound((n) => n + 1);
+      if (e instanceof ApiError && (e.code === "captcha.required" || e.code === "captcha.failed")) setCaptchaNeeded(true);
+      if (!showRateLimitToast(e)) setError(toFriendlyMessage(e));
     }
   });
 
@@ -66,6 +79,7 @@ export function LoginForm() {
           <FieldError errors={[errors.password]} />
         </Field>
       </FieldGroup>
+      {captchaNeeded ? <Turnstile onToken={setCaptcha} resetKey={captchaRound} /> : null}
       <Button type="submit" size="lg" disabled={pending}>
         {pending ? t("auth.login.pending") : t("auth.login.submit")}
       </Button>
