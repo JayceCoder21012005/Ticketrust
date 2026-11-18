@@ -129,6 +129,7 @@ public static class DependencyInjection
         AddNotifications(services);
         AddStorage(services, builder.Configuration);
         AddCatalog(services);
+        AddAntiBot(services);
         return builder;
     }
 
@@ -172,10 +173,21 @@ public static class DependencyInjection
         return builder;
     }
 
-    /// <summary>Spec 12, api only: the CAPTCHA strategy picked by <c>Captcha:Provider</c> and the per-email failed sign-in counter.</summary>
+    /// <summary>
+    /// Spec 12, api only: the CAPTCHA settings must be valid at start (<c>Captcha:Provider</c>, and the secret for Turnstile).
+    /// The services themselves are registered for every host (<see cref="AddAntiBot"/>): the worker registers the application
+    /// handlers too, and a Development host validates every registration when it is built.
+    /// </summary>
     public static IServiceCollection AddCaptcha(this IServiceCollection services)
     {
-        services.AddValidatedOptions<Security.CaptchaOptions>(Security.CaptchaOptions.SectionName);
+        services.AddOptions<Security.CaptchaOptions>().ValidateDataAnnotations().ValidateOnStart();
+        return services;
+    }
+
+    /// <summary>Spec 12 services: the CAPTCHA strategy picked by <c>Captcha:Provider</c>, the failed sign-in counter, the velocity flags.</summary>
+    private static void AddAntiBot(IServiceCollection services)
+    {
+        services.AddOptions<Security.CaptchaOptions>().BindConfiguration(Security.CaptchaOptions.SectionName);
         services.AddHttpClient<Security.TurnstileVerifier>(client => client.Timeout = TimeSpan.FromSeconds(5));
         services.AddSingleton<Security.FakeCaptchaVerifier>();
         services.AddTransient<TicketRush.Application.Abstractions.Security.ICaptchaVerifier>(sp =>
@@ -184,7 +196,6 @@ public static class DependencyInjection
                 : sp.GetRequiredService<Security.FakeCaptchaVerifier>());
         services.AddSingleton<TicketRush.Application.Abstractions.Security.ILoginFailureCounter, Security.RedisLoginFailureCounter>();
         services.AddScoped<TicketRush.Application.Abstractions.Security.ISuspiciousActivityDetector, Security.SuspiciousActivityDetector>();
-        return services;
     }
 
     public static IServiceCollection AddValidatedOptions<TOptions>(this IServiceCollection services, string sectionName)
