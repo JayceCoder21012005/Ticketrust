@@ -6,6 +6,15 @@ updates:
     groups:
       aspire: { patterns: ["Aspire.*", "CommunityToolkit.Aspire.*"] }
       opentelemetry: { patterns: ["OpenTelemetry.*"] }
+    ignore:
+      # The 11.x packages of the ASP.NET Core and EF Core families target net11.0 only (restore fails with NU1202 on
+      # net10.0). Drop these when the solution moves to .NET 11.
+      - dependency-name: "Microsoft.AspNetCore.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.EntityFrameworkCore*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /web
     schedule: { interval: weekly }
