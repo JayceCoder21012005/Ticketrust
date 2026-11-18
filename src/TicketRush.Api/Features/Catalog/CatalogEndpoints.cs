@@ -40,6 +40,7 @@ public static class CatalogEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound);
 
         v1.MapGet("/categories", () => TypedResults.Ok(EventCategories.All)).WithName("ListCategories").WithTags("Catalog").AllowAnonymous();
+        v1.MapGet("/catalog/home", GetHomeAsync).WithName("GetHome").WithTags("Catalog").AllowAnonymous().Produces<HomeSections>();
         v1.MapGet("/cities", ListCitiesAsync).WithName("ListCities").WithTags("Catalog").AllowAnonymous();
         return v1;
     }
@@ -82,6 +83,13 @@ public static class CatalogEndpoints
 
     private static async Task<IResult> GetAvailabilityAsync(Guid id, GetAvailabilityHandler handler, CancellationToken ct) =>
         (await handler.HandleAsync(id, ct)).ToHttpResult();
+
+    /// <summary>Cached 30 s like the listing; the web's home is an ISR page refreshed on the same beat.</summary>
+    private static async Task<IResult> GetHomeAsync(GetHomeHandler handler, HttpContext context, CancellationToken ct)
+    {
+        context.Response.Headers.CacheControl = "public, max-age=30";
+        return TypedResults.Ok(await handler.HandleAsync(ct));
+    }
 
     private static async Task<IResult> ListCitiesAsync(ListCitiesHandler handler, CancellationToken ct) =>
         TypedResults.Ok(await handler.HandleAsync(ct));

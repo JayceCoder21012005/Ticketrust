@@ -17,6 +17,9 @@ public interface IEventCatalogReader
     Task<EventAvailability?> GetAvailabilityAsync(Guid eventId, CancellationToken ct);
 
     Task<IReadOnlyList<string>> ListCitiesAsync(CancellationToken ct);
+
+    /// <summary>The home's sections (UI refresh): hot, opening soon, this week, upcoming, cities and categories.</summary>
+    Task<HomeSections> GetHomeAsync(CancellationToken ct);
 }
 
 /// <summary>Called by event writes (spec 05) so the next read sees the change.</summary>

@@ -162,6 +162,38 @@ internal sealed class EventCatalogReader(AppDbContext db, TimeProvider time) : I
         return cities.Order(StringComparer.Create(CultureInfo.GetCultureInfo("vi-VN"), ignoreCase: false)).ToList();
     }
 
+    public async Task<HomeSections> GetHomeAsync(CancellationToken ct)
+    {
+        var now = time.GetUtcNow();
+        var since = now.AddHours(-24);
+        // The catalog is small (spec 04): every published, not ended event with its signals in one query, picked in memory.
+        var candidates = await (
+                from e in db.Events.AsNoTracking()
+                where e.Status == EventStatus.Published && e.EndsAt > now
+                join v in db.Venues on e.VenueId equals v.Id
+                select new HomeCandidate(
+                    new EventSummary(
+                        e.Id,
+                        e.Slug,
+                        e.Title,
+                        e.Category,
+                        e.StartsAt,
+                        v.Name,
+                        e.City,
+                        e.CoverImageUrl,
+                        e.Tiers.Min(t => (long?)t.Price.Amount),
+                        e.Phases.Where(p => p.OpensAt > now).Min(p => (DateTimeOffset?)p.OpensAt),
+                        e.Phases.Any(p => p.OpensAt <= now && p.ClosesAt > now),
+                        e.IsSoldOut),
+                    db.Tickets.Count(t => t.EventId == e.Id && t.CreatedAt > since),
+                    db.Tickets.Count(t => t.EventId == e.Id),
+                    db.EventSeats.Count(s => s.EventId == e.Id) + (e.Tiers.Sum(t => t.Capacity) ?? 0),
+                    db.EventFollows.Count(f => f.EventId == e.Id)))
+            .ToListAsync(ct);
+
+        return HomeSectionPicker.Pick(candidates, now);
+    }
+
     private IQueryable<Event> Visible() =>
         db.Events.AsNoTracking().Where(e => e.Status == EventStatus.Published || e.Status == EventStatus.Ended);
 

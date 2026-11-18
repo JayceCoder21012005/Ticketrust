@@ -48,6 +48,26 @@
         }
       }
     },
+    "/api/v1/catalog/home": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "operationId": "GetHome",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomeSections"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/cities": {
       "get": {
         "tags": [
@@ -3085,6 +3105,46 @@
           }
         }
       },
+      "CategoryCount": {
+        "required": [
+          "category",
+          "events"
+        ],
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "events": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "CityCount": {
+        "required": [
+          "city",
+          "events"
+        ],
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "events": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "CompleteMockSessionRequest": {
         "required": [
           "outcome"
@@ -3694,6 +3754,55 @@
           "serverNow": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "HomeSections": {
+        "required": [
+          "hot",
+          "openingSoon",
+          "thisWeek",
+          "upcoming",
+          "cities",
+          "categories"
+        ],
+        "type": "object",
+        "properties": {
+          "hot": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventSummary"
+            }
+          },
+          "openingSoon": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventSummary"
+            }
+          },
+          "thisWeek": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventSummary"
+            }
+          },
+          "upcoming": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventSummary"
+            }
+          },
+          "cities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CityCount"
+            }
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CategoryCount"
+            }
           }
         }
       },

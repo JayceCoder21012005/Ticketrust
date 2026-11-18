@@ -104,6 +104,15 @@ internal sealed class CachedEventCatalogReader(
             [ListTag],
             ct);
 
+    public async Task<HomeSections> GetHomeAsync(CancellationToken ct) =>
+        await cache.GetOrCreateAsync(
+            "catalog:home",
+            inner,
+            static (reader, token) => new ValueTask<HomeSections>(reader.GetHomeAsync(token)),
+            List,
+            [ListTag],
+            ct);
+
     public async Task InvalidateEventAsync(Guid eventId, string slug, CancellationToken ct) =>
         await cache.RemoveByTagAsync([EventTag(eventId), SlugTag(slug), ListTag], ct);
 

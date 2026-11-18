@@ -36,6 +36,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalog/home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetHome"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cities": {
         parameters: {
             query?: never;
@@ -1999,6 +2015,16 @@ export interface components {
             email: string;
             phone: null | string;
         };
+        CategoryCount: {
+            category: string;
+            /** Format: int32 */
+            events: number | string;
+        };
+        CityCount: {
+            city: string;
+            /** Format: int32 */
+            events: number | string;
+        };
         CompleteMockSessionRequest: {
             outcome: components["schemas"]["MockOutcome"];
         };
@@ -2154,6 +2180,14 @@ export interface components {
             expiresAt: string;
             /** Format: date-time */
             serverNow: string;
+        };
+        HomeSections: {
+            hot: components["schemas"]["EventSummary"][];
+            openingSoon: components["schemas"]["EventSummary"][];
+            thisWeek: components["schemas"]["EventSummary"][];
+            upcoming: components["schemas"]["EventSummary"][];
+            cities: components["schemas"]["CityCount"][];
+            categories: components["schemas"]["CategoryCount"][];
         };
         HttpValidationProblemDetails: {
             type?: null | string;
@@ -2745,6 +2779,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventCategory"][];
+                };
+            };
+        };
+    };
+    GetHome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomeSections"];
                 };
             };
         };
