@@ -34,6 +34,18 @@ describe.each([":root", ".dark"] as const)("design tokens (%s)", (selector) => {
     expect(contrastRatio(t[fg], t[bg])).toBeGreaterThanOrEqual(4.5);
   });
 
+  // The live accent (hot, selling fast, countdowns) is a UI graphic and the fill of short labels.
+  it("live passes 3:1 against the background and the card", () => {
+    expect(t.live, "--live is missing").toBeDefined();
+    expect(contrastRatio(t.live, t.background)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(t.live, t.card)).toBeGreaterThanOrEqual(3);
+  });
+
+  it("live-foreground passes 4.5:1 on live", () => {
+    expect(t["live-foreground"], "--live-foreground is missing").toBeDefined();
+    expect(contrastRatio(t["live-foreground"], t.live)).toBeGreaterThanOrEqual(4.5);
+  });
+
   it.each(["success", "warning", "danger", "info"])("has status colour %s", (name) => {
     expect(t[name]).toMatch(/^oklch\(/);
   });
