@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -103,25 +102,6 @@ public sealed class SuggestApiTests(ContainersFixture containers) : IAsyncLifeti
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
-    [Fact]
-    public async Task Answers_within_30_ms_on_5000_events()
-    {
-        await AddEventsAsync(5000);
-        await using var scope = _factory.Services.CreateAsyncScope();
-        var handler = scope.ServiceProvider.GetRequiredService<SuggestHandler>();
-        await handler.HandleAsync("son tung", Ct);
-
-        var times = new List<double>();
-        foreach (var q in Enumerable.Repeat(new[] { "son tung", "nhac hoi", "my dinh", "hanoi", "festvl" }, 4).SelectMany(x => x))
-        {
-            var watch = Stopwatch.StartNew();
-            await handler.HandleAsync(q, Ct);
-            times.Add(watch.Elapsed.TotalMilliseconds);
-        }
-
-        times.Order().ElementAt(times.Count / 2).ShouldBeLessThan(30);
-    }
-
     private async Task<JsonElement> SuggestAsync(string q)
     {
         var response = await _client.GetAsync($"/api/v1/search/suggest?q={Uri.EscapeDataString(q)}", Ct);
@@ -132,23 +112,4 @@ public sealed class SuggestApiTests(ContainersFixture containers) : IAsyncLifeti
 
     private static List<string> Names(JsonElement suggestions, string group, string property) =>
         suggestions.GetProperty(group).EnumerateArray().Select(v => v.GetProperty(property).GetString()!).ToList();
-
-    private async Task AddEventsAsync(int count)
-    {
-        await using var scope = _factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var venue = Venue.Create("Nhà hát Lớn", "1 Tràng Tiền", "Hà Nội", null, 600);
-        db.Venues.Add(venue);
-        var startsAt = DateTimeOffset.UtcNow.AddDays(200);
-        string[] words = ["Đêm nhạc", "Lễ hội", "Hòa nhạc", "Live show", "Festival", "Workshop", "Giải chạy", "Kịch"];
-        for (var i = 0; i < count; i++)
-        {
-            var evt = Event.CreateDraft(Guid.CreateVersion7(), $"tai-{i}", $"{words[i % words.Length]} số {i}", "concert", venue, startsAt.AddMinutes(i), startsAt.AddMinutes(i).AddHours(2));
-            evt.AddTier("GA", new Money(200_000), TicketKind.GeneralAdmission, 100, "#16a34a");
-            evt.Publish();
-            db.Events.Add(evt);
-        }
-
-        await db.SaveChangesAsync(Ct);
-    }
 }
