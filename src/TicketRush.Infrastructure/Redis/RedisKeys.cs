@@ -22,6 +22,7 @@ public sealed class RedisOptions
 /// <item><c>tr:{env}:inv:{evt:&lt;eventId&gt;}:sold|held|ga:&lt;tier&gt;|gaheld|hold:&lt;id&gt;|expiry|userhold:&lt;user&gt;|bought:&lt;user&gt;|ver|commits|committed:&lt;orderId&gt;|meta</c> and channel <c>…:changes</c> — inventory of one event (spec 07).</item>
 /// <item><c>tr:{env}:pay:mock:session:{id}|idem:{sha256}|refund:{sha256}|deliveries</c> — sessions, idempotency markers and the webhook delivery queue of the mock payment gateway (spec 08).</item>
 /// <item><c>tr:{env}:qr-key:{userId}</c> — string counter of one user's qr-key requests in the current 60 s window (spec 10, <see cref="Tickets.RedisQrKeyThrottle"/>).</item>
+/// <item><c>tr:{env}:rl:{policy}:{hash}</c> — ZSET of one partition's accepted requests, scored in ms (spec 12, <see cref="RateLimiting.RedisSlidingWindowStore"/>).</item>
 /// </list>
 /// </summary>
 public sealed class RedisKeys(IOptions<RedisOptions> options)
@@ -123,6 +124,10 @@ public sealed class RedisKeys(IOptions<RedisOptions> options)
 
     /// <summary>STRING: qr-key requests made by one user in the current fixed window (PX = the window, set by the first request).</summary>
     public RedisKey QrKeyThrottle(Guid userId) => $"{Prefix}qr-key:{userId:N}";
+
+    /// <summary>ZSET: the accepted requests of one partition under one rate-limit policy (spec 12). The partition (an ip, a user id, an email) is hashed, so no personal data sits in a key.</summary>
+    public RedisKey RateLimit(string policy, string partition) =>
+        $"{Prefix}rl:{policy}:{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(partition)))[..32].ToLowerInvariant()}";
 
     /// <summary>STRING: scans made by one staff member in the current 1 s window (spec 11, <see cref="Gates.RedisScanGuard"/>).</summary>
     public RedisKey ScanRate(Guid staffUserId) => $"{Prefix}scan-rate:{staffUserId:N}";

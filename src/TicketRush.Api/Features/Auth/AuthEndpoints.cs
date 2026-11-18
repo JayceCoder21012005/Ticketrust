@@ -1,3 +1,4 @@
+using TicketRush.Api.Common.RateLimiting;
 using FluentValidation;
 using Microsoft.AspNetCore.Http.HttpResults;
 using TicketRush.Api.Common.Http;
@@ -23,14 +24,14 @@ public static class AuthEndpoints
     {
         var auth = v1.MapGroup("/auth").WithTags("Auth");
 
-        auth.MapPost("/register", RegisterAsync).Produces(StatusCodes.Status202Accepted).ProducesValidationProblem();
+        auth.MapPost("/register", RegisterAsync).RequireRateLimit(RateLimitPolicies.Auth).Produces(StatusCodes.Status202Accepted).ProducesValidationProblem();
         auth.MapPost("/confirm-email", ConfirmEmailAsync).Produces(StatusCodes.Status204NoContent).ProducesValidationProblem();
-        auth.MapPost("/login", LoginAsync).Produces<LoginResponse>().ProducesProblem(StatusCodes.Status401Unauthorized);
+        auth.MapPost("/login", LoginAsync).RequireRateLimit(RateLimitPolicies.Auth).Produces<LoginResponse>().ProducesProblem(StatusCodes.Status401Unauthorized);
         auth.MapPost("/refresh", RefreshAsync).AddEndpointFilter(RequireFetchHeader)
             .Produces<LoginResponse>().ProducesProblem(StatusCodes.Status401Unauthorized);
         auth.MapPost("/logout", LogoutAsync).AddEndpointFilter(RequireFetchHeader).Produces(StatusCodes.Status204NoContent);
-        auth.MapPost("/forgot-password", ForgotPasswordAsync).Produces(StatusCodes.Status202Accepted).ProducesValidationProblem();
-        auth.MapPost("/reset-password", ResetPasswordAsync).Produces(StatusCodes.Status204NoContent).ProducesValidationProblem();
+        auth.MapPost("/forgot-password", ForgotPasswordAsync).RequireRateLimit(RateLimitPolicies.Auth).Produces(StatusCodes.Status202Accepted).ProducesValidationProblem();
+        auth.MapPost("/reset-password", ResetPasswordAsync).RequireRateLimit(RateLimitPolicies.Auth).Produces(StatusCodes.Status204NoContent).ProducesValidationProblem();
         return v1;
     }
 

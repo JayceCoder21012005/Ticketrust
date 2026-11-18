@@ -5,6 +5,7 @@ using TicketRush.Api.Common.Auth;
 using TicketRush.Api.Common.Idempotency;
 using TicketRush.Api.Common.Errors;
 using TicketRush.Api.Common.Middleware;
+using TicketRush.Api.Common.RateLimiting;
 using TicketRush.Api.Features.Auth;
 using TicketRush.Api.Features.Catalog;
 using TicketRush.Api.Features.Organizer;
@@ -54,6 +55,7 @@ public static class ApiServiceCollectionExtensions
         });
 
         services.AddApiAuthentication();
+        services.AddApiRateLimiting();
         services.AddSingleton<PaymentWebhookMetrics>();
         services.AddScoped<PaymentWebhookReceiver>();
         return services;
@@ -76,6 +78,8 @@ public static class ApiServiceCollectionExtensions
         app.UseCors(WebCorsPolicy);
         app.UseLocalMedia();
         app.UseAuthentication();
+        // After authentication (the per-user policies need the user), before authorization (refused requests count too).
+        app.UseRateLimiter();
         app.UseAuthorization();
         app.UseIdempotencyBuffering();
         return app;

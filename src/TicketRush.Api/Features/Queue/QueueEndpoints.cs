@@ -1,3 +1,4 @@
+using TicketRush.Api.Common.RateLimiting;
 using System.Security.Claims;
 using TicketRush.Api.Common.Auth;
 using TicketRush.Api.Common.Http;
@@ -19,6 +20,7 @@ public static class QueueEndpoints
 
         queue.MapPost("/join", JoinAsync)
             .WithName("JoinQueue")
+            .RequireRateLimit(RateLimitPolicies.QueueJoin)
             .Produces<QueueStatusResponse>()
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
@@ -26,6 +28,7 @@ public static class QueueEndpoints
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
         queue.MapGet("/me", StatusAsync)
             .WithName("GetQueueStatus")
+            .RequireRateLimit(RateLimitPolicies.QueueStatus)
             .Produces<QueueStatusResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
