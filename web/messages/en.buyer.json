@@ -429,6 +429,8 @@
     },
     "loadFailed": "The seat map could not be loaded.",
     "retry": "Try again",
-    "limit": "Up to {count} tickets per buyer"
+    "limit": "Up to {count} tickets per buyer",
+    "sectionFree": "{count}/{total} free",
+    "sectionFull": "Full"
   }
 }

@@ -429,6 +429,8 @@
     },
     "loadFailed": "Không tải được sơ đồ ghế.",
     "retry": "Thử lại",
-    "limit": "Tối đa {count} vé mỗi người"
+    "limit": "Tối đa {count} vé mỗi người",
+    "sectionFree": "Còn {count}/{total}",
+    "sectionFull": "Hết ghế"
   }
 }

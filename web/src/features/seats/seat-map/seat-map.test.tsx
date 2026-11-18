@@ -54,6 +54,19 @@ describe("SeatMap", () => {
     expect(screen.queryByRole("button", { name: /^Khu B, hàng/ })).not.toBeInTheDocument();
   });
 
+  it("frames the overview around the venue, keeps the stage clear of the sections and shows what is left", () => {
+    const { container } = setup();
+
+    const [x, y, width, height] = container.querySelector("svg")!.getAttribute("viewBox")!.split(" ").map(Number);
+    // Seats span x 124–548, y 128–156: the frame follows them instead of a fixed 1000 × 700 canvas.
+    expect(x).toBeGreaterThan(0);
+    expect(width).toBeLessThan(600);
+    expect(height).toBeLessThan(250);
+    expect(y + height).toBeGreaterThan(156);
+    expect(screen.getByText("Còn 3/4")).toBeInTheDocument();
+    expect(screen.getByText("Còn 2/2")).toBeInTheDocument();
+  });
+
   it("toggles a free seat when clicked", () => {
     const { onToggle } = setup();
     zoomInto(/Khu A,/);

@@ -9,11 +9,14 @@ import type { SeatStore } from "@/lib/seats/seat-store";
 import type { SeatInfo, SeatMap as SeatMapData } from "@/lib/seats/types";
 import { useStoreRevision } from "@/lib/seats/use-seat";
 import { nextSeat, SEAT_KEYS, type SeatKey } from "./keyboard";
-import { Seat, SEAT_RADIUS } from "./seat";
+import { boundsOf, overviewLayout, type Box, type OverviewLayout } from "./overview-layout";
+import { Seat } from "./seat";
 import { usePanZoom } from "./use-pan-zoom";
 
-const CANVAS = { width: 1000, height: 700 };
 const PAD = 30;
+/** The map keeps the venue's shape, within these limits (width / height): a long thin hall still gets a usable height. */
+const MIN_ASPECT = 4 / 3;
+const MAX_ASPECT = 21 / 9;
 
 type SeatMapProps = {
   seatMap: SeatMapData;
@@ -24,15 +27,7 @@ type SeatMapProps = {
   onToggle: (index: number) => void;
 };
 
-type Box = { x: number; y: number; width: number; height: number };
-
-function boundsOf(seats: SeatInfo[]): Box {
-  const xs = seats.map((s) => s.x);
-  const ys = seats.map((s) => s.y);
-  const x = Math.min(...xs) - SEAT_RADIUS;
-  const y = Math.min(...ys) - SEAT_RADIUS;
-  return { x, y, width: Math.max(...xs) + SEAT_RADIUS - x, height: Math.max(...ys) + SEAT_RADIUS - y };
-}
+const toViewBox = (box: Box) => `${box.x} ${box.y} ${box.width} ${box.height}`;
 
 /**
  * Seat map of spec 07 (dynamically imported by the page). Overview of sections first; opening a section shows its seats
@@ -43,6 +38,7 @@ export function SeatMap({ seatMap, tiers, store, tierFilter, onToggle }: SeatMap
   const svg = useRef<SVGSVGElement>(null);
   const group = useRef<SVGGElement>(null);
   const sections = useMemo(() => [...new Set(seatMap.seats.map((s) => s.section))], [seatMap.seats]);
+  const layout = useMemo(() => overviewLayout(seatMap.seats, sections), [seatMap.seats, sections]);
   const [opened, setOpened] = useState<string | null>(null);
   const section = opened ?? (sections.length === 1 ? sections[0] : null);
   const visible = useMemo(() => seatMap.seats.filter((s) => s.section === section), [seatMap.seats, section]);
@@ -61,8 +57,10 @@ export function SeatMap({ seatMap, tiers, store, tierFilter, onToggle }: SeatMap
   }, [opened]);
 
   const tierById = useMemo(() => new Map(tiers.map((tier) => [tier.id, tier])), [tiers]);
-  const box = section && visible.length > 0 ? boundsOf(visible) : { x: 0, y: 0, ...CANVAS };
-  const viewBox = section ? `${box.x - PAD} ${box.y - PAD} ${box.width + PAD * 2} ${box.height + PAD * 2}` : `0 0 ${CANVAS.width} ${CANVAS.height}`;
+  const box = section && visible.length > 0 ? boundsOf(visible) : null;
+  const viewBox = box ? toViewBox({ x: box.x - PAD, y: box.y - PAD, width: box.width + PAD * 2, height: box.height + PAD * 2 }) : toViewBox(layout.viewBox);
+  // One shape for the overview and every section, so opening a section never resizes the map.
+  const aspect = Math.min(Math.max(layout.viewBox.width / layout.viewBox.height, MIN_ASPECT), MAX_ASPECT);
   const tabbable = focused !== null && visible.some((s) => s.index === focused) ? focused : visible[0]?.index;
 
   const indexOf = (target: EventTarget) => {
@@ -157,7 +155,8 @@ export function SeatMap({ seatMap, tiers, store, tierFilter, onToggle }: SeatMap
         viewBox={viewBox}
         role="group"
         aria-label={t("seats.mapLabel", "vi", { count: seatMap.seats.length })}
-        className="aspect-[10/7] w-full touch-none select-none rounded-xl border bg-muted/40"
+        style={{ aspectRatio: aspect }}
+        className="w-full touch-none select-none rounded-xl border bg-muted/40"
         onClick={click}
         onKeyDown={keyDown}
       >
@@ -178,7 +177,7 @@ export function SeatMap({ seatMap, tiers, store, tierFilter, onToggle }: SeatMap
               );
             })
           ) : (
-            <Overview seats={seatMap.seats} sections={sections} store={store} />
+            <Overview seats={seatMap.seats} layout={layout} store={store} />
           )}
         </g>
       </svg>
@@ -195,24 +194,40 @@ function freeIn(seats: SeatInfo[], store: SeatStore, revision: number): number {
   return seats.filter((s) => store.get(s.index) === "free").length;
 }
 
-function Overview({ seats, sections, store }: { seats: SeatInfo[]; sections: string[]; store: SeatStore }) {
+function Overview({ seats, layout, store }: { seats: SeatInfo[]; layout: OverviewLayout; store: SeatStore }) {
   // Free counts change with every delta; only the overview pays for recounting.
   const revision = useStoreRevision(store);
+  // Type is sized to the venue (SVG units), so it reads the same on a club floor plan and a stadium.
+  const font = layout.viewBox.width / 32;
+  const { stage } = layout;
   return (
     <>
-      <rect x={350} y={20} width={300} height={44} rx={8} className="fill-foreground/80" />
-      <text x={500} y={48} textAnchor="middle" className="fill-background text-[18px] font-semibold">
+      <rect x={stage.x} y={stage.y} width={stage.width} height={stage.height} rx={stage.height / 4} className="fill-foreground/80" />
+      <text x={stage.x + stage.width / 2} y={stage.y + stage.height / 2} dominantBaseline="central" textAnchor="middle" fontSize={Math.min(font, stage.height * 0.6)} className="fill-background font-semibold">
         {t("seats.stage")}
       </text>
-      {sections.map((name) => {
+      {layout.sections.map(({ name, box }) => {
         const own = seats.filter((s) => s.section === name);
-        const box = boundsOf(own);
         const free = freeIn(own, store, revision);
+        const cx = box.x + box.width / 2;
+        const cy = box.y + box.height / 2;
         return (
           <g key={name} data-section={name} role="button" tabIndex={0} aria-label={t("seats.sectionLabel", "vi", { name, count: free })} className="cursor-pointer outline-none focus-visible:[&>rect]:stroke-ring">
-            <rect x={box.x - 6} y={box.y - 6} width={box.width + 12} height={box.height + 12} rx={10} className="fill-primary/15 stroke-primary/40" strokeWidth={2} />
-            <text x={box.x + box.width / 2} y={box.y + box.height / 2 + 6} textAnchor="middle" className="fill-foreground text-[20px] font-semibold">
+            <rect
+              x={box.x}
+              y={box.y}
+              width={box.width}
+              height={box.height}
+              rx={Math.min(box.width, box.height) / 10}
+              className={free > 0 ? "fill-primary/15 stroke-primary/40" : "fill-muted stroke-border"}
+              strokeWidth={2}
+              vectorEffect="non-scaling-stroke"
+            />
+            <text x={cx} y={cy - font * 0.35} textAnchor="middle" fontSize={font} className="fill-foreground font-semibold">
               {name}
+            </text>
+            <text aria-hidden x={cx} y={cy + font * 0.85} textAnchor="middle" fontSize={font * 0.6} className="fill-muted-foreground">
+              {free > 0 ? t("seats.sectionFree", "vi", { count: free, total: own.length }) : t("seats.sectionFull")}
             </text>
           </g>
         );
