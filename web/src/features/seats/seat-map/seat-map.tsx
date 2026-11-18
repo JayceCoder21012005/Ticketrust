@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEve
 import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { TicketTier } from "@/lib/catalog/types";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import type { SeatStore } from "@/lib/seats/seat-store";
 import type { SeatInfo, SeatMap as SeatMapData } from "@/lib/seats/types";
 import { useStoreRevision } from "@/lib/seats/use-seat";

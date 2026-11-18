@@ -3,6 +3,7 @@
 import { createContext, use, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   getSession,
+  isSessionUnreachable,
   login,
   logout,
   refreshAccessToken,
@@ -11,12 +12,19 @@ import {
   type SessionUser,
 } from "@/lib/api/session";
 import { hasSessionHint } from "@/lib/auth/session-hint";
+import { forgetOfflineTicketsLater } from "@/lib/tickets/forget-offline";
+import { readOwnerMarker } from "@/lib/tickets/owner-marker";
 
 export type AuthStatus = "loading" | "authenticated" | "anonymous";
 
 type AuthContextValue = {
   status: AuthStatus;
   user: SessionUser | null;
+  /**
+   * The session hint says "signed in" but the session could not be restored for lack of a network (status stays
+   * `anonymous`). Only the offline ticket wallet acts on it; every other guarded page still goes to login.
+   */
+  offline: boolean;
   signIn: (credentials: { email: string; password: string }) => Promise<Session>;
   signOut: () => Promise<void>;
 };
@@ -38,6 +46,7 @@ const onServer = () => false;
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const session = useSyncExternalStore(subscribe, getSession, () => null);
+  const unreachable = useSyncExternalStore(subscribe, isSessionUnreachable, () => false);
   const hint = useSyncExternalStore(noSubscription, readHint, () => false);
   // The server render and hydration can't read the cookie: until the client can, the session is unknown, not absent.
   const hydrated = useSyncExternalStore(noSubscription, onClient, onServer);
@@ -52,6 +61,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refreshAccessToken().finally(() => setRestored(true));
   }, [restoring]);
 
+  // Every session start (the login page included, where no query cache is watched): if the offline wallet on this
+  // device belongs to someone else, it is wiped before anything can show it. Only then is the cleanup loaded.
+  const userId = session?.user.id ?? null;
+  useEffect(() => {
+    if (!userId) return;
+    const owner = readOwnerMarker();
+    if (owner !== null && owner !== userId) void forgetOfflineTicketsLater();
+  }, [userId]);
+
   useEffect(() => {
     if (!session) {
       return;
@@ -65,8 +83,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextValue = {
     status: session ? "authenticated" : !hydrated || restoring ? "loading" : "anonymous",
     user: session?.user ?? null,
+    offline: !session && hint && unreachable,
     signIn: (credentials) => login(credentials),
-    signOut: () => logout(),
+    // Logout wipes the offline wallet (cached keys, ticket details, the service worker and its caches).
+    signOut: () => logout().finally(() => forgetOfflineTicketsLater()),
   };
 
   return <AuthContext value={value}>{children}</AuthContext>;

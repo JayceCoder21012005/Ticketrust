@@ -212,29 +212,21 @@ describe("OrderDetailView", () => {
       expect(screen.queryByRole("link", { name: "Tiếp tục thanh toán" })).not.toBeInTheDocument();
     });
 
-    it("a paid order shows its ticket count and a disabled 'Xem vé' while the tickets page does not exist", async () => {
+    it("a paid order shows its ticket count and a 'Xem vé' link to my tickets", async () => {
       await show("Paid");
 
       expect(screen.getByText("Bạn có 4 vé.")).toBeInTheDocument();
-      const view = screen.getByRole("button", { name: "Xem vé" });
-      expect(view).toHaveAttribute("aria-disabled", "true");
-      expect(view).not.toBeDisabled();
-      expect(view).toHaveAccessibleDescription("Trang xem vé sẽ có trong thời gian tới.");
+      expect(screen.getByRole("link", { name: "Xem vé" })).toHaveAttribute("href", "/account/tickets");
     });
 
-    it("keeps 'Xem vé' focusable but does nothing when activated", async () => {
-      const user = userEvent.setup();
-      await show("Paid");
-
-      const view = screen.getByRole("button", { name: "Xem vé" });
-      await user.tab();
-      view.focus();
-      expect(view).toHaveFocus();
-      await user.click(view);
-      await user.keyboard("{Enter}");
-      expect(router.push).not.toHaveBeenCalled();
-      expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
-    });
+    it.each<OrderStatus>(["Pending", "AwaitingPayment", "PaymentFailed", "Cancelled", "Expired", "RefundPending", "Refunded"])(
+      "%s has no 'Xem vé'",
+      async (status) => {
+        await show(status);
+        expect(screen.queryByRole("link", { name: "Xem vé" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Xem vé" })).not.toBeInTheDocument();
+      },
+    );
 
     it("links back to all orders", async () => {
       await show("Paid");

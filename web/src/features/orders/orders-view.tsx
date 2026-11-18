@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { loginRedirectUrl } from "@/lib/api/session";
 import { listMyOrders } from "@/lib/checkout/orders-api";
 import type { OrderPage, OrderSummary } from "@/lib/checkout/types";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { OrderRow, orderLinkId } from "./order-row";
 
 export const ORDERS_HREF = "/account/orders";

@@ -468,6 +468,86 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TicketRush.Domain.Gates.CheckIn", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<string>("GateName")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("gate_name");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("result");
+
+                    b.Property<DateTimeOffset>("ScannedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("scanned_at");
+
+                    b.Property<Guid>("StaffUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("staff_user_id");
+
+                    b.Property<Guid?>("TicketId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ticket_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_check_ins");
+
+                    b.HasIndex("TicketId")
+                        .HasDatabaseName("ix_check_ins_ticket");
+
+                    b.HasIndex("EventId", "ScannedAt")
+                        .HasDatabaseName("ix_check_ins_event_scanned_at");
+
+                    b.ToTable("check_ins", (string)null);
+                });
+
+            modelBuilder.Entity("TicketRush.Domain.Gates.GateAssignment", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("GateName")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("gate_name");
+
+                    b.HasKey("EventId", "UserId")
+                        .HasName("pk_gate_assignments");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_gate_assignments_user_id");
+
+                    b.ToTable("gate_assignments", (string)null);
+                });
+
             modelBuilder.Entity("TicketRush.Domain.Notifications.EmailDelivery", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1002,6 +1082,14 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<DateTimeOffset?>("CheckedInAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("checked_in_at");
+
+                    b.Property<Guid?>("CheckedInByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("checked_in_by_user_id");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -1066,6 +1154,9 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_tickets_event_seat")
                         .HasFilter("status <> 'Voided' AND seat_index IS NOT NULL");
+
+                    b.HasIndex("EventId", "Status")
+                        .HasDatabaseName("ix_tickets_event_status");
 
                     b.ToTable("tickets", (string)null);
                 });

@@ -2,7 +2,7 @@ import { Ban, CircleCheck, CircleX, Clock, LoaderCircle, Undo2, type LucideIcon 
 import { Badge } from "@/components/ui/badge";
 import { statusLabelKey, statusToneOf, type StatusTone } from "@/lib/checkout/order-timeline";
 import type { OrderStatus } from "@/lib/checkout/types";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { cn } from "@/lib/utils";
 
 const ICON: Record<OrderStatus, LucideIcon> = {

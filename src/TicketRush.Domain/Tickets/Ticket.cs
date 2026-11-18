@@ -60,6 +60,12 @@ public sealed class Ticket : AggregateRoot, IAuditable
     public byte[] QrSecret { get; private set; }
 #pragma warning restore CA1819
 
+    /// <summary>When the gate admitted this ticket (spec 11). Null until then; kept if the ticket is voided afterwards.</summary>
+    public DateTimeOffset? CheckedInAt { get; private set; }
+
+    /// <summary>The gate staff user who admitted it (spec 11).</summary>
+    public Guid? CheckedInByUserId { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
 
     public DateTimeOffset UpdatedAt { get; private set; }
@@ -79,8 +85,21 @@ public sealed class Ticket : AggregateRoot, IAuditable
         return new Ticket(orderId, eventId, tierId, seatIndex, ownerUserId);
     }
 
-    /// <summary>Valid → CheckedIn.</summary>
-    public void CheckIn() => Move(TicketStatus.CheckedIn, nameof(CheckIn), TicketStatus.Valid);
+    /// <summary>
+    /// Valid → CheckedIn, recording who admitted it and when. The gate itself admits with one conditional UPDATE (spec 11)
+    /// so two scans cannot both win; this method is the same rule for code that already holds the aggregate.
+    /// </summary>
+    public void CheckIn(Guid staffUserId, DateTimeOffset at)
+    {
+        if (staffUserId == Guid.Empty)
+        {
+            throw new DomainException("ticket.invalid_reference", "A check-in needs the staff user who scanned the ticket.");
+        }
+
+        Move(TicketStatus.CheckedIn, nameof(CheckIn), TicketStatus.Valid);
+        CheckedInAt = at;
+        CheckedInByUserId = staffUserId;
+    }
 
     /// <summary>Valid → Listed (put up for resale).</summary>
     public void List() => Move(TicketStatus.Listed, nameof(List), TicketStatus.Valid);

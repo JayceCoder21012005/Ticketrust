@@ -32,6 +32,7 @@ Distributed sliding-window limiter in Redis (`RedisSlidingWindowLimiter`, one Lu
 | `gate-scan` | staff user | 5 / s |
 
 - Rejected → 429 ProblemDetails `rate_limited` + `Retry-After`.
+- Spec 10's `ticket.qr_key_rate_limited` (429, from its Redis fixed-window throttle) becomes the standard `rate_limited` code when the `qr-key` policy replaces that throttle; the web client classifies 429 by status, so nothing changes there.
 - If Redis is down, the limiter fails **open** for reads and the global policy, and the protected write path still fails closed (00).
 - Trust `X-Forwarded-For` only from the configured reverse proxy (`ForwardedHeadersOptions.KnownProxies`).
 

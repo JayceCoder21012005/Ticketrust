@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatCountdown, remainingMs } from "@/lib/clock";
 import { formatVnd } from "@/lib/format";
-import { t } from "@/lib/i18n";
+import { t } from "@/lib/i18n.buyer";
 import { seatPlace } from "@/lib/seats/format";
 import type { Hold } from "@/lib/seats/types";
 

@@ -76,6 +76,12 @@ describe("AccountView", () => {
     expect(await screen.findByRole("link", { name: "Đơn hàng của tôi" })).toHaveAttribute("href", "/account/orders");
   });
 
+  it("links to my tickets", async () => {
+    renderAccount();
+
+    expect(await screen.findByRole("link", { name: "Vé của tôi" })).toHaveAttribute("href", "/account/tickets");
+  });
+
   it("saves the profile and updates the signed-in user", async () => {
     routes.set("PUT /api/v1/me", async (request) => json({ ...me, ...(await request.json()) }));
     renderAccount();

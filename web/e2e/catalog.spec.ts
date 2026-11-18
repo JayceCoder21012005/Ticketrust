@@ -41,9 +41,12 @@ test("home leads with the next sale to open and links into the catalog", async (
 test("searching without accents finds the event, and the query lands in the URL", async ({ page }) => {
   await page.goto("/events");
 
-  await page.getByRole("searchbox", { name: "Tìm kiếm" }).last().fill("son tung");
-
-  await expect(page).toHaveURL("/events?q=son+tung");
+  // The page is server-rendered: typing before React hydrates is lost, so type again until the debounced search fires.
+  await expect(async () => {
+    await page.getByRole("searchbox", { name: "Tìm kiếm" }).last().fill("");
+    await page.getByRole("searchbox", { name: "Tìm kiếm" }).last().fill("son tung");
+    await expect(page).toHaveURL("/events?q=son+tung", { timeout: 1500 });
+  }).toPass({ timeout: 15_000 });
   await expect(page.getByRole("heading", { level: 2, name: "Sơn Tùng M-TP Live" })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: "Mỹ Tâm - Tri Kỷ" })).toHaveCount(0);
 });
