@@ -246,5 +246,14 @@ public sealed class EventCancelledInventoryHandlerTests(ContainersFixture contai
         public Task<long> GetCommitFenceAsync(Guid eventId, CancellationToken ct) => inner.GetCommitFenceAsync(eventId, ct);
 
         public Task<ReconcileReport> ReconcileAsync(InventorySeed seed, CancellationToken ct) => inner.ReconcileAsync(seed, ct);
+
+        public Task<WaitlistHoldOutcome> HoldReturnedAsync(Guid eventId, Guid holdId, Guid userId, IReadOnlyList<int> seats, IReadOnlyList<GaLine> ga, Guid previousOwner, TimeSpan ttl, CancellationToken ct) =>
+            inner.HoldReturnedAsync(eventId, holdId, userId, seats, ga, previousOwner, ttl, ct);
+
+        public Task<WaitlistHoldOutcome> PassHoldAsync(Guid eventId, Guid oldHoldId, Guid oldUserId, Guid newHoldId, Guid newUserId, TimeSpan ttl, CancellationToken ct) =>
+            inner.PassHoldAsync(eventId, oldHoldId, oldUserId, newHoldId, newUserId, ttl, ct);
+
+        public Task FreeReturnedAsync(Guid eventId, IReadOnlyList<int> seats, IReadOnlyList<GaLine> ga, Guid previousOwner, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct) =>
+            inner.FreeReturnedAsync(eventId, seats, ga, previousOwner, eventGaTiers, ct);
     }
 }

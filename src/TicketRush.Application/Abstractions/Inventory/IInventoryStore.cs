@@ -41,7 +41,36 @@ public interface IInventoryStore
 
     /// <summary>Makes Redis agree with the database (sold seats, GA remaining, bought counts) and marks the event warm.</summary>
     Task<ReconcileReport> ReconcileAsync(InventorySeed seed, CancellationToken ct);
+
+    /// <summary>
+    /// Spec 13: a voided ticket's seats / GA units become a waitlist hold of <paramref name="userId"/> in one step (never free in
+    /// between); <paramref name="previousOwner"/> stops counting them. The hold is not swept on expiry: the waitlist expires it.
+    /// </summary>
+    Task<WaitlistHoldOutcome> HoldReturnedAsync(
+        Guid eventId, Guid holdId, Guid userId, IReadOnlyList<int> seats, IReadOnlyList<GaLine> ga, Guid previousOwner, TimeSpan ttl, CancellationToken ct);
+
+    /// <summary>Spec 13: an expired waitlist hold moves, as it is, to the next waitlist holder.</summary>
+    Task<WaitlistHoldOutcome> PassHoldAsync(Guid eventId, Guid oldHoldId, Guid oldUserId, Guid newHoldId, Guid newUserId, TimeSpan ttl, CancellationToken ct);
+
+    /// <summary>Spec 13: nobody waits for a voided ticket: its seats / GA units go back to the public sale.</summary>
+    Task FreeReturnedAsync(Guid eventId, IReadOnlyList<int> seats, IReadOnlyList<GaLine> ga, Guid previousOwner, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct);
 }
+
+public enum WaitlistHoldStatus
+{
+    Ok,
+
+    /// <summary>The new holder already holds tickets of the event.</summary>
+    HasHold,
+
+    /// <summary>A returned seat is held by someone else.</summary>
+    Taken,
+
+    /// <summary>The waitlist hold to pass on no longer exists.</summary>
+    NotFound,
+}
+
+public sealed record WaitlistHoldOutcome(WaitlistHoldStatus Status, DateTimeOffset? ExpiresAt);
 
 /// <summary>Published events only; null for drafts, cancelled and unknown events.</summary>
 public interface IHoldCatalog

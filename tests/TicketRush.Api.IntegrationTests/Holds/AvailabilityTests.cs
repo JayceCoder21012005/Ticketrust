@@ -135,5 +135,11 @@ public sealed class AvailabilityTests(ContainersFixture containers) : IAsyncLife
         public Task<long> GetCommitFenceAsync(Guid eventId, CancellationToken ct) => Down<long>();
 
         public Task<ReconcileReport> ReconcileAsync(InventorySeed seed, CancellationToken ct) => Down<ReconcileReport>();
+
+        public Task<WaitlistHoldOutcome> HoldReturnedAsync(Guid eventId, Guid holdId, Guid userId, IReadOnlyList<int> seats, IReadOnlyList<GaLine> ga, Guid previousOwner, TimeSpan ttl, CancellationToken ct) => Down<WaitlistHoldOutcome>();
+
+        public Task<WaitlistHoldOutcome> PassHoldAsync(Guid eventId, Guid oldHoldId, Guid oldUserId, Guid newHoldId, Guid newUserId, TimeSpan ttl, CancellationToken ct) => Down<WaitlistHoldOutcome>();
+
+        public Task FreeReturnedAsync(Guid eventId, IReadOnlyList<int> seats, IReadOnlyList<GaLine> ga, Guid previousOwner, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct) => Down<bool>();
     }
 }
