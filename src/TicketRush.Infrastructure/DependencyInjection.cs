@@ -123,6 +123,8 @@ public static class DependencyInjection
         // After the inventory handler: closing rooms, releasing holds and settling orders is the safety-critical part, so the
         // outbox (which stops a message at its first failing handler) runs it first.
         services.AddIntegrationEventHandler<EventCancelled, EventCancelledNotificationHandler>();
+        // Spec 13: last for EventCancelled, after the holds are released and the people who hold tickets are told.
+        services.AddIntegrationEventHandler<EventCancelled, EventCancelledWaitlistHandler>();
         AddOrderNotificationHandlers(services);
         // Order matters: the outbox runs a message's handlers in this order and stops at the first failure (commit first).
         services.AddIntegrationEventHandler<OrderPaid, OrderPaidInventoryCommitHandler>();

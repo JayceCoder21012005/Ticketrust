@@ -9,6 +9,9 @@ public enum WaitlistStatus
     Converted,
     Expired,
     Left,
+
+    /// <summary>The event was cancelled: nothing will come back to offer.</summary>
+    Closed,
 }
 
 /// <summary>A held ticket was offered to the entry's user (spec 13): sent as an in-app notification and an email.</summary>
@@ -128,6 +131,19 @@ public sealed class WaitlistEntry : AggregateRoot
         }
 
         Status = WaitlistStatus.Left;
+        OfferHoldId = null;
+        OfferExpiresAt = null;
+    }
+
+    /// <summary>The event was cancelled (its holds are released by the cancellation itself).</summary>
+    public void Close()
+    {
+        if (!IsLive)
+        {
+            throw new DomainException("waitlist.illegal_transition", $"Cannot close a waitlist entry that is {Status}.");
+        }
+
+        Status = WaitlistStatus.Closed;
         OfferHoldId = null;
         OfferExpiresAt = null;
     }
