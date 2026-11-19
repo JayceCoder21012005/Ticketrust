@@ -23,6 +23,9 @@ export const isSlug = (value: string) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value
 
 const UNAVAILABLE = Symbol("api unavailable at build time");
 
+/** Prerenderable (Next excludes `stale` under 30 s and `expire` under 5 min from prerenders) but refreshed on the next request: for a page without Suspense. */
+const RETRY_SOON = { stale: 30, revalidate: 1, expire: 300 };
+
 async function getJson<T>(path: string): Promise<T | null | typeof UNAVAILABLE> {
   let response: Response;
   try {
@@ -66,7 +69,10 @@ export async function getHomeSections(): Promise<HomeSections | null> {
   cacheTag(LIST_TAG);
   const home = await getJson<HomeSections>("/catalog/home");
   if (home === UNAVAILABLE || home === null) {
-    cacheLife("seconds");
+    // The home page has no Suspense boundary, so this read must stay prerenderable even without an answer: the `seconds`
+    // profile (expire 60 s, under Next's 5-minute floor) would make it a dynamic hole and block the route. Kept for the
+    // floor, regenerated a second later: the error state lasts until the next request, not for minutes.
+    cacheLife(RETRY_SOON);
     return null;
   }
 
