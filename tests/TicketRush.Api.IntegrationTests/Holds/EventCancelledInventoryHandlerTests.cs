@@ -234,6 +234,8 @@ public sealed class EventCancelledInventoryHandlerTests(ContainersFixture contai
 
         public Task<bool> HoldRecordedAsync(Guid eventId, Guid holdId, Guid userId, CancellationToken ct) => inner.HoldRecordedAsync(eventId, holdId, userId, ct);
 
+        public Task<ActiveHold?> GetHoldAsync(Guid eventId, Guid holdId, CancellationToken ct) => inner.GetHoldAsync(eventId, holdId, ct);
+
         public Task<CommitOutcome> CommitAsync(Guid eventId, Guid orderId, Guid holdId, Guid userId, IReadOnlyList<int> seats, IReadOnlyList<GaLine> ga, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct) =>
             inner.CommitAsync(eventId, orderId, holdId, userId, seats, ga, eventGaTiers, ct);
 

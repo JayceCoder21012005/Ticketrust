@@ -122,6 +122,8 @@ public sealed class AvailabilityTests(ContainersFixture containers) : IAsyncLife
 
         public Task<bool> HoldRecordedAsync(Guid eventId, Guid holdId, Guid userId, CancellationToken ct) => Down<bool>();
 
+        public Task<ActiveHold?> GetHoldAsync(Guid eventId, Guid holdId, CancellationToken ct) => Down<ActiveHold?>();
+
         public Task<CommitOutcome> CommitAsync(Guid eventId, Guid orderId, Guid holdId, Guid userId, IReadOnlyList<int> seats, IReadOnlyList<GaLine> ga, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct) => Down<CommitOutcome>();
 
         public Task<InventorySnapshot> GetSnapshotAsync(Guid eventId, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct) => Down<InventorySnapshot>();

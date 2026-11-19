@@ -38,6 +38,8 @@ using TicketRush.Infrastructure.Queue;
 using TicketRush.Infrastructure.Redis;
 using TicketRush.Infrastructure.Storage;
 using TicketRush.Domain.Users;
+using TicketRush.Application.Features.Waitlist;
+using TicketRush.Domain.Tickets;
 using TicketRush.Infrastructure.Email;
 using TicketRush.Infrastructure.Catalog;
 using TicketRush.Application.Features.Catalog;
@@ -71,6 +73,7 @@ public static class DependencyInjection
         services.AddValidatedOptions<StorageOptions>(StorageOptions.SectionName);
         services.AddValidatedOptions<QueueOptions>(QueueOptions.SectionName);
         services.AddValidatedOptions<HoldsOptions>(HoldsOptions.SectionName);
+        services.AddValidatedOptions<WaitlistOptions>(WaitlistOptions.SectionName);
         services.AddValidatedOptions<RateLimitsOptions>(RateLimitsOptions.SectionName);
         services.AddValidatedOptions<FrontendOptions>(FrontendOptions.SectionName);
         services.AddValidatedOptions<FulfilmentOptions>(FulfilmentOptions.SectionName);
@@ -263,6 +266,8 @@ public static class DependencyInjection
         services.AddIntegrationEventHandler<RefundRequested, RefundRequestedNotificationHandler>();
         services.AddIntegrationEventHandler<OrderRefunded, OrderRefundedNotificationHandler>();
         services.AddIntegrationEventHandler<PaymentRefunded, PaymentRefundedNotificationHandler>();
+        services.AddIntegrationEventHandler<TicketReturned, TicketReturnedWaitlistHandler>();
+        services.AddIntegrationEventHandler<OrderPaid, OrderPaidWaitlistHandler>();
     }
 
     /// <summary>Spec 09: the notification writer and the email delivery worker's processor.</summary>

@@ -15,6 +15,7 @@ public static class DependencyInjection
         AddUseCaseHandlers(services);
         services.AddScoped<Features.Notifications.OrderNoticeSender>();
         services.TryAddSingleton<Features.Holds.IBestAvailablePicker, Features.Holds.BestAvailableSeatPicker>();
+        services.AddScoped<Features.Waitlist.WaitlistOffers>();
         return services;
     }
 

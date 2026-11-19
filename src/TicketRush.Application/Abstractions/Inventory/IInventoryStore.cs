@@ -19,6 +19,9 @@ public interface IInventoryStore
     /// </summary>
     Task<bool> HoldRecordedAsync(Guid eventId, Guid holdId, Guid userId, CancellationToken ct);
 
+    /// <summary>A hold by id, live or expired but not yet swept (the waitlist passes expired offers on); null once it is gone.</summary>
+    Task<ActiveHold?> GetHoldAsync(Guid eventId, Guid holdId, CancellationToken ct);
+
     /// <summary>
     /// Called by checkout (08) after the database commit; also covers a hold that already expired. Idempotent per
     /// <paramref name="orderId"/>: a redelivery answers <see cref="CommitStatus.Duplicate"/> and changes nothing.
