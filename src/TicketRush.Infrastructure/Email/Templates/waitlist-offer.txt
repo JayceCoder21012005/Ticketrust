@@ -1,0 +1,12 @@
+Subject: Có vé cho bạn: {{ eventTitle }}
+
+Xin chào {{ name }},
+
+Có vé cho bạn! Một vé của sự kiện {{ eventTitle }} vừa được trả lại và đang được giữ riêng cho bạn trong danh sách chờ.
+
+Vé được giữ đến {{ expiresAtText }}. Sau thời điểm đó, vé sẽ được chuyển cho người tiếp theo trong danh sách chờ.
+
+Mua ngay:
+{{ link }}
+
+Bạn nhận email này vì đã vào danh sách chờ của sự kiện này. Bạn có thể rời danh sách chờ trên trang sự kiện.

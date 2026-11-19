@@ -45,4 +45,8 @@ public static class NotificationCopy
             $"Sự kiện \"{eventTitle}\" sẽ diễn ra lúc {whenText}. Hẹn gặp bạn tại sự kiện!"),
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "No reminder has this kind."),
     };
+
+    public static (string Title, string Body) ForWaitlistOffer(string eventTitle, string expiresText) => (
+        "Có vé cho bạn!",
+        $"Một vé \"{eventTitle}\" vừa được giữ riêng cho bạn từ danh sách chờ. Hãy mua trước {expiresText}, sau đó vé sẽ chuyển cho người tiếp theo.");
 }

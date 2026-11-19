@@ -27,6 +27,7 @@ public sealed partial class EmailRenderingTests
         "event-cancelled",
         "reminder-sale-opens",
         "reminder-event-starts",
+        "waitlist-offer",
     ];
 
     private static object Model(string name = "Nguyễn Văn Đạt") => new
@@ -36,8 +37,21 @@ public sealed partial class EmailRenderingTests
         orderCode = "TR-20261111-0042",
         amount = "1.250.000 ₫",
         startsAtText = "20:00, 15/11/2026",
+        expiresAtText = "10:15, 20/11/2026",
         link = $"{BaseUrl}/account/orders/{OrderId}?a=1&b=2",
     };
+
+    [Fact]
+    public void The_waitlist_offer_says_a_ticket_is_held_and_until_when()
+    {
+        var email = _renderer.Render("waitlist-offer", Model());
+
+        email.Subject.ShouldContain("Có vé cho bạn");
+        email.Subject.ShouldContain("Đêm nhạc Mùa Thu");
+        email.Text.ShouldContain("10:15, 20/11/2026");
+        email.Html.ShouldContain("10:15, 20/11/2026");
+        email.Html.ShouldContain("Mua ngay");
+    }
 
     [Theory]
     [MemberData(nameof(Templates))]
@@ -85,6 +99,7 @@ public sealed partial class EmailRenderingTests
         "event-cancelled",
         "reminder-sale-opens",
         "reminder-event-starts",
+        "waitlist-offer",
     ];
 
     [Theory]
@@ -99,6 +114,7 @@ public sealed partial class EmailRenderingTests
             orderCode = "TR-20261111-0042",
             amount = "1.250.000 ₫",
             startsAtText = "20:00, 15/11/2026",
+            expiresAtText = "10:15, 20/11/2026",
             link = $"{BaseUrl}/account/orders/{OrderId}?a=1&b=2",
         };
 

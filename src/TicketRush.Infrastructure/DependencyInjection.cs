@@ -40,6 +40,7 @@ using TicketRush.Infrastructure.Storage;
 using TicketRush.Domain.Users;
 using TicketRush.Application.Features.Waitlist;
 using TicketRush.Domain.Tickets;
+using TicketRush.Domain.Waitlist;
 using TicketRush.Infrastructure.Email;
 using TicketRush.Infrastructure.Catalog;
 using TicketRush.Application.Features.Catalog;
@@ -279,6 +280,7 @@ public static class DependencyInjection
         services.AddScoped<ReminderPlanner>();
         services.AddScoped<IReminderPlanner>(provider => provider.GetRequiredService<ReminderPlanner>());
         services.AddIntegrationEventHandler<ReminderDue, ReminderDueHandler>();
+        services.AddIntegrationEventHandler<WaitlistOfferIssued, WaitlistOfferNotificationHandler>();
         // IUserNotifier comes from AddTicketRushSignalR, which both hosts call.
     }
 

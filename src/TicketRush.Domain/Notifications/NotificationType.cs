@@ -10,4 +10,5 @@ public enum NotificationType
     EventCancelled,
     SaleOpensSoon,
     EventStartsSoon,
+    WaitlistOffer,
 }

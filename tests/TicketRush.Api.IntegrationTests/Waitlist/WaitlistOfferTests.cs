@@ -6,6 +6,7 @@ using TicketRush.Api.IntegrationTests.Orders;
 using TicketRush.Application.Abstractions.Inventory;
 using TicketRush.Application.Abstractions.Messaging;
 using TicketRush.Application.Features.Waitlist;
+using TicketRush.Application.Features.Notifications;
 using TicketRush.Domain.Orders;
 using TicketRush.Domain.Tickets;
 using TicketRush.Domain.Waitlist;
@@ -224,5 +225,41 @@ public sealed class WaitlistOfferTests(ContainersFixture containers) : IAsyncLif
 
         (await ExpireAsync()).ShouldBe(0);
         (await EntryAsync(first)).Status.ShouldBe(WaitlistStatus.Offered);
+    }
+
+    [Fact]
+    public async Task An_offer_is_sent_in_app_and_by_email_once_with_the_link_to_the_offer_page()
+    {
+        Guid userId;
+        await using (var scope = _h.Host.Services.CreateAsyncScope())
+        {
+            userId = Guid.CreateVersion7();
+            var email = $"wait-{userId:N}@example.com";
+            var created = await scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<TicketRush.Infrastructure.Identity.AppUser>>()
+                .CreateAsync(new TicketRush.Infrastructure.Identity.AppUser { Id = userId, UserName = email, Email = email, FullName = "Nguyễn Văn Đạt", EmailConfirmed = true });
+            created.Succeeded.ShouldBeTrue();
+        }
+
+        var entry = WaitlistEntry.Join(_h.EventId, userId, null, 1, _h.Time.GetUtcNow());
+        await _h.WithDbAsync(db =>
+        {
+            db.WaitlistEntries.Add(entry);
+            return db.SaveChangesAsync(Ct);
+        });
+        var issued = new WaitlistOfferIssued(entry.Id, _h.EventId, userId, Guid.NewGuid(), _h.Time.GetUtcNow().AddMinutes(15));
+
+        for (var delivery = 0; delivery < 2; delivery++)
+        {
+            await using var scope = _h.Host.Services.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<WaitlistOfferNotificationHandler>()
+                .HandleAsync(issued, new IntegrationEventContext(Guid.NewGuid(), _h.Time.GetUtcNow(), 1), Ct);
+            await scope.ServiceProvider.GetRequiredService<TicketRush.Infrastructure.Persistence.AppDbContext>().SaveChangesAsync(Ct);
+        }
+
+        var notice = await _h.WithDbAsync(db => db.Notifications.AsNoTracking().Where(n => n.UserId == userId).ToListAsync(Ct));
+        notice.ShouldHaveSingleItem().Link.ShouldBe($"/waitlist/offers/{entry.Id}");
+        notice[0].Title.ShouldBe("Có vé cho bạn!");
+        var emails = await _h.WithDbAsync(db => db.EmailDeliveries.AsNoTracking().Where(e => e.UserId == userId).ToListAsync(Ct));
+        emails.ShouldHaveSingleItem().Template.ShouldBe("waitlist-offer");
     }
 }
