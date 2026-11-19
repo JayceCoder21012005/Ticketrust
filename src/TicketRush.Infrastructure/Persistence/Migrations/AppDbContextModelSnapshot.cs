@@ -1339,6 +1339,82 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                     b.ToTable("venues", (string)null);
                 });
 
+            modelBuilder.Entity("TicketRush.Domain.Waitlist.WaitlistEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<int>("Misses")
+                        .HasColumnType("integer")
+                        .HasColumnName("misses");
+
+                    b.Property<DateTimeOffset?>("OfferExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("offer_expires_at");
+
+                    b.Property<Guid?>("OfferHoldId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("offer_hold_id");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<DateTimeOffset>("QueuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("queued_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("TierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tier_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_waitlist_entries");
+
+                    b.HasIndex("OfferExpiresAt")
+                        .HasDatabaseName("ix_waitlist_entries_offer_expires_at")
+                        .HasFilter("status = 'Offered'");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_waitlist_entries_user_id");
+
+                    b.HasIndex("EventId", "QueuedAt")
+                        .HasDatabaseName("ix_waitlist_entries_event_id_queued_at")
+                        .HasFilter("status = 'Waiting'");
+
+                    b.HasIndex("EventId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_waitlist_entries_event_id_user_id")
+                        .HasFilter("status IN ('Waiting', 'Offered')");
+
+                    b.ToTable("waitlist_entries", (string)null);
+                });
+
             modelBuilder.Entity("TicketRush.Infrastructure.Identity.AppRole", b =>
                 {
                     b.Property<Guid>("Id")

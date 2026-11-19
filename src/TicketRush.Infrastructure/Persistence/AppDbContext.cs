@@ -50,6 +50,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataPr
 
     public DbSet<EventFollow> EventFollows => Set<EventFollow>();
 
+    public DbSet<TicketRush.Domain.Waitlist.WaitlistEntry> WaitlistEntries => Set<TicketRush.Domain.Waitlist.WaitlistEntry>();
+
     public DbSet<ReminderDispatch> ReminderDispatches => Set<ReminderDispatch>();
 
     public DbSet<GateAssignment> GateAssignments => Set<GateAssignment>();

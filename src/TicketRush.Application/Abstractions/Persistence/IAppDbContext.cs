@@ -39,6 +39,9 @@ public interface IAppDbContext
 
     DbSet<EventFollow> EventFollows { get; }
 
+    /// <summary>Sold-out waitlist (spec 13).</summary>
+    DbSet<TicketRush.Domain.Waitlist.WaitlistEntry> WaitlistEntries { get; }
+
     DbSet<ReminderDispatch> ReminderDispatches { get; }
 
     DbSet<GateAssignment> GateAssignments { get; }
