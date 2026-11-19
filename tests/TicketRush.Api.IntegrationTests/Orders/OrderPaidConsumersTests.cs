@@ -15,6 +15,7 @@ using TicketRush.Application.Abstractions.Messaging;
 using TicketRush.Application.Abstractions.Persistence;
 using TicketRush.Application.Abstractions.Queue;
 using TicketRush.Application.Features.Notifications;
+using TicketRush.Application.Features.Waitlist;
 using TicketRush.Domain.Events;
 using TicketRush.Domain.Orders;
 using TicketRush.Domain.Primitives;
@@ -326,7 +327,7 @@ public sealed class OrderPaidConsumersTests(ContainersFixture containers) : IAsy
 
         // The outbox runs handlers in this order and stops at the first failure: the buyer's notice (spec 09) comes first, then the
         // commit, which must not wait behind the leave.
-        handlers.ShouldBe([typeof(OrderPaidNotificationHandler), typeof(OrderPaidInventoryCommitHandler), typeof(OrderPaidLeaveQueueHandler)]);
+        handlers.ShouldBe([typeof(OrderPaidNotificationHandler), typeof(OrderPaidInventoryCommitHandler), typeof(OrderPaidLeaveQueueHandler), typeof(OrderPaidWaitlistHandler)]);
         _factory.Services.GetRequiredService<DomainEventTypeRegistry>().TryResolve(nameof(OrderPaid), out _).ShouldBeTrue();
     }
 
@@ -387,7 +388,7 @@ public sealed class OrderPaidConsumersTests(ContainersFixture containers) : IAsy
         snapshot.GaRemaining[_ga.Id].ShouldBe(gaBefore - 2);
         (await BoughtAsync(user)).ShouldBe(3);
         (await InAnyRoomAsync(user)).ShouldBeFalse();
-        (await ReceiptsAsync(orderId)).ShouldBe([typeof(OrderPaidNotificationHandler).FullName!, typeof(OrderPaidInventoryCommitHandler).FullName!, typeof(OrderPaidLeaveQueueHandler).FullName!], ignoreOrder: true);
+        (await ReceiptsAsync(orderId)).ShouldBe([typeof(OrderPaidNotificationHandler).FullName!, typeof(OrderPaidInventoryCommitHandler).FullName!, typeof(OrderPaidLeaveQueueHandler).FullName!, typeof(OrderPaidWaitlistHandler).FullName!], ignoreOrder: true);
     }
 
     [Fact]

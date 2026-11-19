@@ -127,6 +127,8 @@ public static class DependencyInjection
         // Order matters: the outbox runs a message's handlers in this order and stops at the first failure (commit first).
         services.AddIntegrationEventHandler<OrderPaid, OrderPaidInventoryCommitHandler>();
         services.AddIntegrationEventHandler<OrderPaid, OrderPaidLeaveQueueHandler>();
+        // Spec 13: last, so a waitlist failure never holds back the inventory commit or the queue leave.
+        services.AddIntegrationEventHandler<OrderPaid, OrderPaidWaitlistHandler>();
 
         PersistDataProtectionKeysToRedis(services);
         AddAccounts(services);
@@ -268,7 +270,6 @@ public static class DependencyInjection
         services.AddIntegrationEventHandler<OrderRefunded, OrderRefundedNotificationHandler>();
         services.AddIntegrationEventHandler<PaymentRefunded, PaymentRefundedNotificationHandler>();
         services.AddIntegrationEventHandler<TicketReturned, TicketReturnedWaitlistHandler>();
-        services.AddIntegrationEventHandler<OrderPaid, OrderPaidWaitlistHandler>();
     }
 
     /// <summary>Spec 09: the notification writer and the email delivery worker's processor.</summary>
