@@ -40,22 +40,28 @@ public static class HomeSectionPicker
 
     public static HomeSections Pick(IReadOnlyList<HomeCandidate> candidates, DateTimeOffset now)
     {
-        var hot = candidates
-            .Where(c => !c.Summary.IsSoldOut && (c.Summary.IsOnSale || c.Summary.NextSaleOpensAt <= now + Week))
-            .OrderByDescending(HotScore.Of)
-            .ThenBy(c => c.Summary.StartsAt)
-            .Take(HotCount)
-            .Select(c => c.Summary)
-            .ToList();
-
         var summaries = candidates.Select(c => c.Summary).OrderBy(e => e.StartsAt).ThenBy(e => e.Id).ToList();
-        var openingSoon = summaries
-            .Where(e => e.NextSaleOpensAt is not null && !e.IsOnSale && !e.IsSoldOut)
-            .OrderBy(e => e.NextSaleOpensAt)
-            .Take(OpeningSoonCount)
-            .ToList();
-        var thisWeek = summaries.Where(e => e.StartsAt <= now + Week).Take(ThisWeekCount).ToList();
-        var upcoming = summaries.Where(e => e.StartsAt > now + Week).Take(UpcomingCount).ToList();
+
+        // Each event appears once, in the first section that wants it: opening soon (it keeps its countdown there), hot, this
+        // week, upcoming. A repeated card is noise for the buyer and weight for the page.
+        var shown = new HashSet<Guid>();
+        List<EventSummary> Take(IEnumerable<EventSummary> source, int count)
+        {
+            var picked = source.Where(e => !shown.Contains(e.Id)).Take(count).ToList();
+            shown.UnionWith(picked.Select(e => e.Id));
+            return picked;
+        }
+
+        var openingSoon = Take(summaries.Where(e => e.NextSaleOpensAt is not null && !e.IsOnSale && !e.IsSoldOut).OrderBy(e => e.NextSaleOpensAt), OpeningSoonCount);
+        var hot = Take(
+            candidates
+                .Where(c => !c.Summary.IsSoldOut && (c.Summary.IsOnSale || c.Summary.NextSaleOpensAt <= now + Week))
+                .OrderByDescending(HotScore.Of)
+                .ThenBy(c => c.Summary.StartsAt)
+                .Select(c => c.Summary),
+            HotCount);
+        var thisWeek = Take(summaries.Where(e => e.StartsAt <= now + Week), ThisWeekCount);
+        var upcoming = Take(summaries.Where(e => e.StartsAt > now + Week), UpcomingCount);
 
         var cities = summaries.GroupBy(e => e.City).Select(g => new CityCount(g.Key, g.Count()))
             .OrderByDescending(c => c.Events).ThenBy(c => c.City, StringComparer.Ordinal).ToList();

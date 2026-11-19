@@ -4,14 +4,14 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { SaleCountdown } from "@/components/catalog/sale-countdown";
 import { EmptyState } from "@/components/shared/empty-state";
-import { EventCard } from "@/components/shared/event-card";
+import { EventCard, posterName } from "@/components/shared/event-card";
 import { SearchTrigger } from "@/features/search/search-trigger";
 import { categoryName } from "@/lib/catalog/categories";
 import type { EventSummary, HomeSections } from "@/lib/catalog/types";
 import { t } from "@/lib/i18n.server";
 import { cn } from "@/lib/utils";
-import { ForYou } from "./for-you";
-import { bandPhotoFor, heroPhotoFor } from "./photos";
+import { ForYouSlot } from "./for-you-slot";
+import { heroPhotoFor } from "./photos";
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
   concert: Music,
@@ -23,27 +23,26 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
 };
 
 /**
- * The discovery home (UI refresh): a photo hero with the search, then sections picked on the server in a fixed order (hot,
+ * The discovery home (UI refresh) below the hero: sections picked on the server in a fixed order (hot,
  * opening soon, this week, cities, categories, upcoming) and "for you" for a signed-in buyer. A section without events is
  * not rendered at all. Synchronous and data-in, so the page stays static (ISR) and this stays testable.
  */
-export function HomeContent({ home, now }: { home: HomeSections; now: Date }) {
+export function HomeContent({ home }: { home: HomeSections }) {
   const nothing = home.hot.length + home.openingSoon.length + home.thisWeek.length + home.upcoming.length === 0;
   const categories = home.categories.filter((c) => c.events > 0);
 
   return (
     <>
-      <Hero now={now} />
       {nothing ? (
         <EmptyState title={t("catalog.home.empty")} description={t("catalog.home.emptyDescription")} />
       ) : (
         <>
           {home.hot.length > 0 ? (
-            <Section id="hot" title={t("catalog.home.hot")} description={t("catalog.home.hotDescription")} backdrop={bandPhotoFor(now)}>
+            <Section id="hot" title={t("catalog.home.hot")} description={t("catalog.home.hotDescription")}>
               <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:grid-rows-2">
                 {home.hot.map((event, i) => (
                   <li key={event.id} className={cn(i === 0 && "sm:col-span-2 lg:row-span-2")}>
-                    <EventCard event={{ ...event, isHot: true }} variant={i === 0 ? "large" : "default"} priority={i === 0} className="h-full" />
+                    <EventCard event={{ ...event, isHot: true }} variant={i === 0 ? "large" : "default"} priority={i === 0} posterTransitionName={posterName(event.slug)} className="h-full" />
                   </li>
                 ))}
               </ul>
@@ -55,7 +54,7 @@ export function HomeContent({ home, now }: { home: HomeSections; now: Date }) {
               <ul className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4">
                 {home.openingSoon.map((event) => (
                   <li key={event.id} className="flex w-[78%] shrink-0 snap-start flex-col gap-2 sm:w-auto">
-                    <EventCard event={event} variant="compact" className="flex-1" />
+                    <EventCard event={event} variant="compact" posterTransitionName={posterName(event.slug)} className="flex-1" />
                     <p className="px-1 text-sm text-muted-foreground">
                       {t("catalog.cta.opensIn")} <SaleCountdown opensAt={event.nextSaleOpensAt!} className="font-semibold text-live" />
                     </p>
@@ -127,21 +126,29 @@ export function HomeContent({ home, now }: { home: HomeSections; now: Date }) {
             />
           ) : null}
 
-          <ForYou />
+          <ForYouSlot />
         </>
       )}
     </>
   );
 }
 
-function Hero({ now }: { now: Date }) {
-  // getImageProps gives the optimised srcset without the client <Image> component (~7 KB of JS per page).
-  const { props } = getImageProps({ src: heroPhotoFor(now), alt: "", fill: true, priority: true, sizes: "(min-width: 1200px) 1200px, 100vw" });
+/**
+ * The photo hero with the headline and the search. Rendered outside the sections' Suspense boundary: it is the LCP element on
+ * phones, and inside the boundary it would only paint after the streamed content is swapped in (measured +650 ms).
+ */
+export function HomeHero({ now }: { now: Date }) {
+  // The photo is shown from tablets up. On phones the hero is the brand gradient: the photo would become the page's LCP element
+  // and arrive well after the text (measured: 3.3 s against a 2.5 s budget), and a phone on mobile data saves the download.
+  const { props } = getImageProps({ src: heroPhotoFor(now), alt: "", fill: true, priority: true, quality: 45, sizes: "(min-width: 1200px) 1200px, 100vw" });
   return (
-    <section aria-labelledby="hero-title" className="relative isolate overflow-hidden rounded-3xl">
-      {/* eslint-disable-next-line @next/next/no-img-element -- props come from getImageProps (optimised srcset) */}
-      <img {...props} alt="" className="-z-20 object-cover" />
-      {/* The veil keeps white text above 4.5:1 whatever the photo. */}
+    <section aria-labelledby="hero-title" className="relative isolate overflow-hidden rounded-3xl bg-brand-gradient">
+      <picture>
+        <source media="(min-width: 768px)" srcSet={props.srcSet} sizes={props.sizes} />
+        {/* A 1×1 placeholder below 768 px; the source above is getImageProps' srcset. */}
+        <img src={TRANSPARENT_PIXEL} alt="" fetchPriority="high" decoding="async" className="absolute inset-0 -z-20 size-full object-cover" />
+      </picture>
+      {/* The veil keeps white text above 4.5:1 whatever the photo (and darkens the gradient on phones). */}
       <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
       <div className="flex min-h-[22rem] flex-col items-center justify-center gap-5 px-4 py-14 text-center text-white sm:min-h-[26rem]">
         <h1 id="hero-title" className="text-balance text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
@@ -154,17 +161,11 @@ function Hero({ now }: { now: Date }) {
   );
 }
 
-function Section({ id, title, description, backdrop, children }: { id: string; title: string; description?: string; backdrop?: string; children: ReactNode }) {
-  const image = backdrop ? getImageProps({ src: backdrop, alt: "", fill: true, sizes: "100vw" }).props : null;
+const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+function Section({ id, title, description, children }: { id: string; title: string; description?: string; children: ReactNode }) {
   return (
-    <section aria-labelledby={id} className={cn("reveal flex flex-col gap-4", image && "relative isolate -mx-4 overflow-hidden px-4 py-6 sm:mx-0 sm:rounded-3xl sm:px-6")}>
-      {image ? (
-        <>
-          {/* eslint-disable-next-line @next/next/no-img-element -- props come from getImageProps (optimised srcset) */}
-          <img {...image} alt="" className="-z-20 scale-110 object-cover opacity-25 blur-2xl" />
-          <div aria-hidden className="absolute inset-0 -z-10 bg-background/70" />
-        </>
-      ) : null}
+    <section aria-labelledby={id} className="reveal flex flex-col gap-4">
       <SectionHeading id={id} title={title} description={description} />
       {children}
     </section>
@@ -178,7 +179,7 @@ function CardGrid({ id, title, events, action }: { id: string; title: string; ev
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {events.map((event) => (
           <li key={event.id}>
-            <EventCard event={event} className="h-full" />
+            <EventCard event={event} posterTransitionName={posterName(event.slug)} className="h-full" />
           </li>
         ))}
       </ul>

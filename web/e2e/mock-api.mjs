@@ -177,14 +177,21 @@ function home() {
   const live = list(new URLSearchParams({ limit: "100" })).items;
   const count = (key) =>
     Object.entries(Object.groupBy(live, (e) => e[key])).map(([value, items]) => ({ [key]: value, events: items.length })).sort((a, b) => b.events - a.events);
+  // Like the api: each event in the first section that wants it (opening soon first, then hot).
+  const shown = new Set();
+  const take = (events, count) => {
+    const picked = events.filter((e) => !shown.has(e.id)).slice(0, count);
+    picked.forEach((e) => shown.add(e.id));
+    return picked;
+  };
   return {
-    hot: live.filter((e) => !e.isSoldOut && (e.isOnSale || (e.nextSaleOpensAt && Date.parse(e.nextSaleOpensAt) <= week))).slice(0, 4),
-    openingSoon: live
-      .filter((e) => e.nextSaleOpensAt && !e.isOnSale && !e.isSoldOut)
-      .sort((a, b) => Date.parse(a.nextSaleOpensAt) - Date.parse(b.nextSaleOpensAt))
-      .slice(0, 4),
-    thisWeek: live.filter((e) => Date.parse(e.startsAt) <= week).slice(0, 6),
-    upcoming: live.filter((e) => Date.parse(e.startsAt) > week).slice(0, 6),
+    openingSoon: take(
+      live.filter((e) => e.nextSaleOpensAt && !e.isOnSale && !e.isSoldOut).sort((a, b) => Date.parse(a.nextSaleOpensAt) - Date.parse(b.nextSaleOpensAt)),
+      4,
+    ),
+    hot: take(live.filter((e) => !e.isSoldOut && (e.isOnSale || (e.nextSaleOpensAt && Date.parse(e.nextSaleOpensAt) <= week))), 4),
+    thisWeek: take(live.filter((e) => Date.parse(e.startsAt) <= week), 6),
+    upcoming: take(live.filter((e) => Date.parse(e.startsAt) > week), 6),
     cities: count("city"),
     categories: count("category"),
   };

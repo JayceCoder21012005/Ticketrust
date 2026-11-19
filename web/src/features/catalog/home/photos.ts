@@ -20,8 +20,3 @@ export function heroPhotoFor(date: Date): Photo {
   const day = Math.floor((date.getTime() + VIETNAM_OFFSET_MS) / DAY_MS);
   return PHOTOS[day % PHOTOS.length];
 }
-
-/** The backdrop of the "hot" band: always a different photo from the hero's. */
-export function bandPhotoFor(date: Date): Photo {
-  return PHOTOS[(PHOTOS.indexOf(heroPhotoFor(date)) + 2) % PHOTOS.length];
-}

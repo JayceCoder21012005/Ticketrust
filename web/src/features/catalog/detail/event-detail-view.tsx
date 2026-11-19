@@ -1,6 +1,7 @@
 import { CalendarPlus, ChevronDown, ExternalLink, MapPin, Ticket, Users } from "lucide-react";
 import Link from "next/link";
 import { EventPoster } from "@/components/catalog/event-poster";
+import { Morph, posterName } from "@/components/shared/event-card";
 import { Price } from "@/components/shared/price";
 import { StickyActionBar } from "@/components/shared/sticky-action-bar";
 import { Badge } from "@/components/ui/badge";
@@ -24,17 +25,19 @@ export function EventDetailView({ event }: { event: EventDetail }) {
   return (
     <article className="mx-auto flex w-full max-w-content flex-col gap-10 px-4 pb-32 pt-6 md:pb-16 md:pt-10">
       <div className="grid gap-8 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-12">
-        <div className="relative aspect-square overflow-hidden rounded-2xl border bg-muted md:sticky md:top-24 md:self-start">
-          <EventPoster
-            slug={event.slug}
-            category={event.category}
-            title={event.title}
-            coverImageUrl={event.coverImageUrl}
-            priority
-            size="hero"
-            sizes="(min-width: 768px) 45vw, 100vw"
-          />
-        </div>
+        <Morph name={posterName(event.slug)}>
+          <div className="relative aspect-square overflow-hidden rounded-2xl border bg-muted md:sticky md:top-24 md:self-start">
+            <EventPoster
+              slug={event.slug}
+              category={event.category}
+              title={event.title}
+              coverImageUrl={event.coverImageUrl}
+              priority
+              size="hero"
+              sizes="(min-width: 768px) 45vw, 100vw"
+            />
+          </div>
+        </Morph>
 
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-3">

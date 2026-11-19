@@ -12,6 +12,9 @@ const nextConfig: NextConfig = {
   partialPrefetching: true,
   poweredByHeader: false,
   images: {
+    // AVIF first (UI refresh): the home's photo hero is its LCP image on phones.
+    formats: ["image/avif", "image/webp"],
+    qualities: [45, 75],
     remotePatterns: [
       {
         protocol: storageUrl.protocol.replace(":", "") as "http" | "https",

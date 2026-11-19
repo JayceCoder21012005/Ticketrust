@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { EventCard, type EventCardData } from "./event-card";
+import { EventCard, posterName, type EventCardData } from "./event-card";
 
 const base: EventCardData = {
   slug: "son-tung-mtp-live",
@@ -42,10 +42,10 @@ describe("EventCard v2", () => {
     expect(card().className).toMatch(/grayscale/);
   });
 
-  it("joins the pointer spotlight", () => {
+  it("lights its outline in the brand colour on hover and focus", () => {
     render(<EventCard event={base} />);
 
-    expect(card()).toHaveAttribute("data-spotlight");
+    expect(card().querySelector("[data-slot='card']")!.className).toMatch(/group-hover\/event:ring-primary/);
   });
 
   it.each(["default", "large", "compact"] as const)("renders the %s variant", (variant) => {
@@ -54,9 +54,13 @@ describe("EventCard v2", () => {
     expect(card()).toHaveAttribute("data-variant", variant);
   });
 
-  it("names the poster for the view transition when asked", () => {
-    render(<EventCard event={base} posterTransitionName="poster-son-tung-mtp-live" />);
+  it("still renders the poster when it takes part in the poster morph", () => {
+    render(<EventCard event={base} posterTransitionName={posterName(base.slug)} />);
 
-    expect(card().querySelector("[data-poster]")).toHaveStyle({ viewTransitionName: "poster-son-tung-mtp-live" });
+    expect(card().querySelector("[data-poster]")).not.toBeNull();
+  });
+
+  it("names a poster the same way on cards and on the event page", () => {
+    expect(posterName("son-tung-mtp-live")).toBe("poster-son-tung-mtp-live");
   });
 });

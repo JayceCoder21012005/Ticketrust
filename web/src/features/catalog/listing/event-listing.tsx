@@ -2,7 +2,7 @@ import { AlertTriangle, SearchX } from "lucide-react";
 import Link from "next/link";
 import { connection } from "next/server";
 import { EmptyState } from "@/components/shared/empty-state";
-import { EventCard } from "@/components/shared/event-card";
+import { EventCard, posterName } from "@/components/shared/event-card";
 import { Button } from "@/components/ui/button";
 import { getCities, getEventPage, getServerNow } from "@/lib/catalog/api";
 import { isCategory } from "@/lib/catalog/categories";
@@ -83,7 +83,7 @@ export async function EventListing({ searchParams }: EventListingProps) {
             <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {page.items.map((event, i) => (
                 <li key={event.id}>
-                  <EventCard event={event} headingLevel="h2" priority={i === 0} className="h-full" />
+                  <EventCard event={event} headingLevel="h2" priority={i === 0} posterTransitionName={posterName(event.slug)} className="h-full" />
                 </li>
               ))}
               {page.nextCursor ? <LoadMore key={JSON.stringify(query)} query={query} cursor={page.nextCursor} /> : null}

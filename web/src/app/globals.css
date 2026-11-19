@@ -257,3 +257,107 @@
   background-clip: text;
   color: transparent;
 }
+
+/*
+ * Motion (UI refresh). Durations follow NN/g: 100 ms feedback, 200-300 ms to enter, exits shorter, ease-out to enter.
+ * Everything here exists only for people who have not asked for reduced motion.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  :root {
+    --motion-exit: 150ms;
+    --motion-enter: 220ms;
+    --motion-move: 300ms;
+    --ease-enter: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  /* Forward navigation from a card: the old page slides out left, the new one in from the right. */
+  ::view-transition-old(.nav-forward) {
+    animation: var(--motion-exit) ease-in both tr-fade reverse, var(--motion-move) ease-in-out both tr-slide-x-out;
+  }
+
+  ::view-transition-new(.nav-forward) {
+    animation: var(--motion-enter) var(--ease-enter) var(--motion-exit) both tr-fade, var(--motion-move) var(--ease-enter) both tr-slide-x-in;
+  }
+
+  /* Card poster ⇄ event page hero. */
+  ::view-transition-group(.morph) {
+    animation-duration: var(--motion-move);
+    animation-timing-function: var(--ease-enter);
+  }
+
+  ::view-transition-image-pair(.morph) {
+    animation-name: tr-via-blur;
+  }
+
+  /* Skeleton out, content in. */
+  ::view-transition-old(.slide-down) {
+    animation: var(--motion-exit) ease-out both tr-fade reverse, var(--motion-exit) ease-out both tr-slide-y reverse;
+  }
+
+  ::view-transition-new(.slide-up) {
+    animation: var(--motion-enter) var(--ease-enter) var(--motion-exit) both tr-fade, var(--motion-move) var(--ease-enter) both tr-slide-y;
+  }
+
+  /* Sections fade and rise as they scroll in; bounded range, so it finishes early and never janks the scroll. */
+  @supports (animation-timeline: view()) {
+    .reveal {
+      animation: tr-reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 25%;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+@keyframes tr-via-blur {
+  30% {
+    filter: blur(3px);
+  }
+}
+
+@keyframes tr-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes tr-slide-x-out {
+  to {
+    translate: -48px;
+  }
+}
+
+@keyframes tr-slide-x-in {
+  from {
+    translate: 48px;
+  }
+}
+
+@keyframes tr-slide-y {
+  from {
+    transform: translateY(12px);
+  }
+}
+
+/*
+ * Home sections below the fold skip style and layout until they come near the viewport (UI refresh): a theme switch on a long
+ * home restyled every card at once (INP 1 s on a throttled phone). The intrinsic size keeps the scrollbar honest.
+ */
+.reveal {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 640px;
+}
+
+/* Movement only, never opacity: a half-revealed section must still read at full contrast (axe checks it mid-scroll). */
+@keyframes tr-reveal {
+  from {
+    transform: translateY(16px);
+  }
+}
