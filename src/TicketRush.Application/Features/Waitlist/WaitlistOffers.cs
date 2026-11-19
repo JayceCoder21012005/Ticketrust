@@ -17,6 +17,7 @@ namespace TicketRush.Application.Features.Waitlist;
 /// caller (the outbox commits them with its receipt; the expiry loop saves per entry).
 /// </summary>
 public sealed class WaitlistOffers(IAppDbContext db, IHoldCatalog catalog, IInventoryStore store, IOptions<WaitlistOptions> options, TimeProvider time)
+    : IWaitlistOfferDecliner
 {
     private const int CandidatesPerTicket = 20;
     private const int ExpiriesPerTick = 100;
@@ -94,6 +95,21 @@ public sealed class WaitlistOffers(IAppDbContext db, IHoldCatalog catalog, IInve
     /// <summary>The user gave up a live offer (left the waitlist): the hold goes to the next waiter. The caller saves.</summary>
     public Task WithdrawAsync(WaitlistEntry entry, Guid holdId, CancellationToken ct) => HandOnAsync(entry, holdId, ct);
 
+    public async Task<bool> DeclineAsync(Guid eventId, Guid userId, Guid holdId, CancellationToken ct)
+    {
+        var entry = await db.WaitlistEntries.FirstOrDefaultAsync(
+            e => e.EventId == eventId && e.UserId == userId && e.Status == WaitlistStatus.Offered && e.OfferHoldId == holdId, ct);
+        if (entry is null)
+        {
+            return false;
+        }
+
+        entry.Leave();
+        await HandOnAsync(entry, holdId, ct);
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
     /// <summary>Moves <paramref name="holdId"/> of <paramref name="from"/> to the next matching waiter, or back to the public sale.</summary>
     private async Task HandOnAsync(WaitlistEntry from, Guid holdId, CancellationToken ct)
     {
@@ -169,6 +185,13 @@ public sealed class WaitlistOffers(IAppDbContext db, IHoldCatalog catalog, IInve
         db.Orders.AnyAsync(
             o => o.HoldId == holdId && (o.Status == OrderStatus.Pending || o.Status == OrderStatus.AwaitingPayment || o.Status == OrderStatus.PaymentFailed),
             ct);
+}
+
+/// <summary>Lets the hold release (07) and order cancel (08) paths decline a waitlist offer instead of freeing its seats.</summary>
+public interface IWaitlistOfferDecliner
+{
+    /// <returns>True when the hold was an offer: the entry left and the hold went to the next in line (saved).</returns>
+    Task<bool> DeclineAsync(Guid eventId, Guid userId, Guid holdId, CancellationToken ct);
 }
 
 /// <summary>A paid ticket was voided (spec 13 source 1): offer it to the waitlist.</summary>

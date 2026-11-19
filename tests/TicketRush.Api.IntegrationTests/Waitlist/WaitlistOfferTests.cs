@@ -10,6 +10,7 @@ using TicketRush.Domain.Orders;
 using TicketRush.Domain.Tickets;
 using TicketRush.Domain.Waitlist;
 using TicketRush.Infrastructure.Redis;
+using Order = TicketRush.Domain.Orders.Order;
 
 namespace TicketRush.Api.IntegrationTests.Waitlist;
 
@@ -166,5 +167,62 @@ public sealed class WaitlistOfferTests(ContainersFixture containers) : IAsyncLif
         }
 
         (await EntryAsync(entryId)).Status.ShouldBe(WaitlistStatus.Converted);
+    }
+
+    [Fact]
+    public async Task Releasing_the_offered_hold_declines_the_offer_and_passes_the_seat_on()
+    {
+        var first = await JoinAsync();
+        var second = await JoinAsync();
+        await DeliverAsync(Returned());
+        var offered = await EntryAsync(first);
+
+        await using (var scope = _h.Host.Services.CreateAsyncScope())
+        {
+            (await scope.ServiceProvider.GetRequiredService<TicketRush.Application.Features.Holds.ReleaseMyHoldHandler>()
+                .HandleAsync(offered.UserId, _h.EventId, Ct)).IsSuccess.ShouldBeTrue();
+        }
+
+        (await EntryAsync(first)).Status.ShouldBe(WaitlistStatus.Left);
+        var next = await EntryAsync(second);
+        next.Status.ShouldBe(WaitlistStatus.Offered);
+        (await SeatOwnerAsync()).ShouldBe(next.OfferHoldId!.Value.ToString("N"));
+    }
+
+    [Fact]
+    public async Task Leaving_with_a_live_offer_passes_the_seat_to_the_next_in_line()
+    {
+        var first = await JoinAsync();
+        var second = await JoinAsync();
+        await DeliverAsync(Returned());
+        var offered = await EntryAsync(first);
+
+        await using (var scope = _h.Host.Services.CreateAsyncScope())
+        {
+            (await scope.ServiceProvider.GetRequiredService<LeaveWaitlistHandler>().HandleAsync(offered.UserId, _h.EventId, Ct)).IsSuccess.ShouldBeTrue();
+        }
+
+        (await EntryAsync(first)).Status.ShouldBe(WaitlistStatus.Left);
+        (await EntryAsync(second)).Status.ShouldBe(WaitlistStatus.Offered);
+    }
+
+    [Fact]
+    public async Task An_offer_whose_order_is_still_being_paid_is_not_passed_on()
+    {
+        var first = await JoinAsync();
+        await JoinAsync();
+        await DeliverAsync(Returned());
+        var offered = await EntryAsync(first);
+        await _h.WithDbAsync(db =>
+        {
+            db.Orders.Add(Order.Create(offered.UserId, _h.EventId, offered.OfferHoldId!.Value, [_h.Seat(_seat)], new TicketRush.Domain.Primitives.Money(_h.Seated.Price),
+                new BuyerInfo("An", "an@example.com", null), offered.OfferExpiresAt!.Value, _h.Time.GetUtcNow()));
+            return db.SaveChangesAsync(Ct);
+        });
+
+        _h.Time.Advance(TimeSpan.FromMinutes(16));
+
+        (await ExpireAsync()).ShouldBe(0);
+        (await EntryAsync(first)).Status.ShouldBe(WaitlistStatus.Offered);
     }
 }

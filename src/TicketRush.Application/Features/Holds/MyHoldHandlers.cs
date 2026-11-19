@@ -30,8 +30,9 @@ public sealed class GetMyHoldHandler(IHoldCatalog catalog, IInventoryStore store
 /// <summary>
 /// <c>DELETE /events/{id}/holds/me</c>: idempotent; succeeds when there is nothing (left) to release. Cancelling an order
 /// (spec 08) reuses it with <c>onlyHoldId</c>, so a newer hold the buyer made since is never released by accident.
+/// A waitlist offer's hold is declined instead (spec 13): it goes to the next in line, never to the public sale first.
 /// </summary>
-public sealed class ReleaseMyHoldHandler(IHoldCatalog catalog, IInventoryStore store)
+public sealed class ReleaseMyHoldHandler(IHoldCatalog catalog, IInventoryStore store, Waitlist.IWaitlistOfferDecliner? waitlist = null)
 {
     public Task<Result> HandleAsync(Guid userId, Guid eventId, CancellationToken ct) => HandleAsync(userId, eventId, null, ct);
 
@@ -45,7 +46,8 @@ public sealed class ReleaseMyHoldHandler(IHoldCatalog catalog, IInventoryStore s
 
         try
         {
-            if (await store.GetUserHoldAsync(eventId, userId, ct) is { } hold && (onlyHoldId is null || hold.HoldId == onlyHoldId))
+            if (await store.GetUserHoldAsync(eventId, userId, ct) is { } hold && (onlyHoldId is null || hold.HoldId == onlyHoldId)
+                && (waitlist is null || !await waitlist.DeclineAsync(eventId, userId, hold.HoldId, ct)))
             {
                 await store.ReleaseHoldAsync(eventId, hold.HoldId, entry.GaTierIds, ct);
             }
