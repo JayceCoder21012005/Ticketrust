@@ -2910,7 +2910,7 @@ export interface components {
             expiresAt: string;
         };
         /** @enum {unknown} */
-        WaitlistStatus: "Waiting" | "Offered" | "Converted" | "Expired" | "Left";
+        WaitlistStatus: "Waiting" | "Offered" | "Converted" | "Expired" | "Left" | "Closed";
         WaitlistStatusResponse: {
             /** Format: uuid */
             entryId: string;
