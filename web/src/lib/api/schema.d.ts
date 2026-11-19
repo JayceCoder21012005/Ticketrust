@@ -100,6 +100,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListMyWaitlist"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/webhooks/payments/{provider}": {
         parameters: {
             query?: never;
@@ -1749,6 +1765,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/events/{id}/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["JoinWaitlist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events/{id}/waitlist/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetMyWaitlistEntry"];
+        put?: never;
+        post?: never;
+        delete: operations["LeaveWaitlist"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/waitlist/offers/{offerId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetWaitlistOffer"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/waitlist/offers/{offerId}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AcceptWaitlistOffer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mock-gateway/sessions/{sessionId}": {
         parameters: {
             query?: never;
@@ -2016,6 +2096,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AcceptedWaitlistOffer: {
+            /** Format: uuid */
+            holdId: string;
+            /** Format: uuid */
+            eventId: string;
+            eventSlug: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
         AssignGateStaffRequest: {
             email: string;
             gateName: string;
@@ -2245,6 +2334,12 @@ export interface components {
             accessCode: null | string;
             captchaToken: null | string;
         };
+        JoinWaitlistRequest: {
+            /** Format: uuid */
+            tierId: null | string;
+            /** Format: int32 */
+            quantity: number | string;
+        };
         LayoutPoint: {
             /** Format: double */
             x: number | string;
@@ -2284,6 +2379,16 @@ export interface components {
         };
         MyTicketsResponse: {
             events: components["schemas"]["TicketEventGroup"][];
+        };
+        MyWaitlistItem: {
+            entry: components["schemas"]["WaitlistStatusResponse"];
+            eventSlug: string;
+            eventTitle: string;
+            /** Format: date-time */
+            startsAt: string;
+            city: string;
+            coverImageUrl: null | string;
+            tierName: null | string;
         };
         NotificationItem: {
             /** Format: uuid */
@@ -2785,6 +2890,43 @@ export interface components {
             name: string;
             city: string;
         };
+        WaitlistOfferResponse: {
+            /** Format: uuid */
+            offerId: string;
+            /** Format: uuid */
+            eventId: string;
+            eventSlug: string;
+            eventTitle: string;
+            /** Format: date-time */
+            startsAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+            hold: components["schemas"]["HoldResponse"];
+        };
+        WaitlistOfferSummary: {
+            /** Format: uuid */
+            offerId: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        /** @enum {unknown} */
+        WaitlistStatus: "Waiting" | "Offered" | "Converted" | "Expired" | "Left";
+        WaitlistStatusResponse: {
+            /** Format: uuid */
+            entryId: string;
+            /** Format: uuid */
+            eventId: string;
+            status: components["schemas"]["WaitlistStatus"];
+            /** Format: int32 */
+            position: null | number | string;
+            /** Format: uuid */
+            tierId: null | string;
+            /** Format: int32 */
+            quantity: number | string;
+            /** Format: date-time */
+            joinedAt: string;
+            offer: null | components["schemas"]["WaitlistOfferSummary"];
+        };
     };
     responses: never;
     parameters: never;
@@ -2919,6 +3061,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventSummary"][];
+                };
+            };
+        };
+    };
+    ListMyWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyWaitlistItem"][];
                 };
             };
         };
@@ -4129,6 +4291,199 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    JoinWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JoinWaitlistRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitlistStatusResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetMyWaitlistEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitlistStatusResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    LeaveWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    GetWaitlistOffer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                offerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitlistOfferResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AcceptWaitlistOffer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                offerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptedWaitlistOffer"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
             };
         };
     };
