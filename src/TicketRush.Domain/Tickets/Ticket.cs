@@ -107,8 +107,15 @@ public sealed class Ticket : AggregateRoot, IAuditable
     /// <summary>Listed → Valid (listing withdrawn).</summary>
     public void Unlist() => Move(TicketStatus.Valid, nameof(Unlist), TicketStatus.Listed);
 
-    /// <summary>Valid or Listed → Voided, e.g. the event was cancelled. A checked-in or already voided ticket can't be voided.</summary>
-    public void Void() => Move(TicketStatus.Voided, nameof(Void), TicketStatus.Valid, TicketStatus.Listed);
+    /// <summary>
+    /// Valid or Listed → Voided while the event is on (e.g. a refund approved by an admin, spec 16): the ticket goes back to the sale,
+    /// first to the waitlist (spec 13, <see cref="TicketReturned"/>). A checked-in or already voided ticket can't be voided.
+    /// </summary>
+    public void Void()
+    {
+        Move(TicketStatus.Voided, nameof(Void), TicketStatus.Valid, TicketStatus.Listed);
+        Raise(new TicketReturned(Id, EventId, TierId, SeatIndex, OwnerUserId));
+    }
 
     /// <summary>
     /// Valid, Listed or CheckedIn → Voided because the organizer cancelled the event (spec 08): the whole order is refunded,

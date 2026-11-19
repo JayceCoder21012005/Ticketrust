@@ -1,0 +1,108 @@
+using TicketRush.Domain.Primitives;
+using TicketRush.Domain.Waitlist;
+
+namespace TicketRush.Domain.Tests.Waitlist;
+
+public sealed class WaitlistTests
+{
+    private static readonly DateTimeOffset Now = new(2026, 11, 20, 3, 0, 0, TimeSpan.Zero);
+    private static readonly Guid Event = Guid.NewGuid();
+    private static readonly Guid User = Guid.NewGuid();
+
+    private static WaitlistEntry Join(int quantity = 2, Guid? tier = null) => WaitlistEntry.Join(Event, User, tier, quantity, Now);
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(5)]
+    public void Quantity_is_one_to_four(int quantity)
+    {
+        Should.Throw<DomainException>(() => Join(quantity)).Code.ShouldBe("waitlist.invalid_quantity");
+    }
+
+    [Fact]
+    public void A_new_entry_waits_and_is_live()
+    {
+        var entry = Join();
+
+        entry.Status.ShouldBe(WaitlistStatus.Waiting);
+        entry.IsLive.ShouldBeTrue();
+        entry.QueuedAt.ShouldBe(Now);
+        entry.Misses.ShouldBe(0);
+    }
+
+    [Fact]
+    public void An_offer_then_a_paid_order_converts_it()
+    {
+        var entry = Join();
+        var hold = Guid.NewGuid();
+
+        entry.Offer(hold, Now.AddMinutes(15));
+        entry.Status.ShouldBe(WaitlistStatus.Offered);
+        entry.OfferHoldId.ShouldBe(hold);
+        entry.Convert();
+
+        entry.Status.ShouldBe(WaitlistStatus.Converted);
+        entry.IsLive.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void The_first_missed_offer_sends_it_to_the_back_once_and_the_second_expires_it()
+    {
+        var entry = Join();
+
+        entry.Offer(Guid.NewGuid(), Now.AddMinutes(15));
+        entry.Miss(Now.AddMinutes(16));
+        entry.Status.ShouldBe(WaitlistStatus.Waiting);
+        entry.QueuedAt.ShouldBe(Now.AddMinutes(16));
+        entry.OfferHoldId.ShouldBeNull();
+
+        entry.Offer(Guid.NewGuid(), Now.AddMinutes(45));
+        entry.Miss(Now.AddMinutes(46));
+        entry.Status.ShouldBe(WaitlistStatus.Expired);
+        entry.IsLive.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Leaving_ends_it_from_waiting_or_offered()
+    {
+        var waiting = Join();
+        waiting.Leave();
+        waiting.Status.ShouldBe(WaitlistStatus.Left);
+
+        var offered = Join();
+        offered.Offer(Guid.NewGuid(), Now.AddMinutes(15));
+        offered.Leave();
+        offered.Status.ShouldBe(WaitlistStatus.Left);
+    }
+
+    [Fact]
+    public void Only_a_waiting_entry_gets_an_offer()
+    {
+        var entry = Join();
+        entry.Offer(Guid.NewGuid(), Now.AddMinutes(15));
+
+        Should.Throw<DomainException>(() => entry.Offer(Guid.NewGuid(), Now.AddMinutes(15))).Code.ShouldBe("waitlist.illegal_transition");
+    }
+
+    [Fact]
+    public void An_offer_raises_the_event_the_notifications_send()
+    {
+        var entry = Join();
+        var hold = Guid.NewGuid();
+
+        entry.Offer(hold, Now.AddMinutes(15));
+
+        entry.DomainEvents.OfType<WaitlistOfferIssued>().ShouldHaveSingleItem()
+            .ShouldBe(new WaitlistOfferIssued(entry.Id, Event, User, hold, Now.AddMinutes(15)));
+    }
+
+    [Fact]
+    public void Matching_takes_any_tier_or_the_same_and_never_more_units_than_returned()
+    {
+        var tier = Guid.NewGuid();
+        Join(2, null).Wants(tier, 2).ShouldBeTrue();
+        Join(2, tier).Wants(tier, 3).ShouldBeTrue();
+        Join(2, tier).Wants(Guid.NewGuid(), 2).ShouldBeFalse();
+        Join(3, null).Wants(tier, 2).ShouldBeFalse();
+    }
+}

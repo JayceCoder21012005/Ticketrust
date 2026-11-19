@@ -115,6 +115,27 @@ public sealed class TicketTests
         ticket.Status.ShouldBe(from);
     }
 
+    [Fact]
+    public void Voiding_returns_the_ticket_to_the_sale_for_the_waitlist()
+    {
+        var ticket = Issue(seat: 7);
+
+        ticket.Void();
+
+        ticket.DomainEvents.OfType<TicketReturned>().ShouldHaveSingleItem()
+            .ShouldBe(new TicketReturned(ticket.Id, EventId, TierId, 7, OwnerId));
+    }
+
+    [Fact]
+    public void A_ticket_voided_because_the_event_was_cancelled_never_returns_to_sale()
+    {
+        var ticket = Issue();
+
+        ticket.VoidForCancelledEvent();
+
+        ticket.DomainEvents.OfType<TicketReturned>().ShouldBeEmpty();
+    }
+
     private static Ticket Issue(int? seat = 4) => Ticket.Issue(OrderId, EventId, TierId, seat, OwnerId);
 
     private static Ticket InStatus(TicketStatus status)
