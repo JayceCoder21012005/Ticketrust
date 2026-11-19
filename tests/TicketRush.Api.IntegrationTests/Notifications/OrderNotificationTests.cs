@@ -302,6 +302,7 @@ public sealed class OrderNotificationTests(ContainersFixture containers) : IAsyn
             typeof(OrderPaidNotificationHandler).FullName!,
             typeof(OrderPaidInventoryCommitHandler).FullName!,
             typeof(OrderPaidLeaveQueueHandler).FullName!,
+            typeof(TicketRush.Application.Features.Waitlist.OrderPaidWaitlistHandler).FullName!,
         ], ignoreOrder: true);
     }
 

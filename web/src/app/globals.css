@@ -43,6 +43,8 @@
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-info: var(--info);
+  --color-live: var(--live);
+  --color-live-foreground: var(--live-foreground);
   --color-seat-available-1: var(--seat-available-1);
   --color-seat-available-2: var(--seat-available-2);
   --color-seat-available-3: var(--seat-available-3);
@@ -63,7 +65,7 @@
 }
 
 /*
- * Neutrals: zinc. Brand: violet. Status: emerald / amber / red / sky.
+ * Neutrals: zinc (hue 285). Brand: violet, plus the live accent (hue 15) for urgency. Status: emerald / amber / red / sky.
  * Seat colours are UI graphics: each must reach 3:1 against the background in both themes
  * (enforced by src/app/design-tokens.test.ts). Tier colours are a fixed palette of six.
  */
@@ -92,6 +94,9 @@
   --warning: oklch(0.769 0.188 70.08);
   --danger: oklch(0.577 0.245 27.325);
   --info: oklch(0.588 0.158 241.966);
+  /* Live accent (spec: UI refresh): hot, selling fast, countdowns. Never body text. */
+  --live: oklch(0.56 0.22 15);
+  --live-foreground: oklch(0.985 0 0);
   --seat-available-1: oklch(0.55 0.15 241.966);
   --seat-available-2: oklch(0.55 0.13 163.225);
   --seat-available-3: oklch(0.55 0.2 16.439);
@@ -123,8 +128,11 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.21 0.006 285.885);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.72 0.16 285);
+  /* Lighter and less saturated than in light mode: colours glow on near-black. */
+  --primary: oklch(0.72 0.17 285);
   --primary-foreground: oklch(0.2 0.05 285);
+  --live: oklch(0.74 0.17 15);
+  --live-foreground: oklch(0.2 0.05 15);
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.274 0.006 286.033);
@@ -236,5 +244,120 @@
 @media (prefers-reduced-motion: reduce) {
   .wallet-band[data-animated] {
     animation: none;
+  }
+}
+
+/* The brand gradient (violet → live), used sparingly: hero search glow, hot badge, focus rings, card spotlight. */
+@utility bg-brand-gradient {
+  background-image: linear-gradient(135deg, var(--primary), var(--live));
+}
+
+@utility text-brand-gradient {
+  background-image: linear-gradient(135deg, var(--primary), var(--live));
+  background-clip: text;
+  color: transparent;
+}
+
+/*
+ * Motion (UI refresh). Durations follow NN/g: 100 ms feedback, 200-300 ms to enter, exits shorter, ease-out to enter.
+ * Everything here exists only for people who have not asked for reduced motion.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  :root {
+    --motion-exit: 150ms;
+    --motion-enter: 220ms;
+    --motion-move: 300ms;
+    --ease-enter: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  /* Forward navigation from a card: the old page slides out left, the new one in from the right. */
+  ::view-transition-old(.nav-forward) {
+    animation: var(--motion-exit) ease-in both tr-fade reverse, var(--motion-move) ease-in-out both tr-slide-x-out;
+  }
+
+  ::view-transition-new(.nav-forward) {
+    animation: var(--motion-enter) var(--ease-enter) var(--motion-exit) both tr-fade, var(--motion-move) var(--ease-enter) both tr-slide-x-in;
+  }
+
+  /* Card poster ⇄ event page hero. */
+  ::view-transition-group(.morph) {
+    animation-duration: var(--motion-move);
+    animation-timing-function: var(--ease-enter);
+  }
+
+  ::view-transition-image-pair(.morph) {
+    animation-name: tr-via-blur;
+  }
+
+  /* Skeleton out, content in. */
+  ::view-transition-old(.slide-down) {
+    animation: var(--motion-exit) ease-out both tr-fade reverse, var(--motion-exit) ease-out both tr-slide-y reverse;
+  }
+
+  ::view-transition-new(.slide-up) {
+    animation: var(--motion-enter) var(--ease-enter) var(--motion-exit) both tr-fade, var(--motion-move) var(--ease-enter) both tr-slide-y;
+  }
+
+  /* Sections fade and rise as they scroll in; bounded range, so it finishes early and never janks the scroll. */
+  @supports (animation-timeline: view()) {
+    .reveal {
+      animation: tr-reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 25%;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+@keyframes tr-via-blur {
+  30% {
+    filter: blur(3px);
+  }
+}
+
+@keyframes tr-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes tr-slide-x-out {
+  to {
+    translate: -48px;
+  }
+}
+
+@keyframes tr-slide-x-in {
+  from {
+    translate: 48px;
+  }
+}
+
+@keyframes tr-slide-y {
+  from {
+    transform: translateY(12px);
+  }
+}
+
+/*
+ * Home sections below the fold skip style and layout until they come near the viewport (UI refresh): a theme switch on a long
+ * home restyled every card at once (INP 1 s on a throttled phone). The intrinsic size keeps the scrollbar honest.
+ */
+.reveal {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 640px;
+}
+
+/* Movement only, never opacity: a half-revealed section must still read at full contrast (axe checks it mid-scroll). */
+@keyframes tr-reveal {
+  from {
+    transform: translateY(16px);
   }
 }

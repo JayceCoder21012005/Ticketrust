@@ -21,7 +21,7 @@ export async function updateMe(body: ProfileUpdate): Promise<SessionUser> {
 }
 
 /** Presigned upload (spec 03): ask the api for a one-file URL, PUT the bytes there, return the public URL. */
-export async function uploadAvatar(file: File): Promise<string> {
+export async function uploadAvatar(file: File | Blob): Promise<string> {
   const ticket = orThrow(await api.POST("/api/v1/me/avatar-upload-url", { body: { contentType: file.type, size: file.size } }));
   const target = new URL(ticket.uploadUrl);
   const response = await fetch(`${target.pathname}${target.search}`, {

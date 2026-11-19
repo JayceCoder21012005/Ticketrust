@@ -1,6 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { DEFAULT_API_URL } from "@/lib/api-rewrites";
-import type { EventDetail, EventPage, EventSummary } from "./types";
+import type { EventDetail, EventPage, EventSummary, HomeSections } from "./types";
 
 /**
  * Server-side catalog reads (spec 04). Each is a `"use cache"` function tagged like the api's HybridCache, so the
@@ -58,6 +58,20 @@ export async function getEventPage(query: Record<string, string>): Promise<Event
 
   cacheLife({ stale: 30, revalidate: 30, expire: 3600 });
   return page ?? { items: [], nextCursor: null };
+}
+
+/** The home's sections (UI refresh). Cached and tagged like the listing; null when the api cannot answer. */
+export async function getHomeSections(): Promise<HomeSections | null> {
+  "use cache";
+  cacheTag(LIST_TAG);
+  const home = await getJson<HomeSections>("/catalog/home");
+  if (home === UNAVAILABLE || home === null) {
+    cacheLife("seconds");
+    return null;
+  }
+
+  cacheLife({ stale: 30, revalidate: 30, expire: 3600 });
+  return home;
 }
 
 export async function getEvent(slug: string): Promise<EventDetail | null> {

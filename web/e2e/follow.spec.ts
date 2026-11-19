@@ -210,6 +210,10 @@ test.describe("the mobile bar at 320 px", () => {
             await context.route(/\/api\/v1\/events\/[^/]+\/availability$/, (route) =>
               route.fulfill({ json: { serverNow: new Date().toISOString(), version: 0, unavailable: [], tiers: [{ tierId: "t-sold-out", remaining: 0 }] } }),
             );
+            // Spec 13: a signed-in visitor of a sold-out event gets the waitlist control, which asks whether they already wait.
+            await context.route(/\/api\/v1\/events\/[^/]+\/waitlist\/me$/, (route) =>
+              route.fulfill({ status: 404, contentType: "application/problem+json", body: JSON.stringify({ status: 404, code: "waitlist.not_joined" }) }),
+            );
           }
 
           await page.goto(path);

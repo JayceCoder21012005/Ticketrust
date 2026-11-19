@@ -7,6 +7,7 @@ using TicketRush.Worker.Notifications;
 using TicketRush.Worker.Outbox;
 using TicketRush.Worker.Payments;
 using TicketRush.Worker.Queue;
+using TicketRush.Worker.Waitlist;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -37,6 +38,9 @@ builder.Services.AddHostedService<EmailDeliveryService>();
 
 // Spec 09: reminds followers shortly before a sale opens or an event starts (leader-elected, once a minute).
 builder.Services.AddHostedService<ReminderSchedulerService>();
+
+// Spec 13: expires unused waitlist offers and passes their holds on (leader-elected, once a second).
+builder.Services.AddHostedService<WaitlistOfferService>();
 
 // Dev/demo only: delivers the mock payment gateway's signed webhooks (spec 08). Off unless Payments:Mock:Enabled.
 if (builder.Configuration.GetValue<bool>($"{MockGatewayOptions.SectionName}:Enabled"))

@@ -34,3 +34,6 @@ App_Data/
 
 # Agent working files (SDD ledger, briefs, reports): local only
 .superpowers/
+
+# Original photos (36 MB): web/scripts/prepare-photos.mjs writes the web-sized copies to web/public/photos.
+/assets/

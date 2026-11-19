@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Price } from "@/components/shared/price";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/features/follow/follow-button";
+import { WaitlistButton } from "@/features/waitlist/waitlist-button";
 import { fetchAvailability, type TimedAvailability } from "@/lib/catalog/browser";
 import { computeCtaState, type CtaState } from "@/lib/catalog/cta-state";
 import type { EventDetail } from "@/lib/catalog/types";
@@ -16,7 +17,7 @@ import { cn } from "@/lib/utils";
 /** Live availability is re-read this often while the page is open (sold-out detection). */
 const AVAILABILITY_REFRESH_MS = 30_000;
 
-type CtaEvent = Pick<EventDetail, "id" | "slug" | "status" | "endsAt" | "isSoldOut" | "phases">;
+type CtaEvent = Pick<EventDetail, "id" | "slug" | "status" | "endsAt" | "isSoldOut" | "phases"> & { tiers?: EventDetail["tiers"] };
 
 type EventCtaProps = {
   event: CtaEvent;
@@ -111,7 +112,7 @@ export function EventCta({ event, priceFrom, variant = "panel", className }: Eve
             </span>
           ) : null}
         </div>
-        <CtaAction state={state} slug={event.slug} eventId={event.id} compact />
+        <CtaAction state={state} event={event} compact />
       </div>
     );
   }
@@ -135,7 +136,7 @@ export function EventCta({ event, priceFrom, variant = "panel", className }: Eve
           </p>
         </div>
       ) : null}
-      <CtaAction state={state} slug={event.slug} eventId={event.id} />
+      <CtaAction state={state} event={event} />
     </div>
   );
 }
@@ -145,7 +146,6 @@ function Countdown({ opensAt, serverNow }: { opensAt: string; serverNow: number 
 }
 
 const DISABLED: Partial<Record<CtaState["kind"], { label: string; hint?: string }>> = {
-  SoldOut: { label: "catalog.cta.soldOut", hint: "catalog.cta.soldOutHint" },
   Ended: { label: "catalog.cta.ended" },
   Cancelled: { label: "catalog.cta.cancelled", hint: "catalog.cta.cancelledHint" },
   SalesClosed: { label: "catalog.cta.salesClosed" },
@@ -155,7 +155,8 @@ const DISABLED: Partial<Record<CtaState["kind"], { label: string; hint?: string 
 /** States in which the event can still be followed (reminders: the sale opening, the event starting). */
 const FOLLOWABLE: ReadonlySet<CtaState["kind"]> = new Set(["Upcoming", "PreQueue", "OnSale", "SoldOut"]);
 
-function CtaAction({ state, slug, eventId, compact = false }: { state: CtaState | null; slug: string; eventId: string; compact?: boolean }) {
+function CtaAction({ state, event, compact = false }: { state: CtaState | null; event: CtaEvent; compact?: boolean }) {
+  const { slug, id: eventId } = event;
   const size = compact ? "default" : "lg";
   const full = compact ? "shrink-0" : "w-full";
 
@@ -203,6 +204,19 @@ function CtaAction({ state, slug, eventId, compact = false }: { state: CtaState 
           </Link>
         </Button>,
         compact ? null : <p className="text-xs text-muted-foreground">{t("catalog.cta.queueHint")}</p>,
+      );
+    case "SoldOut":
+      // Spec 13: returned tickets go to the waitlist first, in order.
+      return withFollow(
+        <WaitlistButton
+          eventId={eventId}
+          slug={slug}
+          tiers={event.tiers ?? []}
+          maxPerUser={Math.max(1, ...event.phases.map((p) => p.maxTicketsPerUser))}
+          compact={compact}
+          className={full}
+        />,
+        compact ? null : <p className="text-xs text-muted-foreground">{t("catalog.cta.soldOutHint")}</p>,
       );
     case "Upcoming":
       return (

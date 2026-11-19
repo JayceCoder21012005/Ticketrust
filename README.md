@@ -124,13 +124,15 @@ Tài khoản chưa xác nhận vẫn đăng nhập được, nhưng sẽ không 
 
 | Đường dẫn | Nội dung |
 |---|---|
-| `/` | Trang chủ: sự kiện sắp mở bán kèm đếm ngược, danh mục, thành phố, sự kiện sắp diễn ra |
+| `/` | Trang chủ: hero với ô tìm kiếm (ảnh nền từ màn hình tablet trở lên), Sắp mở bán (đếm ngược), Đang hot, Diễn ra tuần này, ô thành phố và danh mục có số sự kiện, Sự kiện sắp diễn ra, "Dành cho bạn" khi đã đăng nhập và có theo dõi sự kiện. Mỗi sự kiện chỉ xuất hiện ở một mục |
+| `Ctrl K` / `⌘K` (mọi trang) | Bảng tìm kiếm tức thì: gõ không dấu, gõ tắt ("son tu"), sai chính tả nhẹ; kết quả chia nhóm Sự kiện, Nghệ sĩ, Địa điểm, Thành phố; mũi tên + Enter để mở; nhớ 5 lần tìm gần nhất. Ô trống hiện các sự kiện đang hot |
 | `/events` | Danh sách sự kiện: tìm không dấu ("son tung"), lọc theo danh mục, thành phố, ngày, giá; "Xem thêm" |
 | `/events/son-tung-mtp-live` | Trang chi tiết: nút mua vé theo trạng thái mở bán, "Thêm vào lịch" (.ics), bản đồ, bảng giá, FAQ |
 | `/login`, `/register` | Đăng nhập, đăng ký (hiện/ẩn mật khẩu, thanh độ mạnh mật khẩu) |
 | `/forgot-password`, `/reset-password` | Quên và đặt lại mật khẩu. Email nằm trong Mailpit, link có hiệu lực 1 giờ |
 | `/verify-email` | Trang mở từ link xác nhận email |
-| `/account` | Hồ sơ, số điện thoại, ảnh đại diện (JPEG/PNG/WebP/AVIF, tối đa 2 MB), đăng xuất |
+| `/account` | Khu tài khoản: Tổng quan (sự kiện sắp tới của bạn và nút mở vé, đơn gần đây, sự kiện đang theo dõi), menu sang Vé, Đơn hàng, Thông báo, Hồ sơ |
+| `/account/profile` | Hồ sơ, số điện thoại, ảnh đại diện (JPEG/PNG/WebP/AVIF, tối đa 2 MB, tự cắt vuông 512 px trước khi tải lên, hiện trên header), đăng xuất |
 | `/events/{slug}/seats` | Chọn ghế (cần lượt vào từ phòng chờ). Bấm "Mua vé" ở trang sự kiện → phòng chờ → tự chuyển sang trang này. Chọn ghế trên sơ đồ (chuột hoặc phím mũi tên + Enter), hoặc "Chọn chỗ tốt nhất", rồi "Tiếp tục" để giữ ghế 8 phút. Ghế người khác vừa giữ đổi trạng thái ngay, không cần tải lại |
 | `/events/{slug}/queue` | Phòng chờ (cần đăng nhập và email đã xác nhận). Sự kiện mẫu "Hà Anh Tuấn" mở bán sau 5 phút, "Vũ Cát Tường" sau 20 phút: vào phòng chờ trước giờ mở để được xếp ngẫu nhiên, khi mở bán sẽ được nhận dần 50 người/giây (cấu hình `Queue` trong `appsettings.json`) |
 | `/events/{slug}/checkout` | Bước người mua (sau khi giữ ghế): tên, email, số điện thoại, đếm ngược giữ chỗ. Bấm "Tiếp tục" tạo đơn hàng rồi chuyển sang `/checkout/{orderId}` |

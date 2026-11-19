@@ -13,7 +13,7 @@ namespace TicketRush.Infrastructure.Catalog;
 /// Postgres implementation of the catalog. Every query is <c>AsNoTracking</c> and projects straight to DTOs in
 /// one round-trip; aggregates are never loaded. Draft and cancelled events are invisible.
 /// </summary>
-internal sealed class EventCatalogReader(AppDbContext db, TimeProvider time) : IEventCatalogReader
+internal sealed partial class EventCatalogReader(AppDbContext db, TimeProvider time) : IEventCatalogReader
 {
     public async Task<EventPage> ListAsync(ListEventsQuery query, CancellationToken ct)
     {
@@ -161,6 +161,99 @@ internal sealed class EventCatalogReader(AppDbContext db, TimeProvider time) : I
         // Database collations differ between environments; sort for Vietnamese readers ("Đà Nẵng" before "Hà Nội").
         return cities.Order(StringComparer.Create(CultureInfo.GetCultureInfo("vi-VN"), ignoreCase: false)).ToList();
     }
+
+    public async Task<HomeSections> GetHomeAsync(CancellationToken ct)
+    {
+        var now = time.GetUtcNow();
+        var since = now.AddHours(-24);
+        // The catalog is small (spec 04): every published, not ended event with its signals in one query, picked in memory.
+        var candidates = await (
+                from e in db.Events.AsNoTracking()
+                where e.Status == EventStatus.Published && e.EndsAt > now
+                join v in db.Venues on e.VenueId equals v.Id
+                select new HomeCandidate(
+                    new EventSummary(
+                        e.Id,
+                        e.Slug,
+                        e.Title,
+                        e.Category,
+                        e.StartsAt,
+                        v.Name,
+                        e.City,
+                        e.CoverImageUrl,
+                        e.Tiers.Min(t => (long?)t.Price.Amount),
+                        e.Phases.Where(p => p.OpensAt > now).Min(p => (DateTimeOffset?)p.OpensAt),
+                        e.Phases.Any(p => p.OpensAt <= now && p.ClosesAt > now),
+                        e.IsSoldOut),
+                    db.Tickets.Count(t => t.EventId == e.Id && t.CreatedAt > since),
+                    db.Tickets.Count(t => t.EventId == e.Id),
+                    db.EventSeats.Count(s => s.EventId == e.Id) + (e.Tiers.Sum(t => t.Capacity) ?? 0),
+                    db.EventFollows.Count(f => f.EventId == e.Id)))
+            .ToListAsync(ct);
+
+        return HomeSectionPicker.Pick(candidates, now);
+    }
+
+    /// <summary>Word-similarity floor for artist, venue and city typos (small distinct sets, scored directly).</summary>
+    private const double TypoSimilarity = 0.4;
+
+    /// <summary>
+    /// Two round trips: events (prefix tsquery or trigram `&lt;%`, both answered by the GIN indexes), then artists, venues and
+    /// cities in one UNION. The query is normalised here the way <c>catalog_search_text()</c> normalises the columns.
+    /// </summary>
+    public async Task<SearchSuggestions> SuggestAsync(string q, CancellationToken ct)
+    {
+        var now = time.GetUtcNow();
+        var norm = SearchNormalizer.Normalize(q);
+        // Only [a-z0-9] words reach to_tsquery (as prefixes), so no user text is ever tsquery syntax.
+        var prefix = string.Join(" & ", PrefixWords().Matches(norm).Select(m => m.Value + ":*"));
+        var matches = prefix.Length > 0
+            ? db.Database.SqlQuery<EventSuggestion>($"""
+                SELECT e.slug, e.title, e.starts_at, v.name AS venue_name, e.city, e.cover_image_url
+                FROM events e JOIN venues v ON v.id = e.venue_id
+                WHERE e.status = 'Published' AND e.ends_at > {now}
+                  AND (e.search_vector @@ to_tsquery('simple'::regconfig, {prefix}) OR {norm} <% e.search_text)
+                ORDER BY ts_rank(e.search_vector, to_tsquery('simple'::regconfig, {prefix})) + word_similarity({norm}, e.search_text) DESC, e.starts_at
+                LIMIT {SuggestLimits.Events}
+                """)
+            : db.Database.SqlQuery<EventSuggestion>($"""
+                SELECT e.slug, e.title, e.starts_at, v.name AS venue_name, e.city, e.cover_image_url
+                FROM events e JOIN venues v ON v.id = e.venue_id
+                WHERE e.status = 'Published' AND e.ends_at > {now} AND {norm} <% e.search_text
+                ORDER BY word_similarity({norm}, e.search_text) DESC, e.starts_at
+                LIMIT {SuggestLimits.Events}
+                """);
+        var events = await matches.ToListAsync(ct);
+
+        // Artists, venues and cities are few distinct values: dedupe first, then score.
+        var names = await db.Database.SqlQuery<NameRow>($"""
+            WITH live AS (
+                SELECT e.lineup, e.city, e.venue_id FROM events e WHERE e.status = 'Published' AND e.ends_at > {now}),
+            candidates AS (
+                SELECT DISTINCT 'artist' AS kind, a AS name, '' AS city FROM live, unnest(live.lineup) AS a
+                UNION ALL
+                SELECT DISTINCT 'venue', v.name, v.city FROM venues v WHERE v.id IN (SELECT venue_id FROM live)
+                UNION ALL
+                SELECT DISTINCT 'city', city, '' FROM live)
+            SELECT kind, name, city, word_similarity({norm}, lower(immutable_unaccent(name))) AS score
+            FROM candidates
+            WHERE word_similarity({norm}, lower(immutable_unaccent(name))) >= {TypoSimilarity}
+            """).ToListAsync(ct);
+
+        IEnumerable<NameRow> Top(string kind, int limit) =>
+            names.Where(n => n.Kind == kind).OrderByDescending(n => n.Score).ThenBy(n => n.Name, StringComparer.Ordinal).Take(limit);
+
+        return new SearchSuggestions(
+            events,
+            Top("artist", SuggestLimits.Artists).Select(n => n.Name).ToList(),
+            Top("venue", SuggestLimits.Venues).Select(n => new VenueSuggestion(n.Name, n.City)).ToList(),
+            Top("city", SuggestLimits.Cities).Select(n => n.Name).ToList());
+    }
+
+    private sealed record NameRow(string Kind, string Name, string City, double Score);
+
+    [System.Text.RegularExpressions.GeneratedRegex("[a-z0-9]+")]
+    private static partial System.Text.RegularExpressions.Regex PrefixWords();
 
     private IQueryable<Event> Visible() =>
         db.Events.AsNoTracking().Where(e => e.Status == EventStatus.Published || e.Status == EventStatus.Ended);

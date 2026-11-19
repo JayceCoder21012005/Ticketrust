@@ -11,7 +11,7 @@ async function seriousViolations(page: Page) {
 }
 
 for (const colorScheme of ["light", "dark"] as const) {
-  for (const path of ["/events", "/events?category=sports&city=H%C3%A0+N%E1%BB%99i", "/events/son-tung-mtp-live"]) {
+  for (const path of ["/", "/events", "/events?category=sports&city=H%C3%A0+N%E1%BB%99i", "/events/son-tung-mtp-live"]) {
     test(`${path} has no serious accessibility violations (${colorScheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme });
       await page.goto(path);
@@ -23,13 +23,15 @@ for (const colorScheme of ["light", "dark"] as const) {
   }
 }
 
-test("home leads with the next sale to open and links into the catalog", async ({ page }) => {
+test("home leads with the search hero, then the next sales to open, and links into the catalog", async ({ page }) => {
   await page.goto("/");
 
-  const hero = page.getByRole("region", { name: "Vũ Cát Tường - Inner Space" });
+  const hero = page.getByRole("region", { name: "Săn vé nhanh, công bằng." });
   await expect(hero).toBeVisible();
-  await expect(hero.getByText("Sắp mở bán")).toBeVisible();
-  await expect(hero.getByText("Mở bán sau")).toBeVisible();
+  await expect(hero.getByRole("button", { name: /Tìm sự kiện, nghệ sĩ, địa điểm/ })).toBeVisible();
+  const soon = page.getByRole("region", { name: "Sắp mở bán" });
+  await expect(soon.getByRole("link", { name: /Vũ Cát Tường - Inner Space/ })).toBeVisible();
+  await expect(soon.getByText("Mở bán sau").first()).toBeVisible();
 
   await page.getByRole("navigation", { name: "Khám phá theo danh mục" }).getByRole("link", { name: "Thể thao" }).click();
 
@@ -124,6 +126,16 @@ test("the Open Graph image is a PNG", async ({ request }) => {
 
 test.describe("phone", () => {
   test.use({ viewport: devices["Pixel 7"].viewport, hasTouch: true, isMobile: true });
+
+  for (const path of ["/", "/events", "/events/son-tung-mtp-live"]) {
+    test(`${path} never scrolls sideways on a phone`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+
+      // On a phone the layout viewport grows to fit an overflowing page, so compare with the device width itself.
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
+    });
+  }
 
   test("the buy button sticks to the bottom of the event page", async ({ page }) => {
     await page.goto("/events/son-tung-mtp-live");

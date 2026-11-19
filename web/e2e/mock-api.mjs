@@ -170,12 +170,53 @@ function list(params) {
   return { items, nextCursor: offset + limit < matches.length ? String(offset + limit) : null };
 }
 
+/** UI refresh: the home's sections, picked like the api does (without sales signals: hot is the sales open or opening this week). */
+function home() {
+  const now = Date.now();
+  const week = now + 7 * 24 * 3600 * 1000;
+  const live = list(new URLSearchParams({ limit: "100" })).items;
+  const count = (key) =>
+    Object.entries(Object.groupBy(live, (e) => e[key])).map(([value, items]) => ({ [key]: value, events: items.length })).sort((a, b) => b.events - a.events);
+  // Like the api: each event in the first section that wants it (opening soon first, then hot).
+  const shown = new Set();
+  const take = (events, count) => {
+    const picked = events.filter((e) => !shown.has(e.id)).slice(0, count);
+    picked.forEach((e) => shown.add(e.id));
+    return picked;
+  };
+  return {
+    openingSoon: take(
+      live.filter((e) => e.nextSaleOpensAt && !e.isOnSale && !e.isSoldOut).sort((a, b) => Date.parse(a.nextSaleOpensAt) - Date.parse(b.nextSaleOpensAt)),
+      4,
+    ),
+    hot: take(live.filter((e) => !e.isSoldOut && (e.isOnSale || (e.nextSaleOpensAt && Date.parse(e.nextSaleOpensAt) <= week))), 4),
+    thisWeek: take(live.filter((e) => Date.parse(e.startsAt) <= week), 6),
+    upcoming: take(live.filter((e) => Date.parse(e.startsAt) > week), 6),
+    cities: count("city"),
+    categories: count("category"),
+  };
+}
+
+function suggest(q) {
+  const terms = fold(q).split(/[^a-z0-9]+/).filter(Boolean);
+  const live = list(new URLSearchParams({ limit: "100" })).items;
+  const events = terms.length === 0 ? home().hot : live.filter((e) => terms.every((term) => fold(`${e.title} ${e.city}`).includes(term))).slice(0, 6);
+  return {
+    events: events.map(({ slug, title, startsAt, venueName, city, coverImageUrl }) => ({ slug, title, startsAt, venueName, city, coverImageUrl })),
+    artists: [],
+    venues: [],
+    cities: terms.length === 0 ? [] : [...new Set(live.map((e) => e.city))].filter((c) => terms.every((term) => fold(c).includes(term))).slice(0, 3),
+  };
+}
+
 function route(url) {
   const path = url.pathname.replace(/^\/api\/v1/, "");
   if (path === "/time") return [200, { serverNow: new Date().toISOString() }];
   if (path === "/categories") return [200, CATEGORIES];
   if (path === "/cities") return [200, ["Đà Nẵng", "Hà Nội", "Hồ Chí Minh"]];
   if (path === "/events" || path === "/events/") return [200, list(url.searchParams)];
+  if (path === "/catalog/home") return [200, home()];
+  if (path === "/search/suggest") return [200, suggest(url.searchParams.get("q") ?? "")];
 
   const availability = /^\/events\/([^/]+)\/availability$/.exec(path);
   if (availability) {

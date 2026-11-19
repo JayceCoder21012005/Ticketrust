@@ -34,7 +34,8 @@
   },
   "footer": {
     "tagline": "Săn vé nhanh, công bằng, không bao giờ bán trùng ghế.",
-    "rights": "© {year} TicketRush"
+    "rights": "© {year} TicketRush",
+    "photos": "Ảnh nền: Unsplash"
   },
   "event": {
     "buy": "Mua vé"
@@ -147,7 +148,7 @@
       "queueHint": "Phòng chờ đã mở. Thứ tự được xếp ngẫu nhiên lúc mở bán.",
       "buy": "Mua vé",
       "soldOut": "Hết vé — Vào danh sách chờ",
-      "soldOutHint": "Danh sách chờ sẽ sớm ra mắt.",
+      "soldOutHint": "Có vé trả lại, người chờ lâu nhất được nhận trước.",
       "ended": "Sự kiện đã kết thúc",
       "cancelled": "Sự kiện đã bị huỷ",
       "cancelledHint": "Vé đã mua sẽ được hoàn tiền tự động.",
@@ -229,5 +230,24 @@
     "title": "Bạn thao tác quá nhanh",
     "wait": "Thử lại sau {seconds} giây.",
     "ready": "Bạn có thể thử lại."
+  },
+  "search": {
+    "title": "Tìm kiếm",
+    "description": "Gõ để tìm sự kiện, nghệ sĩ, địa điểm hoặc thành phố.",
+    "resultCount": "{count} kết quả",
+    "empty": "Không tìm thấy kết quả phù hợp.",
+    "recent": "Tìm kiếm gần đây",
+    "clear": "Xoá",
+    "clearRecent": "Xoá lịch sử tìm kiếm",
+    "events": "Sự kiện",
+    "trending": "Đang hot",
+    "artists": "Nghệ sĩ",
+    "venues": "Địa điểm",
+    "cities": "Thành phố",
+    "seeAll": "Xem tất cả kết quả cho “{q}”"
+  },
+  "home": {
+    "forYou": "Dành cho bạn",
+    "forYouDescription": "Gợi ý từ những sự kiện bạn đang theo dõi."
   }
 }

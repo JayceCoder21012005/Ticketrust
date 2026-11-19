@@ -34,7 +34,8 @@
   },
   "footer": {
     "tagline": "Fast, fair tickets. Never the same seat twice.",
-    "rights": "© {year} TicketRush"
+    "rights": "© {year} TicketRush",
+    "photos": "Backdrop photos: Unsplash"
   },
   "event": {
     "buy": "Buy tickets"
@@ -147,7 +148,7 @@
       "queueHint": "The waiting room is open. Places are drawn at random when the sale opens.",
       "buy": "Buy tickets",
       "soldOut": "Sold out — Join the waitlist",
-      "soldOutHint": "The waitlist is coming soon.",
+      "soldOutHint": "Returned tickets go to whoever has waited longest.",
       "ended": "This event has ended",
       "cancelled": "This event was cancelled",
       "cancelledHint": "Tickets you bought are refunded automatically.",
@@ -229,5 +230,24 @@
     "title": "You are going too fast",
     "wait": "Try again in {seconds} s.",
     "ready": "You can try again."
+  },
+  "search": {
+    "title": "Search",
+    "description": "Type to find events, artists, venues or cities.",
+    "resultCount": "{count} results",
+    "empty": "No matching results.",
+    "recent": "Recent searches",
+    "clear": "Clear",
+    "clearRecent": "Clear search history",
+    "events": "Events",
+    "trending": "Trending",
+    "artists": "Artists",
+    "venues": "Venues",
+    "cities": "Cities",
+    "seeAll": "See all results for “{q}”"
+  },
+  "home": {
+    "forYou": "For you",
+    "forYouDescription": "Picked from the events you follow."
   }
 }

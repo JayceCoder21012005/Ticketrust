@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageTransition } from "@/components/shared/event-card";
 import { EventDetailView } from "@/features/catalog/detail/event-detail-view";
 import { getEvent, getPrerenderSlugs, isSlug } from "@/lib/catalog/api";
 import { formatDateTime } from "@/lib/format";
@@ -54,7 +55,11 @@ async function EventContent({ params }: { params: PageProps<"/events/[slug]">["p
     notFound();
   }
 
-  return <EventDetailView event={event} />;
+  return (
+    <PageTransition>
+      <EventDetailView event={event} />
+    </PageTransition>
+  );
 }
 
 function DetailSkeleton() {

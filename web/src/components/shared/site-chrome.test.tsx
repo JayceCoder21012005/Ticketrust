@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ThemeProvider } from "next-themes";
 import { beforeAll, describe, expect, it, vi } from "vitest";
@@ -25,12 +25,11 @@ describe("SiteHeader", () => {
     expect(screen.getByRole("link", { name: "Bỏ qua đến nội dung chính" })).toHaveAttribute("href", "#main");
   });
 
-  it("has a search landmark that submits to /events?q=", () => {
+  it("has a search landmark whose button opens the search palette", () => {
     render(<SiteHeader />);
 
     const search = screen.getByRole("search");
-    expect(search).toHaveAttribute("action", "/events");
-    expect(screen.getByRole("searchbox", { name: "Tìm kiếm" })).toHaveAttribute("name", "q");
+    expect(within(search).getByRole("button", { name: /Tìm sự kiện, nghệ sĩ, địa điểm/ })).toHaveAttribute("aria-haspopup", "dialog");
   });
 
   it("offers sign-in", () => {

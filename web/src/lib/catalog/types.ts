@@ -23,6 +23,16 @@ export type EventSummary = {
 
 export type EventPage = { items: EventSummary[]; nextCursor: string | null };
 
+/** The home's sections, picked on the server (UI refresh, `GET /catalog/home`). */
+export type HomeSections = {
+  hot: EventSummary[];
+  openingSoon: EventSummary[];
+  thisWeek: EventSummary[];
+  upcoming: EventSummary[];
+  cities: { city: string; events: number }[];
+  categories: { category: string; events: number }[];
+};
+
 export type Venue = { id: string; name: string; address: string; city: string; mapUrl: string | null };
 
 export type TicketTier = { id: string; name: string; price: number; currency: string; kind: TicketKind; color: string };

@@ -111,13 +111,14 @@ describe("EventCta", () => {
     expect(screen.getByRole("link", { name: "Mua vé" })).toHaveAttribute("href", "/events/son-tung-mtp-live/queue");
   });
 
-  it("is a disabled waitlist button when every tier is sold out", async () => {
+  it("offers the waitlist when every tier is sold out: a login link for a visitor", async () => {
     startDeviceClock(0, 0);
     vi.setSystemTime(Date.parse(opensAt) + MIN);
     render(<EventCta event={event} priceFrom={800_000} />);
     await flush();
 
-    expect(screen.getByRole("button", { name: "Hết vé — Vào danh sách chờ" })).toBeDisabled();
+    expect(screen.getByRole("link", { name: "Hết vé — Vào danh sách chờ" })).toHaveAttribute("href", "/login?returnUrl=%2Fevents%2Fson-tung-mtp-live");
+    expect(screen.getByText("Có vé trả lại, người chờ lâu nhất được nhận trước.")).toBeInTheDocument();
   });
 
   it("explains a cancelled event instead of selling it", async () => {
@@ -154,13 +155,13 @@ describe("EventCta", () => {
       }
     });
 
-    it("is offered in the SoldOut state, under the disabled waitlist button", async () => {
+    it("is offered in the SoldOut state, under the waitlist action", async () => {
       startDeviceClock(0, 0);
       at(Date.parse(opensAt) + MIN);
       render(<EventCta event={event} priceFrom={800_000} />);
       await flush();
 
-      expect(screen.getByRole("button", { name: "Hết vé — Vào danh sách chờ" })).toBeDisabled();
+      expect(screen.getByRole("link", { name: "Hết vé — Vào danh sách chờ" })).toBeInTheDocument();
       expect(follow()).toBeInTheDocument();
     });
 
@@ -183,7 +184,7 @@ describe("EventCta", () => {
     it.each([
       ["OnSale", 10, () => at(Date.parse(opensAt) + MIN), "link", "Mua vé"],
       ["PreQueue", 10, () => at(Date.parse(opensAt) - 10 * MIN), "link", "Vào phòng chờ"],
-      ["SoldOut", 0, () => at(Date.parse(opensAt) + MIN), "button", "Hết vé — Vào danh sách chờ"],
+      ["SoldOut", 0, () => at(Date.parse(opensAt) + MIN), "link", "Hết vé — Vào danh sách chờ"],
     ] as const)("is an icon before the %s action in the mobile bar, so the main action keeps its label at the thumb's end", async (_state, remaining, arrange, role, primary) => {
       startDeviceClock(0, remaining);
       arrange();

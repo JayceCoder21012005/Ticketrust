@@ -19,6 +19,7 @@ using TicketRush.Api.Features.Queue;
 using TicketRush.Api.Features.ServerTime;
 using TicketRush.Api.Features.Storage;
 using TicketRush.Api.Features.Tickets;
+using TicketRush.Api.Features.Waitlist;
 using TicketRush.Api.Features.Users;
 using TicketRush.Api.Features.Webhooks;
 using TicketRush.Infrastructure.Realtime;
@@ -105,6 +106,7 @@ public static class ApiServiceCollectionExtensions
         v1.MapAuthEndpoints();
         v1.MapMeEndpoints();
         v1.MapCatalogEndpoints();
+        v1.MapSearchEndpoints();
         v1.MapOrganizerEndpoints();
         v1.MapQueueEndpoints();
         v1.MapHoldEndpoints();
@@ -113,6 +115,7 @@ public static class ApiServiceCollectionExtensions
         v1.MapTicketEndpoints();
         v1.MapGateEndpoints();
         v1.MapFollowEndpoints();
+        v1.MapWaitlistEndpoints();
         v1.MapMockGatewayEndpoints();
         v1.MapPaymentWebhookEndpoints();
         v1.MapLocalStorageEndpoints();

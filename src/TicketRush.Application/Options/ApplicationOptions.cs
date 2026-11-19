@@ -142,3 +142,15 @@ public sealed class FrontendOptions
     /// <summary>Shared with the web app's <c>REVALIDATE_SECRET</c>. Secret: AppHost parameter / env only.</summary>
     public string? RevalidateSecret { get; set; }
 }
+
+/// <summary>Sold-out waitlist (spec 13).</summary>
+public sealed class WaitlistOptions
+{
+    public const string SectionName = "Waitlist";
+
+    /// <summary>How long an offered hold waits for the waiter to pay (spec 13: 15 min).</summary>
+    [Range(60, 3600)]
+    public int OfferTtlSeconds { get; set; } = 900;
+
+    public TimeSpan OfferTtl => TimeSpan.FromSeconds(OfferTtlSeconds);
+}

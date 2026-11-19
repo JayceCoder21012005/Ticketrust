@@ -7,11 +7,17 @@
       "openingSoon": "Sắp mở bán",
       "openingSoonDescription": "Canh giờ mở bán, vào phòng chờ trước 30 phút.",
       "categories": "Khám phá theo danh mục",
-      "byCity": "Sự kiện theo thành phố",
+      "byCity": "Khám phá theo thành phố",
       "upcoming": "Sự kiện sắp diễn ra",
       "viewAll": "Xem tất cả",
       "empty": "Chưa có sự kiện nào đang mở",
-      "emptyDescription": "Quay lại sau nhé, sự kiện mới được thêm mỗi tuần."
+      "emptyDescription": "Quay lại sau nhé, sự kiện mới được thêm mỗi tuần.",
+      "heroTitle": "Săn vé nhanh, công bằng.",
+      "heroSubtitle": "Phòng chờ minh bạch, giữ ghế an toàn, giá hiển thị là giá bạn trả.",
+      "hot": "Đang hot",
+      "hotDescription": "Bán nhanh nhất trong 24 giờ qua.",
+      "thisWeek": "Diễn ra tuần này",
+      "eventsCount": "{count} sự kiện"
     },
     "detail": {
       "addToCalendar": "Thêm vào lịch",
@@ -54,6 +60,9 @@
       "resultsMore": "Hơn {count} sự kiện",
       "noResults": "Không tìm thấy sự kiện phù hợp",
       "noResultsHint": "Thử bỏ bớt bộ lọc hoặc tìm với từ khoá khác."
+    },
+    "card": {
+      "hot": "Đang hot"
     }
   }
 }

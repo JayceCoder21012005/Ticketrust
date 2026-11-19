@@ -171,6 +171,8 @@ async function openOnlineAndStore(page: Page, id = ID) {
   await page.goto(`/tickets/${id}`);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
+  // The worker stores the page only after every static file it needs: with the whole suite running in parallel that takes more
+  // than the default 5 s on a laptop (the buyer layout grew a few chunks with the account hub).
   await expect
     .poll(async () => {
       const state = await offlineState(page);
@@ -180,7 +182,7 @@ async function openOnlineAndStore(page: Page, id = ID) {
         page: state.cachedUrls.includes(`/tickets/${id}`),
         missingAssets: await uncachedAssets(page),
       };
-    })
+    }, { timeout: 15_000 })
     .toEqual({ key: true, ticket: true, page: true, missingAssets: [] });
 }
 
@@ -261,8 +263,8 @@ test.describe("offline ticket wallet", () => {
     const api = await arrange(context, page, baseURL!);
     await openOnlineAndStore(page);
 
-    // (iii) User A signs out from the account page.
-    await page.goto("/account");
+    // (iii) User A signs out from the account hub's profile page.
+    await page.goto("/account/profile");
     await page.getByRole("button", { name: "Đăng xuất" }).click();
     await expect(page).toHaveURL(/\/$/);
     await expect.poll(async () => {

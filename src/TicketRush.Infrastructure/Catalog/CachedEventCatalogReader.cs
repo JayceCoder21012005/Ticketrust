@@ -104,6 +104,18 @@ internal sealed class CachedEventCatalogReader(
             [ListTag],
             ct);
 
+    public async Task<HomeSections> GetHomeAsync(CancellationToken ct) =>
+        await cache.GetOrCreateAsync(
+            "catalog:home",
+            inner,
+            static (reader, token) => new ValueTask<HomeSections>(reader.GetHomeAsync(token)),
+            List,
+            [ListTag],
+            ct);
+
+    /// <summary>Not cached here: each keystroke is a new key; the HTTP response carries a 30 s public cache instead.</summary>
+    public Task<SearchSuggestions> SuggestAsync(string q, CancellationToken ct) => inner.SuggestAsync(q, ct);
+
     public async Task InvalidateEventAsync(Guid eventId, string slug, CancellationToken ct) =>
         await cache.RemoveByTagAsync([EventTag(eventId), SlugTag(slug), ListTag], ct);
 

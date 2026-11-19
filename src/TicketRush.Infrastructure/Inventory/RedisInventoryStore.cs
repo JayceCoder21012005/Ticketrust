@@ -38,6 +38,27 @@ public sealed partial class RedisInventoryStore(IConnectionMultiplexer redis, Re
             return (string)result[0]! == "OK";
         });
 
+    public Task<WaitlistHoldOutcome> HoldReturnedAsync(
+        Guid eventId, Guid holdId, Guid userId, IReadOnlyList<int> seats, IReadOnlyList<GaLine> ga, Guid previousOwner, TimeSpan ttl, CancellationToken ct) =>
+        GuardAsync(async () => ToWaitlistOutcome(await InventoryScripts.WaitlistAsync(
+            redis.GetDatabase(), keys, "return", eventId, holdId, userId, seats, ga, previousOwner, Guid.Empty, Guid.Empty, time.GetUtcNow(), ttl, [])));
+
+    public Task<WaitlistHoldOutcome> PassHoldAsync(Guid eventId, Guid oldHoldId, Guid oldUserId, Guid newHoldId, Guid newUserId, TimeSpan ttl, CancellationToken ct) =>
+        GuardAsync(async () => ToWaitlistOutcome(await InventoryScripts.WaitlistAsync(
+            redis.GetDatabase(), keys, "pass", eventId, newHoldId, newUserId, [], [], Guid.Empty, oldHoldId, oldUserId, time.GetUtcNow(), ttl, [])));
+
+    public Task FreeReturnedAsync(Guid eventId, IReadOnlyList<int> seats, IReadOnlyList<GaLine> ga, Guid previousOwner, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct) =>
+        GuardAsync(async () => await InventoryScripts.WaitlistAsync(
+            redis.GetDatabase(), keys, "free", eventId, Guid.Empty, Guid.Empty, seats, ga, previousOwner, Guid.Empty, Guid.Empty, time.GetUtcNow(), TimeSpan.Zero, eventGaTiers));
+
+    private static WaitlistHoldOutcome ToWaitlistOutcome(RedisResult[] result) => (string)result[0]! switch
+    {
+        "OK" => new WaitlistHoldOutcome(WaitlistHoldStatus.Ok, DateTimeOffset.FromUnixTimeMilliseconds(long.Parse((string)result[1]!, System.Globalization.CultureInfo.InvariantCulture))),
+        "HAS_HOLD" => new WaitlistHoldOutcome(WaitlistHoldStatus.HasHold, null),
+        "TAKEN" => new WaitlistHoldOutcome(WaitlistHoldStatus.Taken, null),
+        _ => new WaitlistHoldOutcome(WaitlistHoldStatus.NotFound, null),
+    };
+
     public Task<ActiveHold?> GetUserHoldAsync(Guid eventId, Guid userId, CancellationToken ct) =>
         GuardAsync(async () =>
         {
@@ -62,6 +83,19 @@ public sealed partial class RedisInventoryStore(IConnectionMultiplexer redis, Re
     public Task<bool> HoldRecordedAsync(Guid eventId, Guid holdId, Guid userId, CancellationToken ct) =>
         GuardAsync(async () =>
             Guid.TryParse((string?)await redis.GetDatabase().HashGetAsync(keys.InvHold(eventId, holdId), "userId"), out var owner) && owner == userId);
+
+    public Task<ActiveHold?> GetHoldAsync(Guid eventId, Guid holdId, CancellationToken ct) =>
+        GuardAsync(async () =>
+        {
+            var fields = (await redis.GetDatabase().HashGetAllAsync(keys.InvHold(eventId, holdId))).ToDictionary(f => (string)f.Name!, f => (string)f.Value!);
+            if (!fields.TryGetValue("expiresAt", out var expiresMs) || !Guid.TryParse(fields.GetValueOrDefault("userId"), out var owner))
+            {
+                return null;
+            }
+
+            var expiresAt = DateTimeOffset.FromUnixTimeMilliseconds(long.Parse(expiresMs, System.Globalization.CultureInfo.InvariantCulture));
+            return (ActiveHold?)new ActiveHold(holdId, owner, ParseSeats(fields.GetValueOrDefault("seats")), ParseGa(fields.GetValueOrDefault("ga")), expiresAt);
+        });
 
     public Task<InventorySnapshot> GetSnapshotAsync(Guid eventId, IReadOnlyList<Guid> eventGaTiers, CancellationToken ct) =>
         GuardAsync(async () =>

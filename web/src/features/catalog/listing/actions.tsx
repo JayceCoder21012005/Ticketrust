@@ -1,7 +1,7 @@
 "use server";
 
 import type { ReactNode } from "react";
-import { EventCard } from "@/components/shared/event-card";
+import { EventCard, posterName } from "@/components/shared/event-card";
 import { getEventPage } from "@/lib/catalog/api";
 
 const QUERY_KEYS = new Set(["q", "category", "city", "from", "to", "priceMax"]);
@@ -25,7 +25,7 @@ export async function loadMoreEvents(query: Record<string, string>, cursor: stri
   return {
     cards: page.items.map((event) => (
       <li key={event.id}>
-        <EventCard event={event} headingLevel="h2" className="h-full" />
+        <EventCard event={event} headingLevel="h2" posterTransitionName={posterName(event.slug)} className="h-full" />
       </li>
     )),
     nextCursor: page.nextCursor,

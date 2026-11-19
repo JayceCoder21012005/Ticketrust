@@ -55,6 +55,39 @@ public static class InventoryScripts
             [holdId.ToString("N"), userId.ToString("N"), SeatsCsv(seats), GaCsv(ga), keys.InvChanges(eventId).ToString(), TiersCsv(tiers)]))!;
     }
 
+    /// <summary>Spec 13 hand-overs; see waitlist_hold.lua. <paramref name="mode"/> is 'return', 'pass' or 'free'.</summary>
+    public static async Task<RedisResult[]> WaitlistAsync(
+        IDatabase db,
+        RedisKeys keys,
+        string mode,
+        Guid eventId,
+        Guid newHoldId,
+        Guid newUserId,
+        IEnumerable<int> seats,
+        IEnumerable<GaLine> ga,
+        Guid previousOwner,
+        Guid oldHoldId,
+        Guid oldUserId,
+        DateTimeOffset now,
+        TimeSpan ttl,
+        IReadOnlyList<Guid> tiers)
+    {
+        RedisKey[] fixedKeys =
+        [
+            keys.InvSold(eventId), keys.InvHeld(eventId), keys.InvUserHold(eventId, newUserId), keys.InvBought(eventId, previousOwner),
+            keys.InvVersion(eventId), keys.InvGaHeld(eventId), keys.InvHold(eventId, newHoldId), keys.InvHold(eventId, oldHoldId),
+            keys.InvUserHold(eventId, oldUserId),
+        ];
+        return (RedisResult[])(await LuaScripts.RunAsync(
+            db,
+            "waitlist_hold",
+            [.. fixedKeys, .. GaKeys(keys, eventId, tiers)],
+            [
+                mode, newHoldId.ToString("N"), newUserId.ToString("N"), SeatsCsv(seats), GaCsv(ga), now.ToUnixTimeMilliseconds(),
+                (long)ttl.TotalMilliseconds, keys.InvChanges(eventId).ToString(), oldHoldId.ToString("N"), TiersCsv(tiers),
+            ]))!;
+    }
+
     public static async Task<RedisResult[]> ReleaseAsync(
         IDatabase db, RedisKeys keys, Guid eventId, Guid holdId, Guid? userId, IReadOnlyList<Guid> tiers)
     {

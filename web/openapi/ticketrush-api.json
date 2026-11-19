@@ -48,6 +48,26 @@
         }
       }
     },
+    "/api/v1/catalog/home": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "operationId": "GetHome",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomeSections"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/cities": {
       "get": {
         "tags": [
@@ -57,6 +77,91 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/search/suggest": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "operationId": "SuggestSearch",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchSuggestions"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/follows": {
+      "get": {
+        "tags": [
+          "Follows"
+        ],
+        "operationId": "ListMyFollows",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EventSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/waitlist": {
+      "get": {
+        "tags": [
+          "Waitlist"
+        ],
+        "operationId": "ListMyWaitlist",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MyWaitlistItem"
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -2719,6 +2824,252 @@
         }
       }
     },
+    "/api/v1/events/{id}/waitlist": {
+      "post": {
+        "tags": [
+          "Waitlist"
+        ],
+        "operationId": "JoinWaitlist",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinWaitlistRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaitlistStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events/{id}/waitlist/me": {
+      "get": {
+        "tags": [
+          "Waitlist"
+        ],
+        "operationId": "GetMyWaitlistEntry",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaitlistStatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Waitlist"
+        ],
+        "operationId": "LeaveWaitlist",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/v1/waitlist/offers/{offerId}": {
+      "get": {
+        "tags": [
+          "Waitlist"
+        ],
+        "operationId": "GetWaitlistOffer",
+        "parameters": [
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaitlistOfferResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/waitlist/offers/{offerId}/accept": {
+      "post": {
+        "tags": [
+          "Waitlist"
+        ],
+        "operationId": "AcceptWaitlistOffer",
+        "parameters": [
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedWaitlistOffer"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/mock-gateway/sessions/{sessionId}": {
       "get": {
         "tags": [
@@ -2956,6 +3307,32 @@
   },
   "components": {
     "schemas": {
+      "AcceptedWaitlistOffer": {
+        "required": [
+          "holdId",
+          "eventId",
+          "eventSlug",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "holdId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventSlug": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "AssignGateStaffRequest": {
         "required": [
           "email",
@@ -3082,6 +3459,46 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "CategoryCount": {
+        "required": [
+          "category",
+          "events"
+        ],
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "events": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "CityCount": {
+        "required": [
+          "city",
+          "events"
+        ],
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "events": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -3386,6 +3803,41 @@
           "Ended",
           "Cancelled"
         ]
+      },
+      "EventSuggestion": {
+        "required": [
+          "slug",
+          "title",
+          "startsAt",
+          "venueName",
+          "city",
+          "coverImageUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "venueName": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "coverImageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
       },
       "EventSummary": {
         "required": [
@@ -3697,6 +4149,55 @@
           }
         }
       },
+      "HomeSections": {
+        "required": [
+          "hot",
+          "openingSoon",
+          "thisWeek",
+          "upcoming",
+          "cities",
+          "categories"
+        ],
+        "type": "object",
+        "properties": {
+          "hot": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventSummary"
+            }
+          },
+          "openingSoon": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventSummary"
+            }
+          },
+          "thisWeek": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventSummary"
+            }
+          },
+          "upcoming": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventSummary"
+            }
+          },
+          "cities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CityCount"
+            }
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CategoryCount"
+            }
+          }
+        }
+      },
       "HttpValidationProblemDetails": {
         "type": "object",
         "properties": {
@@ -3762,6 +4263,30 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "JoinWaitlistRequest": {
+        "required": [
+          "tierId",
+          "quantity"
+        ],
+        "type": "object",
+        "properties": {
+          "tierId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "quantity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -3907,6 +4432,48 @@
             "items": {
               "$ref": "#/components/schemas/TicketEventGroup"
             }
+          }
+        }
+      },
+      "MyWaitlistItem": {
+        "required": [
+          "entry",
+          "eventSlug",
+          "eventTitle",
+          "startsAt",
+          "city",
+          "coverImageUrl",
+          "tierName"
+        ],
+        "type": "object",
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/WaitlistStatusResponse"
+          },
+          "eventSlug": {
+            "type": "string"
+          },
+          "eventTitle": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "city": {
+            "type": "string"
+          },
+          "coverImageUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tierName": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -5039,6 +5606,41 @@
           }
         }
       },
+      "SearchSuggestions": {
+        "required": [
+          "events",
+          "artists",
+          "venues",
+          "cities"
+        ],
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventSuggestion"
+            }
+          },
+          "artists": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "venues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VenueSuggestion"
+            }
+          },
+          "cities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "SeatInfo": {
         "required": [
           "index",
@@ -5835,6 +6437,150 @@
             "type": "boolean"
           }
         }
+      },
+      "VenueSuggestion": {
+        "required": [
+          "name",
+          "city"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          }
+        }
+      },
+      "WaitlistOfferResponse": {
+        "required": [
+          "offerId",
+          "eventId",
+          "eventSlug",
+          "eventTitle",
+          "startsAt",
+          "expiresAt",
+          "hold"
+        ],
+        "type": "object",
+        "properties": {
+          "offerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventSlug": {
+            "type": "string"
+          },
+          "eventTitle": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hold": {
+            "$ref": "#/components/schemas/HoldResponse"
+          }
+        }
+      },
+      "WaitlistOfferSummary": {
+        "required": [
+          "offerId",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "offerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "WaitlistStatus": {
+        "enum": [
+          "Waiting",
+          "Offered",
+          "Converted",
+          "Expired",
+          "Left"
+        ]
+      },
+      "WaitlistStatusResponse": {
+        "required": [
+          "entryId",
+          "eventId",
+          "status",
+          "position",
+          "tierId",
+          "quantity",
+          "joinedAt",
+          "offer"
+        ],
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WaitlistStatus"
+          },
+          "position": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "tierId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "quantity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "offer": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WaitlistOfferSummary"
+              }
+            ]
+          }
+        }
       }
     }
   },
@@ -5844,6 +6590,12 @@
     },
     {
       "name": "Catalog"
+    },
+    {
+      "name": "Follows"
+    },
+    {
+      "name": "Waitlist"
     },
     {
       "name": "Webhooks"
@@ -5877,9 +6629,6 @@
     },
     {
       "name": "Gate"
-    },
-    {
-      "name": "Follows"
     },
     {
       "name": "MockGateway"
