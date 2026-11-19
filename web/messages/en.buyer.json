@@ -432,5 +432,34 @@
     "limit": "Up to {count} tickets per buyer",
     "sectionFree": "{count}/{total} free",
     "sectionFull": "Full"
+  },
+  "accountHub": {
+    "navLabel": "Account",
+    "nav": {
+      "overview": "Overview",
+      "tickets": "My tickets",
+      "orders": "Orders",
+      "notifications": "Notifications",
+      "profile": "Profile"
+    },
+    "greeting": "Hello, {name}",
+    "explore": "Explore events",
+    "seeAll": "See all",
+    "next": {
+      "title": "Your next event",
+      "empty": "You have no tickets for an upcoming event.",
+      "count": "{count} tickets",
+      "open": "Open ticket"
+    },
+    "orders": {
+      "title": "Recent orders",
+      "empty": "No orders yet."
+    },
+    "follows": {
+      "title": "You follow",
+      "empty": "You do not follow any event yet."
+    },
+    "profileTitle": "Profile",
+    "profileDescription": "Personal details used when you buy tickets."
   }
 }

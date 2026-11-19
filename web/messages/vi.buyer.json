@@ -432,5 +432,34 @@
     "limit": "Tối đa {count} vé mỗi người",
     "sectionFree": "Còn {count}/{total}",
     "sectionFull": "Hết ghế"
+  },
+  "accountHub": {
+    "navLabel": "Tài khoản",
+    "nav": {
+      "overview": "Tổng quan",
+      "tickets": "Vé của tôi",
+      "orders": "Đơn hàng",
+      "notifications": "Thông báo",
+      "profile": "Hồ sơ"
+    },
+    "greeting": "Xin chào, {name}",
+    "explore": "Khám phá sự kiện",
+    "seeAll": "Xem tất cả",
+    "next": {
+      "title": "Sự kiện sắp tới của bạn",
+      "empty": "Bạn chưa có vé cho sự kiện nào sắp diễn ra.",
+      "count": "{count} vé",
+      "open": "Mở vé"
+    },
+    "orders": {
+      "title": "Đơn hàng gần đây",
+      "empty": "Chưa có đơn hàng nào."
+    },
+    "follows": {
+      "title": "Bạn đang theo dõi",
+      "empty": "Bạn chưa theo dõi sự kiện nào."
+    },
+    "profileTitle": "Hồ sơ",
+    "profileDescription": "Thông tin cá nhân dùng khi mua vé."
   }
 }

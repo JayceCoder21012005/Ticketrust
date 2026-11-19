@@ -1,9 +1,9 @@
 import { AppProviders } from "@/components/app-providers";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { ShoppingTimer } from "@/components/shared/shopping-timer";
-import { CardSpotlight } from "@/components/shared/card-spotlight";
 import { SiteFooter } from "@/components/shared/site-footer";
 import { SiteHeader } from "@/components/shared/site-header";
+import { AccountAvatarLink } from "@/features/account/account-avatar-link";
 import { UserHubProvider } from "@/features/notifications/use-user-hub";
 import { currentYear } from "@/lib/current-year";
 
@@ -14,12 +14,11 @@ export default async function BuyerLayout({ children }: LayoutProps<"/">) {
       <AuthProvider>
         {/* The tab's one live connection (notifications, order status): nothing below opens another. */}
         <UserHubProvider>
-          <SiteHeader />
+          <SiteHeader account={<AccountAvatarLink />} />
           <main id="main" className="flex flex-1 flex-col">
             {children}
           </main>
           <SiteFooter year={await currentYear()} />
-      <CardSpotlight />
           <ShoppingTimer />
         </UserHubProvider>
       </AuthProvider>

@@ -75,7 +75,7 @@ test.describe("my tickets", () => {
     await page.goto("/account/tickets");
 
     await expect(page.getByRole("heading", { level: 1, name: "Vé của tôi" })).toBeFocused();
-    const cards = page.getByRole("listitem");
+    const cards = page.locator("main li:not(nav li)");
     await expect(cards).toHaveCount(2);
     await expect(cards.nth(0)).toContainText("Đêm nhạc số 1");
     await expect(cards.nth(0)).toContainText("20:00 20/12/2099");
@@ -91,13 +91,13 @@ test.describe("my tickets", () => {
   test("switches to the past tab, keeps it in the url and on reload, and shows the status chips", async ({ context, page, baseURL }) => {
     const calls = await arrange(context, baseURL!);
     await page.goto("/account/tickets");
-    await expect(page.getByRole("listitem")).toHaveCount(2);
+    await expect(page.locator("main li:not(nav li)")).toHaveCount(2);
 
     await page.getByRole("tab", { name: "Đã qua" }).click();
 
     await expect(page).toHaveURL(/\/account\/tickets\?scope=past$/);
     await expect(page.getByRole("tab", { name: "Đã qua" })).toHaveAttribute("aria-selected", "true");
-    const cards = page.getByRole("listitem");
+    const cards = page.locator("main li:not(nav li)");
     await expect(cards).toHaveCount(2);
     await expect(cards.nth(0)).toContainText("Đêm nhạc số 5");
     await expect(cards.nth(0)).toContainText("Đã diễn ra");
@@ -105,7 +105,7 @@ test.describe("my tickets", () => {
 
     await page.reload();
     await expect(page.getByRole("tab", { name: "Đã qua" })).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByRole("listitem")).toHaveCount(2);
+    await expect(page.locator("main li:not(nav li)")).toHaveCount(2);
     expect(calls).toEqual(["upcoming", "past", "past"]);
 
     await page.getByRole("tab", { name: "Sắp diễn ra" }).click();
@@ -115,14 +115,14 @@ test.describe("my tickets", () => {
   test("the tabs work with the arrow keys", async ({ context, page, baseURL }) => {
     await arrange(context, baseURL!);
     await page.goto("/account/tickets");
-    await expect(page.getByRole("listitem")).toHaveCount(2);
+    await expect(page.locator("main li:not(nav li)")).toHaveCount(2);
 
     await page.getByRole("tab", { name: "Sắp diễn ra" }).focus();
     await page.keyboard.press("ArrowRight");
 
     await expect(page.getByRole("tab", { name: "Đã qua" })).toBeFocused();
     await expect(page).toHaveURL(/scope=past$/);
-    await expect(page.getByRole("listitem").first()).toContainText("Đêm nhạc số 5");
+    await expect(page.locator("main li:not(nav li)").first()).toContainText("Đêm nhạc số 5");
   });
 
   test("shows an empty state that points to the events, on both tabs", async ({ context, page, baseURL }) => {
@@ -147,7 +147,7 @@ test.describe("my tickets", () => {
 
     await expect(page.getByText("Không tải được vé của bạn.")).toBeVisible();
     await page.getByRole("button", { name: "Thử lại" }).click();
-    await expect(page.getByRole("listitem")).toHaveCount(2);
+    await expect(page.locator("main li:not(nav li)")).toHaveCount(2);
   });
 
   test("a signed-out visitor is sent to login", async ({ page }) => {
@@ -167,7 +167,7 @@ test.describe("my tickets", () => {
         await arrange(context, baseURL!, tickets);
         await page.goto("/account/tickets");
         await expect(page.getByRole("tab", { name: "Đã qua" })).toBeVisible();
-        await expect(page.getByRole("listitem").or(page.getByText("Bạn chưa có vé nào sắp diễn ra")).first()).toBeVisible();
+        await expect(page.locator("main li:not(nav li)").or(page.getByText("Bạn chưa có vé nào sắp diễn ra")).first()).toBeVisible();
 
         const width = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
         expect(width.scroll).toBeLessThanOrEqual(width.inner);
@@ -179,7 +179,7 @@ test.describe("my tickets", () => {
 type Scenario = { name: string; tickets: Wallet; open: (page: Page) => Promise<void> };
 
 const scenarios: Scenario[] = [
-  { name: "list", tickets: wallet, open: async (page) => { await page.goto("/account/tickets"); await expect(page.getByRole("listitem")).toHaveCount(2); } },
+  { name: "list", tickets: wallet, open: async (page) => { await page.goto("/account/tickets"); await expect(page.locator("main li:not(nav li)")).toHaveCount(2); } },
   { name: "past list with chips", tickets: wallet, open: async (page) => { await page.goto("/account/tickets?scope=past"); await expect(page.getByText("Đã huỷ")).toBeVisible(); } },
   { name: "empty state", tickets: empty, open: async (page) => { await page.goto("/account/tickets"); await expect(page.getByText("Bạn chưa có vé nào sắp diễn ra")).toBeVisible(); } },
 ];

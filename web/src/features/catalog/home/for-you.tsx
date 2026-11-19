@@ -1,13 +1,10 @@
 "use client";
 
-import { CalendarDays } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import { EventPoster } from "@/components/catalog/event-poster";
+import { MiniEventCard } from "@/features/account/mini-event-card";
 import { api } from "@/lib/api/client";
 import { hasSessionHint } from "@/lib/auth/session-hint";
 import type { EventSummary } from "@/lib/catalog/types";
-import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 
 const MAX = 6;
@@ -58,16 +55,7 @@ export function ForYou() {
       <ul className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 lg:grid-cols-6">
         {events.map((event) => (
           <li key={event.slug} className="w-[60%] shrink-0 snap-start sm:w-auto">
-            <Link href={`/events/${event.slug}`} prefetch={false} className="group/mini flex flex-col gap-2 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-muted">
-                <EventPoster slug={event.slug} category={event.category} title={event.title} coverImageUrl={event.coverImageUrl} sizes="200px" className="motion-safe:transition-transform motion-safe:group-hover/mini:scale-[1.04]" />
-              </div>
-              <span className="line-clamp-2 text-sm font-semibold leading-snug">{event.title}</span>
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <CalendarDays aria-hidden className="size-3.5" />
-                {formatDateTime(event.startsAt)}
-              </span>
-            </Link>
+            <MiniEventCard event={event} />
           </li>
         ))}
       </ul>

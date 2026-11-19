@@ -82,7 +82,7 @@ test.describe("order list", () => {
     await page.goto("/account/orders");
 
     await expect(page.getByRole("heading", { level: 1, name: "Đơn hàng của tôi" })).toBeFocused();
-    const rows = page.getByRole("listitem");
+    const rows = page.locator("main li:not(nav li)").filter({ hasText: "Đêm nhạc số" });
     await expect(rows).toHaveCount(2);
     await expect(rows.nth(0)).toContainText("Đêm nhạc số 3");
     await expect(rows.nth(0)).toContainText("#00000003");
@@ -112,12 +112,12 @@ test.describe("order list", () => {
     await expect(page).toHaveURL(/\/login\?returnUrl=%2Faccount%2Forders/);
   });
 
-  test("the account page links to it", async ({ context, page, baseURL }) => {
+  test("the account hub's navigation leads to it", async ({ context, page, baseURL }) => {
     await arrange(context, baseURL!, twoPages);
     await context.route("**/api/v1/me", (route) => route.fulfill({ json: user.user }));
     await page.goto("/account");
 
-    await page.getByRole("link", { name: "Đơn hàng của tôi" }).click();
+    await page.getByRole("navigation", { name: "Tài khoản" }).getByRole("link", { name: "Đơn hàng" }).click();
     await expect(page).toHaveURL(/\/account\/orders$/);
     await expect(page.getByRole("heading", { level: 1, name: "Đơn hàng của tôi" })).toBeVisible();
   });
@@ -199,8 +199,8 @@ test.describe("order detail", () => {
 type Scenario = { name: string; open: (page: Page) => Promise<void>; pages?: typeof twoPages | { first: { items: []; nextCursor: null } }; orders?: ReturnType<typeof detailOf>[] };
 
 const scenarios: Scenario[] = [
-  { name: "list", open: async (page) => { await page.goto("/account/orders"); await expect(page.getByRole("listitem")).toHaveCount(2); } },
-  { name: "list with every status", pages: { first: { items: (["Pending", "AwaitingPayment", "PaymentFailed", "Paid", "Cancelled", "Expired", "RefundPending", "Refunded"] as const).map((s, i) => summary((i % 3) + 1, s)).map((o, i) => ({ ...o, id: id(i + 1) })), nextCursor: "page-2" }, "page-2": twoPages["page-2"] }, open: async (page) => { await page.goto("/account/orders"); await expect(page.getByRole("listitem")).toHaveCount(8); } },
+  { name: "list", open: async (page) => { await page.goto("/account/orders"); await expect(page.locator("main li:not(nav li)")).toHaveCount(2); } },
+  { name: "list with every status", pages: { first: { items: (["Pending", "AwaitingPayment", "PaymentFailed", "Paid", "Cancelled", "Expired", "RefundPending", "Refunded"] as const).map((s, i) => summary((i % 3) + 1, s)).map((o, i) => ({ ...o, id: id(i + 1) })), nextCursor: "page-2" }, "page-2": twoPages["page-2"] }, open: async (page) => { await page.goto("/account/orders"); await expect(page.locator("main li:not(nav li)")).toHaveCount(8); } },
   { name: "empty list", pages: { first: { items: [], nextCursor: null } }, open: async (page) => { await page.goto("/account/orders"); await expect(page.getByText("Bạn chưa có đơn hàng nào")).toBeVisible(); } },
   { name: "paid order", orders: [detailOf(3, "Paid")], open: async (page) => { await page.goto(`/account/orders/${id(3)}`); await expect(page.getByRole("list", { name: "Các bước của đơn hàng" })).toBeVisible(); } },
   { name: "refunding order", orders: [detailOf(3, "RefundPending", "seats_unavailable")], open: async (page) => { await page.goto(`/account/orders/${id(3)}`); await expect(page.getByText("Đang hoàn tiền").first()).toBeVisible(); } },

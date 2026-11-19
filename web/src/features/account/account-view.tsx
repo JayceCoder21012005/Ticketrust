@@ -20,6 +20,7 @@ import type { ProfileInput } from "@/lib/auth/schemas";
 import { toFriendlyMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n.buyer";
 import { getMe, updateMe, uploadAvatar } from "./api";
+import { cropToSquare } from "./avatar-crop";
 
 const ME = ["me"] as const;
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
@@ -86,7 +87,8 @@ function AvatarSection({ user }: { user: SessionUser }) {
   const [error, setError] = useState<string | null>(null);
   const upload = useMutation({
     mutationFn: async (file: File) =>
-      updateMe({ fullName: user.fullName, phoneNumber: user.phoneNumber, avatarUrl: await uploadAvatar(file) }),
+      // Cropped to the centred square first (UI refresh): avatars are shown in circles, and the upload gets small.
+      updateMe({ fullName: user.fullName, phoneNumber: user.phoneNumber, avatarUrl: await uploadAvatar(await cropOrKeep(file)) }),
     onSuccess: save,
     onError: (e) => setError(toFriendlyMessage(e)),
   });
@@ -228,4 +230,13 @@ function AccountSkeleton() {
       </div>
     </div>
   );
+}
+
+/** A browser that cannot decode the file into a canvas still uploads the original (the api accepts it as it is). */
+async function cropOrKeep(file: File): Promise<Blob> {
+  try {
+    return await cropToSquare(file);
+  } catch {
+    return file;
+  }
 }

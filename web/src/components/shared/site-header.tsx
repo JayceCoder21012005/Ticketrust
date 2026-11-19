@@ -1,5 +1,6 @@
 import { Ticket } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { NotificationBell } from "@/features/notifications/notification-bell";
 import { SearchTrigger } from "@/features/search/search-trigger";
 import { t } from "@/lib/i18n";
@@ -10,7 +11,8 @@ import { ThemeToggle } from "./theme-toggle";
  * Global header. Search opens the ⌘K palette (UI refresh); the listing page keeps its GET form for the full results (spec 04).
  * The account link replaces "Đăng nhập" when the session hint cookie is present (spec 03).
  */
-export function SiteHeader() {
+/** `account` replaces the default account link (buyer pages pass the avatar link, which needs the session module). */
+export function SiteHeader({ account }: { account?: ReactNode }) {
   return (
     <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur">
       <a
@@ -31,7 +33,7 @@ export function SiteHeader() {
         <nav className="ml-auto flex items-center gap-1 sm:ml-0">
           <ThemeToggle />
           <NotificationBell />
-          <AccountLink />
+          {account ?? <AccountLink />}
         </nav>
       </div>
     </header>
