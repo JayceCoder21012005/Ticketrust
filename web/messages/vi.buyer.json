@@ -440,7 +440,8 @@
       "tickets": "Vé của tôi",
       "orders": "Đơn hàng",
       "notifications": "Thông báo",
-      "profile": "Hồ sơ"
+      "profile": "Hồ sơ",
+      "waitlist": "Danh sách chờ"
     },
     "greeting": "Xin chào, {name}",
     "explore": "Khám phá sự kiện",
@@ -461,5 +462,49 @@
     },
     "profileTitle": "Hồ sơ",
     "profileDescription": "Thông tin cá nhân dùng khi mua vé."
+  },
+  "waitlist": {
+    "loadFailed": "Không tải được trạng thái danh sách chờ.",
+    "offerReady": "Có vé cho bạn! Mua ngay",
+    "position": "Đang chờ · vị trí #{position}",
+    "waiting": "Đang chờ",
+    "waitingHint": "Khi có vé được trả lại, bạn sẽ nhận thông báo và email.",
+    "leave": "Rời danh sách chờ",
+    "dialog": {
+      "title": "Vào danh sách chờ",
+      "description": "Sự kiện đã hết vé. Khi có vé được trả lại, vé sẽ được giữ cho người chờ lâu nhất trước.",
+      "tier": "Hạng vé",
+      "anyTier": "Hạng bất kỳ",
+      "quantity": "Số vé",
+      "fewer": "Bớt một vé",
+      "more": "Thêm một vé",
+      "howFifo": "Ai vào trước được nhận vé trước.",
+      "howHold": "Khi có vé, bạn có 15 phút để thanh toán.",
+      "howMiss": "Bỏ lỡ lần đầu, bạn được xếp lại cuối danh sách; lần thứ hai lời mời hết hiệu lực.",
+      "submit": "Vào danh sách chờ"
+    },
+    "account": {
+      "title": "Danh sách chờ",
+      "intro": "Các sự kiện hết vé bạn đang chờ. Khi có vé trả lại, vé được giữ cho bạn theo thứ tự.",
+      "empty": "Bạn chưa ở danh sách chờ nào.",
+      "emptyHint": "Khi một sự kiện hết vé, chọn \"Vào danh sách chờ\" trên trang sự kiện.",
+      "loadFailed": "Không tải được danh sách chờ.",
+      "quantity": "{quantity} vé",
+      "anyTier": "Hạng bất kỳ",
+      "offered": "Có vé cho bạn",
+      "openOffer": "Xem lời mời"
+    },
+    "offer": {
+      "title": "Có vé cho bạn!",
+      "intro": "Vé dưới đây đang được giữ riêng cho bạn từ danh sách chờ.",
+      "timeLeft": "Thời gian giữ vé",
+      "total": "Tổng cộng",
+      "buy": "Mua ngay",
+      "expired": "Lời mời đã hết hạn",
+      "expiredHint": "Vé đã được chuyển cho người tiếp theo trong danh sách chờ.",
+      "notFound": "Không tìm thấy lời mời",
+      "toWaitlist": "Về danh sách chờ của tôi",
+      "loadFailed": "Không tải được lời mời."
+    }
   }
 }

@@ -1,7 +1,7 @@
 /** `NotificationItem` of the api; also the payload of the hub's `Notification` message. */
 export type NotificationItem = {
   id: string;
-  /** OrderPaid, RefundRequested, Refunded, OrderExpired, EventCancelled, SaleOpensSoon or EventStartsSoon. */
+  /** OrderPaid, RefundRequested, Refunded, OrderExpired, EventCancelled, SaleOpensSoon, EventStartsSoon or WaitlistOffer. */
   type: string;
   title: string;
   body: string;

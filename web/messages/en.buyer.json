@@ -440,7 +440,8 @@
       "tickets": "My tickets",
       "orders": "Orders",
       "notifications": "Notifications",
-      "profile": "Profile"
+      "profile": "Profile",
+      "waitlist": "Waitlist"
     },
     "greeting": "Hello, {name}",
     "explore": "Explore events",
@@ -461,5 +462,49 @@
     },
     "profileTitle": "Profile",
     "profileDescription": "Personal details used when you buy tickets."
+  },
+  "waitlist": {
+    "loadFailed": "Could not load your waitlist status.",
+    "offerReady": "A ticket for you! Buy now",
+    "position": "Waiting · #{position} in line",
+    "waiting": "Waiting",
+    "waitingHint": "When a ticket comes back you get a notification and an email.",
+    "leave": "Leave the waitlist",
+    "dialog": {
+      "title": "Join the waitlist",
+      "description": "This event is sold out. Returned tickets are held for whoever has waited longest first.",
+      "tier": "Tier",
+      "anyTier": "Any tier",
+      "quantity": "Tickets",
+      "fewer": "One ticket fewer",
+      "more": "One ticket more",
+      "howFifo": "First in line, first served.",
+      "howHold": "When a ticket is held for you, you have 15 minutes to pay.",
+      "howMiss": "Miss it once and you go to the back of the line; a second miss ends your place.",
+      "submit": "Join the waitlist"
+    },
+    "account": {
+      "title": "Waitlist",
+      "intro": "Sold-out events you are waiting for. Returned tickets are held for you in turn.",
+      "empty": "You are not on any waitlist.",
+      "emptyHint": "When an event sells out, choose \"Join the waitlist\" on its page.",
+      "loadFailed": "Could not load your waitlists.",
+      "quantity": "{quantity} tickets",
+      "anyTier": "Any tier",
+      "offered": "A ticket for you",
+      "openOffer": "View the offer"
+    },
+    "offer": {
+      "title": "A ticket for you!",
+      "intro": "The tickets below are held for you from the waitlist.",
+      "timeLeft": "Held for",
+      "total": "Total",
+      "buy": "Buy now",
+      "expired": "This offer has expired",
+      "expiredHint": "The tickets went to the next person in line.",
+      "notFound": "Offer not found",
+      "toWaitlist": "Back to my waitlists",
+      "loadFailed": "Could not load the offer."
+    }
   }
 }

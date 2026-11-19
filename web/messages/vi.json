@@ -148,7 +148,7 @@
       "queueHint": "Phòng chờ đã mở. Thứ tự được xếp ngẫu nhiên lúc mở bán.",
       "buy": "Mua vé",
       "soldOut": "Hết vé — Vào danh sách chờ",
-      "soldOutHint": "Danh sách chờ sẽ sớm ra mắt.",
+      "soldOutHint": "Có vé trả lại, người chờ lâu nhất được nhận trước.",
       "ended": "Sự kiện đã kết thúc",
       "cancelled": "Sự kiện đã bị huỷ",
       "cancelledHint": "Vé đã mua sẽ được hoàn tiền tự động.",

@@ -60,6 +60,7 @@ describe("AccountNav", () => {
     ["/account", "Tổng quan"],
     ["/account/tickets", "Vé của tôi"],
     ["/account/orders/123", "Đơn hàng"],
+    ["/account/waitlist", "Danh sách chờ"],
     ["/account/notifications", "Thông báo"],
     ["/account/profile", "Hồ sơ"],
   ])("marks %s as the current page", (pathname, label) => {
@@ -67,7 +68,7 @@ describe("AccountNav", () => {
     render(<AccountNav />);
 
     const links = within(screen.getByRole("navigation", { name: "Tài khoản" })).getAllByRole("link");
-    expect(links.map((l) => l.textContent)).toEqual(["Tổng quan", "Vé của tôi", "Đơn hàng", "Thông báo", "Hồ sơ"]);
+    expect(links.map((l) => l.textContent)).toEqual(["Tổng quan", "Vé của tôi", "Đơn hàng", "Danh sách chờ", "Thông báo", "Hồ sơ"]);
     expect(screen.getByRole("link", { name: label })).toHaveAttribute("aria-current", "page");
     expect(links.filter((l) => l.getAttribute("aria-current") === "page")).toHaveLength(1);
   });

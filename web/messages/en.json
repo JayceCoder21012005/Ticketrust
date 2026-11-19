@@ -148,7 +148,7 @@
       "queueHint": "The waiting room is open. Places are drawn at random when the sale opens.",
       "buy": "Buy tickets",
       "soldOut": "Sold out — Join the waitlist",
-      "soldOutHint": "The waitlist is coming soon.",
+      "soldOutHint": "Returned tickets go to whoever has waited longest.",
       "ended": "This event has ended",
       "cancelled": "This event was cancelled",
       "cancelledHint": "Tickets you bought are refunded automatically.",
