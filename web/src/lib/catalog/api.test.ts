@@ -5,9 +5,12 @@ vi.mock("next/cache", () => ({ cacheLife: cache.life, cacheTag: cache.tag }));
 
 import { getHomeSections } from "./api";
 
-/** Next.js leaves a cache entry out of prerendered pages when it expires sooner than this, or goes stale sooner than that. */
+/**
+ * Next.js leaves a cache entry out of prerendered pages when it expires sooner than 5 minutes, and out of the app shell that
+ * makes link navigation instant when it goes stale sooner than 5 minutes ("URL data outside of Suspense").
+ */
 const MIN_PRERENDERABLE_EXPIRE = 300;
-const MIN_PREFETCHABLE_STALE = 30;
+const MIN_SHELL_STALE = 300;
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -24,15 +27,18 @@ describe("getHomeSections", () => {
 
     const life = cache.life.mock.calls.at(-1)![0] as { stale: number; revalidate: number; expire: number };
     expect(life.expire).toBeGreaterThanOrEqual(MIN_PRERENDERABLE_EXPIRE);
-    expect(life.stale).toBeGreaterThanOrEqual(MIN_PREFETCHABLE_STALE);
+    expect(life.stale).toBeGreaterThanOrEqual(MIN_SHELL_STALE);
     expect(life.revalidate).toBeLessThanOrEqual(1);
   });
 
-  it("caches the sections for 30 s when the api answers", async () => {
+  it("regenerates the sections every 30 s on the server and keeps them in the app shell", async () => {
     const home = { hot: [], openingSoon: [], thisWeek: [], upcoming: [] };
     vi.stubGlobal("fetch", vi.fn(async () => Response.json(home)));
 
     expect(await getHomeSections()).toEqual(home);
-    expect(cache.life).toHaveBeenLastCalledWith({ stale: 30, revalidate: 30, expire: 3600 });
+    const life = cache.life.mock.calls.at(-1)![0] as { stale: number; revalidate: number; expire: number };
+    expect(life.revalidate).toBe(30);
+    expect(life.stale).toBeGreaterThanOrEqual(MIN_SHELL_STALE);
+    expect(life.expire).toBeGreaterThanOrEqual(MIN_PRERENDERABLE_EXPIRE);
   });
 });

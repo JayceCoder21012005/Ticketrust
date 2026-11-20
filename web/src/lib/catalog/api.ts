@@ -23,8 +23,14 @@ export const isSlug = (value: string) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value
 
 const UNAVAILABLE = Symbol("api unavailable at build time");
 
-/** Prerenderable (Next excludes `stale` under 30 s and `expire` under 5 min from prerenders) but refreshed on the next request: for a page without Suspense. */
-const RETRY_SOON = { stale: 30, revalidate: 1, expire: 300 };
+/**
+ * Lifetimes of the home page, which has no Suspense boundary: Next leaves an entry that expires sooner than 5 minutes out of the
+ * prerendered page (the route blocks) and one that goes stale sooner than 5 minutes out of the app shell that makes link
+ * navigation instant. `stale` is only how long a browser reuses the page while navigating; `revalidate` is what keeps it fresh.
+ */
+const HOME_LIFE = { stale: 300, revalidate: 30, expire: 3600 };
+/** The same, for "no answer": regenerated on the next request, so the error state does not last on the server. */
+const RETRY_SOON = { stale: 300, revalidate: 1, expire: 300 };
 
 async function getJson<T>(path: string): Promise<T | null | typeof UNAVAILABLE> {
   let response: Response;
@@ -76,7 +82,7 @@ export async function getHomeSections(): Promise<HomeSections | null> {
     return null;
   }
 
-  cacheLife({ stale: 30, revalidate: 30, expire: 3600 });
+  cacheLife(HOME_LIFE);
   return home;
 }
 
