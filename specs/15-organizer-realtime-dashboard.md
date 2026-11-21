@@ -42,8 +42,18 @@ Redis counters are the live view. Postgres (`orders`, `sales_per_minute`) is the
 
 ## Acceptance criteria
 
-- [ ] At 500 orders/s, the dashboard still receives exactly one snapshot per second.
-- [ ] After flushing Redis counters, the reconciler restores correct numbers within 1 min.
-- [ ] Another organizer can't join the hub group or fetch the dashboard (404).
-- [ ] Exporting 100,000 attendees keeps API memory flat (streaming test).
-- [ ] Revenue on the dashboard equals `SUM(orders.total)` for paid orders after a load test.
+- [x] At 500 orders/s, the dashboard still receives exactly one snapshot per second.
+- [x] After flushing Redis counters, the reconciler restores correct numbers within 1 min.
+- [x] Another organizer can't join the hub group or fetch the dashboard (404).
+- [x] Exporting 100,000 attendees keeps API memory flat (streaming test).
+- [x] Revenue on the dashboard equals `SUM(orders.total)` for paid orders after a load test.
+
+## Implementation notes (what differs from the text above)
+
+- **Primary sales only.** Resale orders (spec 14) move no seat and earn the organizer nothing, so sold, revenue and `sales_per_minute` skip them. "Revenue equals `SUM(orders.total)`" is over `Paid` primary orders, which is also what the reconciler counts (a refunded order drops out at the next reconcile).
+- **Counters per order, once.** The `OrderPaid` consumer upserts `sales_per_minute` in the outbox transaction, then counts the order in `dash:{evt}` with a Lua script guarded by a per-order marker (7 days), so a redelivery never double counts. It runs last among the `OrderPaid` consumers.
+- **Funnel.** Queue joined and admitted are read from the 06 keys (`seq`, `admitted`, `pre`, `opening`), active shoppers from the admissions ZSET. Held and order created are counters bumped by the hold and order handlers (best effort); the reconciler rewrites order created, paid, sold and revenue from Postgres and keeps held (Redis-only).
+- **Presence.** `JoinDashboard` checks ownership, joins `org:{eventId}` and records the connection in a viewers ZSET; the page repeats the join every 30 s as a heartbeat and a viewer silent for 90 s is dropped. The broadcaster sends only for Published events that have not ended.
+- **Heatmap.** The 07 seat map in read-only mode, fed by the same seat feed (`/hubs/events`), not by the snapshot.
+- **CSV.** One row per live ticket (buyer of its order and its current holder, which differ after a transfer), UTF-8 BOM, RFC 4180 quoting and formula-injection guarding. Acceptance test: 100,000 tickets streamed with < 10 MB retained.
+- **Load acceptance.** "One snapshot per second at 500 orders/s" is tested at the broadcaster tick: 500 concurrent paid orders between two ticks give exactly one snapshot per tick with all 500 counted.

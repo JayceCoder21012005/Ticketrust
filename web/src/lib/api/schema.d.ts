@@ -1941,6 +1941,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizer/events/{id}/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizer/events/{id}/sales-series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetSalesSeries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizer/events/{id}/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListEventOrders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizer/events/{id}/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ExportAttendees"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mock-gateway/sessions/{sessionId}": {
         parameters: {
             query?: never;
@@ -2311,6 +2375,61 @@ export interface components {
             /** Format: int32 */
             capacity: number | string;
         };
+        DashboardFunnel: {
+            /** Format: int64 */
+            queueJoined: number | string;
+            /** Format: int64 */
+            admitted: number | string;
+            /** Format: int64 */
+            held: number | string;
+            /** Format: int64 */
+            ordersCreated: number | string;
+            /** Format: int64 */
+            paid: number | string;
+        };
+        DashboardQueue: {
+            /** Format: int64 */
+            waiting: number | string;
+            /** Format: int64 */
+            activeShoppers: number | string;
+            /** Format: double */
+            admissionRate: number | string;
+        };
+        DashboardSnapshot: {
+            /** Format: uuid */
+            eventId: string;
+            /** Format: date-time */
+            at: string;
+            /** Format: int64 */
+            sold: number | string;
+            /** Format: int64 */
+            revenue: number | string;
+            currency: string;
+            /** Format: int64 */
+            remaining: number | string;
+            tiers: components["schemas"]["DashboardTier"][];
+            funnel: components["schemas"]["DashboardFunnel"];
+            queue: components["schemas"]["DashboardQueue"];
+            recentOrders: components["schemas"]["RecentOrder"][];
+        };
+        DashboardTier: {
+            /** Format: uuid */
+            tierId: string;
+            name: string;
+            color: string;
+            /** Format: int64 */
+            price: number | string;
+            /** Format: int32 */
+            capacity: number | string;
+            /** Format: int64 */
+            sold: number | string;
+            /** Format: int32 */
+            held: number | string;
+            /** Format: int32 */
+            remaining: number | string;
+            /** Format: int64 */
+            revenue: number | string;
+        };
         EventCategory: {
             slug: string;
             name: string;
@@ -2333,6 +2452,23 @@ export interface components {
             venue: components["schemas"]["VenueInfo"];
             tiers: components["schemas"]["TierInfo"][];
             phases: components["schemas"]["PhaseInfo"][];
+        };
+        EventOrderItem: {
+            /** Format: uuid */
+            orderId: string;
+            buyerName: string;
+            buyerEmail: string;
+            /** Format: int32 */
+            tickets: number | string;
+            /** Format: int64 */
+            total: number | string;
+            status: components["schemas"]["OrderStatus"];
+            /** Format: date-time */
+            paidAt: string;
+        };
+        EventOrderPage: {
+            items: components["schemas"]["EventOrderItem"][];
+            nextCursor: null | string;
         };
         EventPage: {
             items: components["schemas"]["EventSummary"][];
@@ -2780,6 +2916,17 @@ export interface components {
             /** Format: date-time */
             tokenExpiresAt: null | string;
         };
+        RecentOrder: {
+            /** Format: uuid */
+            orderId: string;
+            buyerName: string;
+            /** Format: int32 */
+            tickets: number | string;
+            /** Format: int64 */
+            total: number | string;
+            /** Format: date-time */
+            paidAt: string;
+        };
         RegisterCommand: {
             email: string;
             password: string;
@@ -2808,6 +2955,24 @@ export interface components {
             email: string;
             token: string;
             newPassword: string;
+        };
+        SalesPoint: {
+            /** Format: date-time */
+            at: string;
+            /** Format: uuid */
+            tierId: string;
+            /** Format: int32 */
+            tickets: number | string;
+            /** Format: int64 */
+            revenue: number | string;
+        };
+        SalesSeries: {
+            bucket: string;
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            points: components["schemas"]["SalesPoint"][];
         };
         ScanRequest: {
             payload: null | string;
@@ -5051,6 +5216,154 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetDashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardSnapshot"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetSalesSeries: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                bucket?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SalesSeries"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListEventOrders: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                status?: components["schemas"]["OrderStatus"];
+                limit?: number | string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventOrderPage"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ExportAttendees: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
