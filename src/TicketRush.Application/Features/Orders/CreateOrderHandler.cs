@@ -26,7 +26,8 @@ public sealed class CreateOrderValidator : AbstractValidator<CreateOrderCommand>
 /// unit prices are copied from the hold's priced response, never from the live catalog. A hold has at most one open
 /// order (<c>ux_orders_open_hold</c>): asking again returns that order, so a double submit cannot create two.
 /// </summary>
-public sealed class CreateOrderHandler(IAppDbContext db, IHoldCatalog catalog, IInventoryStore store, TimeProvider time)
+public sealed class CreateOrderHandler(
+    IAppDbContext db, IHoldCatalog catalog, IInventoryStore store, Abstractions.Dashboard.IDashboardStore dashboard, TimeProvider time)
 {
     public async Task<Result<CreatedOrder>> HandleAsync(CreateOrderCommand command, CancellationToken ct)
     {
@@ -103,9 +104,14 @@ public sealed class CreateOrderHandler(IAppDbContext db, IHoldCatalog catalog, I
 
         var order = created.Value;
         var winner = await TryInsertAsync(order, command, ct);
-        return winner is null
-            ? new CreatedOrder(await views.ToResponseAsync(order, ct), true)
-            : new CreatedOrder(await views.ToResponseAsync(winner, ct), false);
+        if (winner is not null)
+        {
+            return new CreatedOrder(await views.ToResponseAsync(winner, ct), false);
+        }
+
+        // Spec 15's funnel step "order created" (best effort; the reconciler recounts it from Postgres).
+        await dashboard.RecordOrderCreatedAsync(command.EventId, ct);
+        return new CreatedOrder(await views.ToResponseAsync(order, ct), true);
     }
 
     private static Result<Order> BuildOrder(CreateOrderCommand command, HoldResponse priced, DateTimeOffset now)

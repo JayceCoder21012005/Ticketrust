@@ -51,6 +51,9 @@ public interface IAppDbContext
 
     DbSet<TicketRush.Domain.Resale.SellerPayout> SellerPayouts { get; }
 
+    /// <summary>Sales per minute per tier (spec 15).</summary>
+    DbSet<TicketRush.Domain.Dashboard.SalesMinute> SalesPerMinute { get; }
+
     DbSet<GateAssignment> GateAssignments { get; }
 
     /// <summary>The log of every gate scan (spec 11).</summary>

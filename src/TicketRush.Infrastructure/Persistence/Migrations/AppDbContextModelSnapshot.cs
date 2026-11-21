@@ -156,6 +156,34 @@ namespace TicketRush.Infrastructure.Persistence.Migrations
                     b.ToTable("user_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("TicketRush.Domain.Dashboard.SalesMinute", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<DateTimeOffset>("Minute")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("minute");
+
+                    b.Property<Guid>("TierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tier_id");
+
+                    b.Property<long>("Revenue")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revenue");
+
+                    b.Property<int>("Tickets")
+                        .HasColumnType("integer")
+                        .HasColumnName("tickets");
+
+                    b.HasKey("EventId", "Minute", "TierId")
+                        .HasName("pk_sales_per_minute");
+
+                    b.ToTable("sales_per_minute", (string)null);
+                });
+
             modelBuilder.Entity("TicketRush.Domain.Events.Event", b =>
                 {
                     b.Property<Guid>("Id")

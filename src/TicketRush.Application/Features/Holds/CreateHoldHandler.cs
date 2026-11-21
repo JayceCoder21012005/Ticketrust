@@ -16,6 +16,7 @@ public sealed class CreateHoldHandler(
     IInventoryStore store,
     IInventorySeeder seeder,
     IBestAvailablePicker picker,
+    Abstractions.Dashboard.IDashboardStore dashboard,
     IOptions<HoldsOptions> options,
     TimeProvider time)
 {
@@ -48,9 +49,16 @@ public sealed class CreateHoldHandler(
             }
 
             var maxTickets = entry.Phases.First(p => p.Id == command.PhaseId).MaxTicketsPerUser;
-            return command.BestAvailable is { } best
+            var held = command.BestAvailable is { } best
                 ? await HoldBestAsync(entry, command, selection.Value, best, maxTickets, now, ct)
                 : await HoldAsync(entry, command, selection.Value, maxTickets, now, ct);
+            if (held.IsSuccess)
+            {
+                // Spec 15's funnel step "held" (best effort: it never fails the hold).
+                await dashboard.RecordHeldAsync(entry.EventId, ct);
+            }
+
+            return held;
         }
         catch (InventoryUnavailableException)
         {

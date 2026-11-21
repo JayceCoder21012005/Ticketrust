@@ -17,6 +17,7 @@ public sealed class CreateHoldHandlerTests
     private readonly IInventoryStore _store = Substitute.For<IInventoryStore>();
     private readonly IHoldCatalog _catalog = Substitute.For<IHoldCatalog>();
     private readonly IInventorySeeder _seeder = Substitute.For<IInventorySeeder>();
+    private readonly Abstractions.Dashboard.IDashboardStore _dashboard = Substitute.For<Abstractions.Dashboard.IDashboardStore>();
     private readonly List<HoldRequest> _requests = [];
 
     public CreateHoldHandlerTests()
@@ -39,7 +40,7 @@ public sealed class CreateHoldHandlerTests
     }
 
     private CreateHoldHandler Handler(int maxSeatsPerHold = 8) =>
-        new(_catalog, _store, _seeder, new BestAvailableSeatPicker(), Microsoft.Extensions.Options.Options.Create(new HoldsOptions { MaxSeatsPerHold = maxSeatsPerHold }), _time);
+        new(_catalog, _store, _seeder, new BestAvailableSeatPicker(), _dashboard, Microsoft.Extensions.Options.Options.Create(new HoldsOptions { MaxSeatsPerHold = maxSeatsPerHold }), _time);
 
     private static CreateHoldCommand Command(int[]? seats = null, GaLine[]? ga = null, BestAvailableRequest? best = null, bool replace = false, Guid? phase = null) =>
         new(User, HoldTestCatalog.EventId, phase ?? HoldTestCatalog.Phase, seats, ga, best, replace);
@@ -182,5 +183,18 @@ public sealed class CreateHoldHandlerTests
         var result = await Handler().HandleAsync(new CreateHoldCommand(User, Guid.NewGuid(), HoldTestCatalog.Phase, [1], null, null, false), Ct);
 
         result.Error!.Code.ShouldBe("event.not_found");
+    }
+
+    [Fact]
+    public async Task A_hold_counts_once_as_held_on_the_dashboard_and_a_refused_one_does_not()
+    {
+        StoreAnswers(Ok());
+        (await Handler().HandleAsync(Command([4]), Ct)).IsSuccess.ShouldBeTrue();
+        await _dashboard.Received(1).RecordHeldAsync(HoldTestCatalog.EventId, Arg.Any<CancellationToken>());
+
+        _dashboard.ClearReceivedCalls();
+        StoreAnswers(HoldOutcome.Failed(HoldStatus.SeatUnavailable, [5]));
+        (await Handler().HandleAsync(Command([5]), Ct)).IsSuccess.ShouldBeFalse();
+        await _dashboard.DidNotReceive().RecordHeldAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 }
