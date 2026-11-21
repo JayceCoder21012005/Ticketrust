@@ -47,6 +47,8 @@ async function signIn(context: BrowserContext, baseURL: string) {
 }
 
 async function expectNoSeriousA11yIssues(page: Page) {
+  // Colours are only final once the dialog's open animation and the button's enabled transition have finished.
+  await page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== "running" || animation.effect?.getTiming().iterations === Infinity));
   const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   const serious = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
   expect(serious, JSON.stringify(serious.map((v) => ({ id: v.id, nodes: v.nodes.slice(0, 3).map((n) => n.target) })), null, 2)).toEqual([]);
