@@ -24,6 +24,7 @@ public sealed record OrderPaid(
 /// (spec 14); the seat is already sold, so the inventory consumers of <see cref="OrderPaid"/> skip it. Messages written before
 /// spec 14 have no kind and read as <see cref="Primary"/>.
 /// </summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<OrderKind>))]
 public enum OrderKind
 {
     Primary,
