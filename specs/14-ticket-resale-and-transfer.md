@@ -48,8 +48,18 @@ Error codes: `resale.not_allowed`, `resale.price_above_cap`, `resale.listing_una
 
 ## Acceptance criteria
 
-- [ ] After a resale, the seller's old QR is rejected at the gate (`NotValid`). The buyer's new QR is admitted.
-- [ ] Two buyers reserving the same listing at the same time → exactly one succeeds.
-- [ ] Listing above face value → 400. Listing a checked-in ticket → `resale.not_allowed`.
-- [ ] A transfer accepted by a different email → 403-as-404. Accepting twice → idempotent.
-- [ ] At no time do two non-voided tickets exist for one seat (invariant check after a concurrent resale + transfer test).
+- [x] After a resale, the seller's old QR is rejected at the gate (`NotValid`). The buyer's new QR is admitted.
+- [x] Two buyers reserving the same listing at the same time → exactly one succeeds.
+- [x] Listing above face value → 400. Listing a checked-in ticket → `resale.not_allowed`.
+- [x] A transfer accepted by a different email → 403-as-404. Accepting twice → idempotent.
+- [x] At no time do two non-voided tickets exist for one seat (invariant check after a concurrent resale + transfer test).
+
+## Implementation notes (what differs from the text above)
+
+- **Waitlist window (approach A).** A new listing is offered to the oldest Waiting entry that wants one ticket of its tier, alone, for 10 minutes (`waitlistUntil`). Unused, it becomes public at once: nothing passes down the line (unlike a returned ticket in 13). With nobody waiting it is public immediately. The offer page reserves the listing and goes to `/checkout/{orderId}`.
+- **Resale orders reuse 08.** `Order.Kind = Resale`, `ListingId` set, and `HoldId` is the listing id, so the one-open-order-per-hold index also means one open order per listing. Pay checks the listing's reservation instead of a Redis hold; expiry and cancel put the listing back to `Active` and free the Redis key; the `OrderPaid` inventory commit and queue leave skip resale orders (`OrderPaid.Kind`, old messages read as Primary).
+- **Late payment.** Fulfil sells a listing still reserved by that order, or still `Active` after the reservation ran out. Anything else (someone else reserved or bought it) is refunded as `seats_unavailable`.
+- **Ownership change.** `Ticket.HandOver()` (Listed → Voided, raises no `TicketReturned`) is saved before `Ticket.Reissue(...)` is added, in one transaction. A resale ticket's order is the resale order; a transferred ticket keeps the original order.
+- **Cutoff and sweeps.** Reserve and accept are refused inside the 2-hour cutoff too. A worker sweep (30 s, leader) expires 48-hour transfers, ends active listings and pending transfers at the cutoff (the owner keeps a usable ticket), and pays out pending payouts of ended events (mock). A cancelled event ends listings and transfers and cancels pending payouts (the seller's original order is refunded by 08).
+- **Extra endpoint.** `GET /transfers/{id}` for the accept page. The ticket view (`GET /tickets/{id}`) carries `resale` (face value, whether it can change hands, the live listing or transfer) for the wallet menu.
+- **Recipient email.** The transfer email (`ticket-transfer` template) goes straight to the address; there is no in-app notice, since the recipient may have no account yet.

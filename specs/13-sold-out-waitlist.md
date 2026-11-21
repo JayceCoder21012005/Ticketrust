@@ -47,7 +47,7 @@ Error codes: `waitlist.not_available`, `waitlist.already_joined`, `waitlist.offe
 
 - [x] With 3 waiting users and 1 returned ticket, only the oldest matching user gets an offer.
 - [x] An expired offer passes to the next user within 5 s, and the ticket is never offered to two users at once.
-- [ ] A resale listing is invisible to the public until its waitlist window ends or the offer is declined. *(Deferred to spec 14: no listings exist yet.)*
+- [x] A resale listing is invisible to the public until its waitlist window ends or the offer is declined. *(Done with spec 14: `ResaleApiTests.A_new_listing_is_the_oldest_matching_waiters_for_ten_minutes_and_public_after_their_window`.)*
 - [x] Joining while the event still has tickets → `waitlist.not_available`.
 
 ## Implementation notes (what differs from the text above)
