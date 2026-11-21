@@ -96,6 +96,10 @@
         "notDisplayable": {
           "title": "Không thể hiển thị mã QR",
           "description": "Trạng thái vé vừa thay đổi. Đang cập nhật…"
+        },
+        "transferring": {
+          "title": "Đang chuyển vé",
+          "description": "Vé đang chờ người nhận chấp nhận nên mã QR tạm ẩn. Huỷ chuyển vé để dùng lại vé."
         }
       },
       "seat": {
@@ -505,6 +509,53 @@
       "notFound": "Không tìm thấy lời mời",
       "toWaitlist": "Về danh sách chờ của tôi",
       "loadFailed": "Không tải được lời mời."
+    }
+  },
+  "resale": {
+    "menu": "Tuỳ chọn vé",
+    "resell": "Bán lại",
+    "transfer": "Chuyển cho bạn bè",
+    "cancelListing": "Huỷ bán lại",
+    "cancelTransfer": "Huỷ chuyển vé",
+    "listed": "Đang bán lại với giá {price}.",
+    "listedReserved": "Đang có người thanh toán vé này.",
+    "transferring": "Đang chờ {email} nhận vé (hết hạn {expires}).",
+    "sheet": {
+      "title": "Bán lại vé",
+      "description": "Giá bán tối đa bằng mệnh giá vé. Người mua thanh toán qua TicketRush, vé cũ của bạn mất hiệu lực khi có người mua.",
+      "price": "Giá bán",
+      "priceHint": "Tối đa {max}",
+      "youGet": "Bạn nhận: {amount}",
+      "ruleWaitlist": "10 phút đầu, vé được ưu tiên cho người trong danh sách chờ.",
+      "rulePayout": "Tiền được chuyển cho bạn sau khi sự kiện kết thúc.",
+      "ruleCancel": "Bạn có thể huỷ bán lại bất cứ lúc nào trước khi có người thanh toán.",
+      "submit": "Đăng bán"
+    },
+    "dialog": {
+      "title": "Chuyển cho bạn bè",
+      "description": "Người nhận đăng nhập bằng email này để nhận vé trong 48 giờ.",
+      "email": "Email người nhận",
+      "warning": "Vé hiện tại sẽ mất hiệu lực sau khi người nhận chấp nhận",
+      "submit": "Gửi vé"
+    },
+    "accept": {
+      "title": "Bạn được tặng một vé",
+      "from": "{name} chuyển cho bạn vé này.",
+      "seat": "Ghế {seat}",
+      "expires": "Nhận trước {expires}",
+      "submit": "Nhận vé",
+      "accepted": "Vé đã là của bạn",
+      "openTicket": "Xem vé",
+      "notFound": "Không tìm thấy lời chuyển vé",
+      "notFoundHint": "Hãy đăng nhập bằng đúng email đã nhận lời chuyển vé, và xác nhận email đó.",
+      "closed": "Lời chuyển vé không còn hiệu lực",
+      "closedHint": "Người gửi đã huỷ, hoặc lời chuyển đã hết hạn.",
+      "loadFailed": "Không tải được lời chuyển vé."
+    },
+    "offer": {
+      "intro": "Vé bán lại dưới đây đang dành riêng cho bạn từ danh sách chờ.",
+      "timeLeft": "Thời gian ưu tiên",
+      "expiredHint": "Vé đã được mở bán cho mọi người."
     }
   }
 }

@@ -8,7 +8,9 @@ type Schemas = components["schemas"];
 /** Numbers come back as numbers (the schema also allows numeric strings for int32). */
 export type WaitlistEntryStatus = Omit<Schemas["WaitlistStatusResponse"], "position" | "quantity"> & { position: number | null; quantity: number };
 export type MyWaitlistItem = Omit<Schemas["MyWaitlistItem"], "entry"> & { entry: WaitlistEntryStatus };
-export type WaitlistOffer = Omit<Schemas["WaitlistOfferResponse"], "hold"> & { hold: Hold };
+/** A returned-ticket offer has `hold`; a resale listing offer (spec 14) has `listing` and no hold. */
+export type WaitlistListingOffer = Omit<Schemas["WaitlistListingOffer"], "price"> & { price: number };
+export type WaitlistOffer = Omit<Schemas["WaitlistOfferResponse"], "hold" | "listing"> & { hold: Hold | null; listing?: WaitlistListingOffer | null };
 export type AcceptedOffer = Schemas["AcceptedWaitlistOffer"];
 
 const fail = (status: number, error: unknown) => new ApiError(status, (error ?? {}) as ProblemDetails);
@@ -48,7 +50,10 @@ export async function getWaitlistOffer(offerId: string, signal?: AbortSignal): P
   return result.data as WaitlistOffer;
 }
 
-/** `POST /waitlist/offers/{offerId}/accept`: what checkout needs to continue from the held tickets. */
+/**
+ * `POST /waitlist/offers/{offerId}/accept`: what checkout needs to continue from the held tickets, or, for a listing offer, the
+ * resale order to pay at `/checkout/{orderId}`.
+ */
 export async function acceptWaitlistOffer(offerId: string): Promise<AcceptedOffer> {
   const result = await api.POST("/api/v1/waitlist/offers/{offerId}/accept", { params: { path: { offerId } } });
   if (result.data === undefined) throw fail(result.response.status, result.error);

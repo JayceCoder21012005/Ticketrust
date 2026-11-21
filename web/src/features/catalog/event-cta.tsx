@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { Price } from "@/components/shared/price";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/features/follow/follow-button";
@@ -13,6 +13,9 @@ import { formatOpensIn, remainingMs } from "@/lib/clock";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+
+// Spec 14: the resale list loads only on a sold-out event page (the public JS budget).
+const ResaleListings = lazy(() => import("@/features/resale/resale-listings"));
 
 /** Live availability is re-read this often while the page is open (sold-out detection). */
 const AVAILABILITY_REFRESH_MS = 30_000;
@@ -216,7 +219,14 @@ function CtaAction({ state, event, compact = false }: { state: CtaState | null; 
           compact={compact}
           className={full}
         />,
-        compact ? null : <p className="text-xs text-muted-foreground">{t("catalog.cta.soldOutHint")}</p>,
+        compact ? null : (
+          <>
+            <p className="text-xs text-muted-foreground">{t("catalog.cta.soldOutHint")}</p>
+            <Suspense fallback={null}>
+              <ResaleListings eventId={eventId} slug={slug} />
+            </Suspense>
+          </>
+        ),
       );
     case "Upcoming":
       return (

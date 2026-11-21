@@ -116,6 +116,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/events/{id}/listings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListEventListings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/webhooks/payments/{provider}": {
         parameters: {
             query?: never;
@@ -1829,6 +1845,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tickets/{id}/listings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CreateListing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tickets/{id}/transfers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CreateTransfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/listings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["CancelListing"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/listings/{id}/reserve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ReserveListing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transfers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetTransfer"];
+        put?: never;
+        post?: never;
+        delete: operations["CancelTransfer"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transfers/{id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AcceptTransfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mock-gateway/sessions/{sessionId}": {
         parameters: {
             query?: never;
@@ -2098,12 +2210,14 @@ export interface components {
     schemas: {
         AcceptedWaitlistOffer: {
             /** Format: uuid */
-            holdId: string;
+            holdId: null | string;
             /** Format: uuid */
             eventId: string;
             eventSlug: string;
             /** Format: date-time */
             expiresAt: string;
+            /** Format: uuid */
+            orderId: null | string;
         };
         AssignGateStaffRequest: {
             email: string;
@@ -2175,12 +2289,19 @@ export interface components {
             bestAvailable: null | components["schemas"]["BestAvailableRequest"];
             replaceExisting: boolean;
         };
+        CreateListingRequest: {
+            /** Format: int64 */
+            price: number | string;
+        };
         CreateOrderRequest: {
             /** Format: uuid */
             eventId: string;
             /** Format: uuid */
             holdId: string;
             buyer: components["schemas"]["BuyerRequest"];
+        };
+        CreateTransferRequest: {
+            toEmail: string;
         };
         CreateVenueRequest: {
             name: string;
@@ -2345,6 +2466,34 @@ export interface components {
             x: number | string;
             /** Format: double */
             y: number | string;
+        };
+        ListingResponse: {
+            /** Format: uuid */
+            listingId: string;
+            /** Format: uuid */
+            ticketId: string;
+            /** Format: uuid */
+            eventId: string;
+            /** Format: uuid */
+            tierId: string;
+            seatLabel: null | string;
+            /** Format: int64 */
+            price: number | string;
+            currency: string;
+            status: components["schemas"]["ResaleListingStatus"];
+            /** Format: date-time */
+            waitlistUntil: null | string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ListingTierGroup: {
+            /** Format: uuid */
+            tierId: string;
+            tierName: string;
+            color: string;
+            /** Format: int64 */
+            faceValue: number | string;
+            listings: components["schemas"]["PublicListing"][];
         };
         LoginCommand: {
             email: string;
@@ -2578,6 +2727,14 @@ export interface components {
             detail?: null | string;
             instance?: null | string;
         };
+        PublicListing: {
+            /** Format: uuid */
+            listingId: string;
+            seatLabel: null | string;
+            /** Format: int64 */
+            price: number | string;
+            currency: string;
+        };
         PublishChecklistProblem: {
             type: string;
             title: string;
@@ -2645,6 +2802,8 @@ export interface components {
             version: string;
             tiers: components["schemas"]["TierInput"][];
         };
+        /** @enum {unknown} */
+        ResaleListingStatus: "Active" | "Reserved" | "Sold" | "Cancelled";
         ResetPasswordCommand: {
             email: string;
             token: string;
@@ -2740,6 +2899,7 @@ export interface components {
             holderName: string;
             event: components["schemas"]["TicketEventSummary"];
             orderTicketIds: string[];
+            resale: components["schemas"]["TicketResale"];
         };
         TicketEventGroup: {
             /** Format: uuid */
@@ -2782,6 +2942,23 @@ export interface components {
         };
         /** @enum {unknown} */
         TicketKind: "Seated" | "GeneralAdmission";
+        TicketListingState: {
+            /** Format: uuid */
+            listingId: string;
+            /** Format: int64 */
+            price: number | string;
+            status: components["schemas"]["ResaleListingStatus"];
+            /** Format: date-time */
+            waitlistUntil: null | string;
+        };
+        TicketResale: {
+            /** Format: int64 */
+            faceValue: number | string;
+            currency: string;
+            canChange: boolean;
+            listing: null | components["schemas"]["TicketListingState"];
+            transfer: null | components["schemas"]["TicketTransferState"];
+        };
         TicketSeat: {
             section: string;
             row: string;
@@ -2789,6 +2966,15 @@ export interface components {
         };
         /** @enum {unknown} */
         TicketStatus: "Valid" | "CheckedIn" | "Listed" | "Voided";
+        TicketTransferState: {
+            /** Format: uuid */
+            transferId: string;
+            toEmail: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        /** @enum {unknown} */
+        TicketTransferStatus: "Pending" | "Accepted" | "Cancelled" | "Expired";
         TierInfo: {
             /** Format: uuid */
             id: string;
@@ -2826,6 +3012,39 @@ export interface components {
             tierId: string;
             /** Format: int32 */
             remaining: number | string;
+        };
+        TransferInvite: {
+            /** Format: uuid */
+            transferId: string;
+            status: components["schemas"]["TicketTransferStatus"];
+            /** Format: date-time */
+            expiresAt: string;
+            fromName: string;
+            /** Format: uuid */
+            eventId: string;
+            eventSlug: string;
+            eventTitle: string;
+            /** Format: date-time */
+            startsAt: string;
+            venue: string;
+            tierName: string;
+            seatLabel: null | string;
+            /** Format: uuid */
+            newTicketId: null | string;
+        };
+        TransferResponse: {
+            /** Format: uuid */
+            transferId: string;
+            /** Format: uuid */
+            ticketId: string;
+            /** Format: uuid */
+            eventId: string;
+            toEmail: string;
+            status: components["schemas"]["TicketTransferStatus"];
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            createdAt: string;
         };
         UpdateEventInfoRequest: {
             version: string;
@@ -2890,6 +3109,17 @@ export interface components {
             name: string;
             city: string;
         };
+        WaitlistListingOffer: {
+            /** Format: uuid */
+            listingId: string;
+            /** Format: uuid */
+            tierId: string;
+            tierName: string;
+            seatLabel: null | string;
+            /** Format: int64 */
+            price: number | string;
+            currency: string;
+        };
         WaitlistOfferResponse: {
             /** Format: uuid */
             offerId: string;
@@ -2901,7 +3131,8 @@ export interface components {
             startsAt: string;
             /** Format: date-time */
             expiresAt: string;
-            hold: components["schemas"]["HoldResponse"];
+            hold: null | components["schemas"]["HoldResponse"];
+            listing?: null | components["schemas"]["WaitlistListingOffer"];
         };
         WaitlistOfferSummary: {
             /** Format: uuid */
@@ -3081,6 +3312,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MyWaitlistItem"][];
+                };
+            };
+        };
+    };
+    ListEventListings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingTierGroup"][];
                 };
             };
         };
@@ -4465,6 +4718,326 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AcceptedWaitlistOffer"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CreateListing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateListingRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CreateTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTransferRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransferResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CancelListing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ReserveListing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransferInvite"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CancelTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AcceptTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransferInvite"];
                 };
             };
             /** @description Not Found */

@@ -166,6 +166,40 @@
         }
       }
     },
+    "/api/v1/events/{id}/listings": {
+      "get": {
+        "tags": [
+          "Resale"
+        ],
+        "operationId": "ListEventListings",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ListingTierGroup"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/webhooks/payments/{provider}": {
       "post": {
         "tags": [
@@ -3047,6 +3081,407 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id}/listings": {
+      "post": {
+        "tags": [
+          "Resale"
+        ],
+        "operationId": "CreateListing",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateListingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tickets/{id}/transfers": {
+      "post": {
+        "tags": [
+          "Resale"
+        ],
+        "operationId": "CreateTransfer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTransferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/listings/{id}": {
+      "delete": {
+        "tags": [
+          "Resale"
+        ],
+        "operationId": "CancelListing",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/listings/{id}/reserve": {
+      "post": {
+        "tags": [
+          "Resale"
+        ],
+        "operationId": "ReserveListing",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/transfers/{id}": {
+      "get": {
+        "tags": [
+          "Resale"
+        ],
+        "operationId": "GetTransfer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferInvite"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Resale"
+        ],
+        "operationId": "CancelTransfer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/transfers/{id}/accept": {
+      "post": {
+        "tags": [
+          "Resale"
+        ],
+        "operationId": "AcceptTransfer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferInvite"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not Found",
             "content": {
@@ -3312,12 +3747,16 @@
           "holdId",
           "eventId",
           "eventSlug",
-          "expiresAt"
+          "expiresAt",
+          "orderId"
         ],
         "type": "object",
         "properties": {
           "holdId": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           },
           "eventId": {
@@ -3330,6 +3769,13 @@
           "expiresAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "orderId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -3626,6 +4072,22 @@
           }
         }
       },
+      "CreateListingRequest": {
+        "required": [
+          "price"
+        ],
+        "type": "object",
+        "properties": {
+          "price": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "CreateOrderRequest": {
         "required": [
           "eventId",
@@ -3644,6 +4106,17 @@
           },
           "buyer": {
             "$ref": "#/components/schemas/BuyerRequest"
+          }
+        }
+      },
+      "CreateTransferRequest": {
+        "required": [
+          "toEmail"
+        ],
+        "type": "object",
+        "properties": {
+          "toEmail": {
+            "type": "string"
           }
         }
       },
@@ -4312,6 +4785,106 @@
               "string"
             ],
             "format": "double"
+          }
+        }
+      },
+      "ListingResponse": {
+        "required": [
+          "listingId",
+          "ticketId",
+          "eventId",
+          "tierId",
+          "seatLabel",
+          "price",
+          "currency",
+          "status",
+          "waitlistUntil",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "listingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ticketId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tierId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "seatLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "price": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ResaleListingStatus"
+          },
+          "waitlistUntil": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ListingTierGroup": {
+        "required": [
+          "tierId",
+          "tierName",
+          "color",
+          "faceValue",
+          "listings"
+        ],
+        "type": "object",
+        "properties": {
+          "tierId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tierName": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "faceValue": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "listings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicListing"
+            }
           }
         }
       },
@@ -5200,6 +5773,38 @@
           }
         }
       },
+      "PublicListing": {
+        "required": [
+          "listingId",
+          "seatLabel",
+          "price",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "listingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "seatLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "price": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
       "PublishChecklistProblem": {
         "required": [
           "type",
@@ -5482,6 +6087,14 @@
             }
           }
         }
+      },
+      "ResaleListingStatus": {
+        "enum": [
+          "Active",
+          "Reserved",
+          "Sold",
+          "Cancelled"
+        ]
       },
       "ResetPasswordCommand": {
         "required": [
@@ -5840,7 +6453,8 @@
           "status",
           "holderName",
           "event",
-          "orderTicketIds"
+          "orderTicketIds",
+          "resale"
         ],
         "type": "object",
         "properties": {
@@ -5880,6 +6494,9 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "resale": {
+            "$ref": "#/components/schemas/TicketResale"
           }
         }
       },
@@ -6034,6 +6651,85 @@
           "GeneralAdmission"
         ]
       },
+      "TicketListingState": {
+        "required": [
+          "listingId",
+          "price",
+          "status",
+          "waitlistUntil"
+        ],
+        "type": "object",
+        "properties": {
+          "listingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "price": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ResaleListingStatus"
+          },
+          "waitlistUntil": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "TicketResale": {
+        "required": [
+          "faceValue",
+          "currency",
+          "canChange",
+          "listing",
+          "transfer"
+        ],
+        "type": "object",
+        "properties": {
+          "faceValue": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "canChange": {
+            "type": "boolean"
+          },
+          "listing": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TicketListingState"
+              }
+            ]
+          },
+          "transfer": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TicketTransferState"
+              }
+            ]
+          }
+        }
+      },
       "TicketSeat": {
         "required": [
           "section",
@@ -6059,6 +6755,35 @@
           "CheckedIn",
           "Listed",
           "Voided"
+        ]
+      },
+      "TicketTransferState": {
+        "required": [
+          "transferId",
+          "toEmail",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "transferId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "toEmail": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TicketTransferStatus": {
+        "enum": [
+          "Pending",
+          "Accepted",
+          "Cancelled",
+          "Expired"
         ]
       },
       "TierInfo": {
@@ -6205,6 +6930,112 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "TransferInvite": {
+        "required": [
+          "transferId",
+          "status",
+          "expiresAt",
+          "fromName",
+          "eventId",
+          "eventSlug",
+          "eventTitle",
+          "startsAt",
+          "venue",
+          "tierName",
+          "seatLabel",
+          "newTicketId"
+        ],
+        "type": "object",
+        "properties": {
+          "transferId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TicketTransferStatus"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "fromName": {
+            "type": "string"
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventSlug": {
+            "type": "string"
+          },
+          "eventTitle": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "venue": {
+            "type": "string"
+          },
+          "tierName": {
+            "type": "string"
+          },
+          "seatLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "newTicketId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "TransferResponse": {
+        "required": [
+          "transferId",
+          "ticketId",
+          "eventId",
+          "toEmail",
+          "status",
+          "expiresAt",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "transferId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ticketId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "toEmail": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TicketTransferStatus"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -6453,6 +7284,47 @@
           }
         }
       },
+      "WaitlistListingOffer": {
+        "required": [
+          "listingId",
+          "tierId",
+          "tierName",
+          "seatLabel",
+          "price",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "listingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tierId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tierName": {
+            "type": "string"
+          },
+          "seatLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "price": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
       "WaitlistOfferResponse": {
         "required": [
           "offerId",
@@ -6488,7 +7360,24 @@
             "format": "date-time"
           },
           "hold": {
-            "$ref": "#/components/schemas/HoldResponse"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HoldResponse"
+              }
+            ]
+          },
+          "listing": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WaitlistListingOffer"
+              }
+            ]
           }
         }
       },
@@ -6597,6 +7486,9 @@
     },
     {
       "name": "Waitlist"
+    },
+    {
+      "name": "Resale"
     },
     {
       "name": "Webhooks"

@@ -63,8 +63,8 @@ describe("buyer t", () => {
 });
 
 describe("buyer message catalogs", () => {
-  it("hold the seven buyer namespaces", () => {
-    expect(NAMESPACES).toEqual(["tickets", "checkout", "queue", "orders", "seats", "accountHub", "waitlist"]);
+  it("hold the eight buyer namespaces", () => {
+    expect(NAMESPACES).toEqual(["tickets", "checkout", "queue", "orders", "seats", "accountHub", "waitlist", "resale"]);
   });
 
   it("English has exactly the same keys as Vietnamese", () => {

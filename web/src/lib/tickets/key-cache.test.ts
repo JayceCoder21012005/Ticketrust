@@ -16,6 +16,7 @@ function detail(id: string, endsAt: string, status: TicketDetail["event"]["statu
     status: "Valid",
     holderName: "Nguyễn An",
     orderTicketIds: [id],
+    resale: { faceValue: 1_000_000, currency: "VND", canChange: false, listing: null, transfer: null },
     event: { eventId: "e1", slug: "e", title: "Đêm nhạc", coverImageUrl: null, startsAt: iso(NOW), endsAt, venueName: "V", city: "C", status },
   };
 }
