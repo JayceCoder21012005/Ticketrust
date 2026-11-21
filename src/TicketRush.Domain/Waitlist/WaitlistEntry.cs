@@ -113,6 +113,18 @@ public sealed class WaitlistEntry : AggregateRoot
         Raise(new WaitlistOfferIssued(Id, EventId, UserId, Guid.Empty, expiresAt, listingId));
     }
 
+    /// <summary>
+    /// The offered listing was withdrawn by its seller (spec 14): back to Waiting at the same place in line, without a miss.
+    /// </summary>
+    public void WithdrawOffer()
+    {
+        Require(WaitlistStatus.Offered, nameof(WithdrawOffer));
+        Status = WaitlistStatus.Waiting;
+        OfferHoldId = null;
+        OfferListingId = null;
+        OfferExpiresAt = null;
+    }
+
     /// <summary>The offered hold was paid for.</summary>
     public void Convert()
     {

@@ -46,7 +46,10 @@ public static class NotificationCopy
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "No reminder has this kind."),
     };
 
-    public static (string Title, string Body) ForWaitlistOffer(string eventTitle, string expiresText) => (
+    /// <param name="resale">A resale listing's window (spec 14): unused, it opens to everyone instead of moving on.</param>
+    public static (string Title, string Body) ForWaitlistOffer(string eventTitle, string expiresText, bool resale = false) => (
         "Có vé cho bạn!",
-        $"Một vé \"{eventTitle}\" vừa được giữ riêng cho bạn từ danh sách chờ. Hãy mua trước {expiresText}, sau đó vé sẽ chuyển cho người tiếp theo.");
+        resale
+            ? $"Một vé bán lại \"{eventTitle}\" đang dành riêng cho bạn từ danh sách chờ. Hãy mua trước {expiresText}, sau đó vé sẽ mở bán cho mọi người."
+            : $"Một vé \"{eventTitle}\" vừa được giữ riêng cho bạn từ danh sách chờ. Hãy mua trước {expiresText}, sau đó vé sẽ chuyển cho người tiếp theo.");
 }

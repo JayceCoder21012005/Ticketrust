@@ -28,6 +28,7 @@ public sealed partial class PayOrderHandler(
     IAppDbContext db,
     IPaymentGatewayResolver gateways,
     IInventoryStore store,
+    Resale.ResaleSettlement resale,
     IOptions<FrontendOptions> frontend,
     TimeProvider time,
     ILogger<PayOrderHandler> logger)
@@ -109,6 +110,12 @@ public sealed partial class PayOrderHandler(
     /// <summary>The buyer's seats must still be theirs: a dead hold means the seats may already be someone else's.</summary>
     private async Task<Error?> CheckHoldAsync(Order order, DateTimeOffset now, CancellationToken ct)
     {
+        if (order.Kind == OrderKind.Resale)
+        {
+            // A resale order holds the listing (spec 14), not a Redis hold.
+            return await resale.IsReservedAsync(order, now, ct) ? null : OrderErrors.HoldExpired;
+        }
+
         try
         {
             var hold = await store.GetUserHoldAsync(order.EventId, order.UserId, ct);

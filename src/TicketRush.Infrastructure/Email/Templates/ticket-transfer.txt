@@ -1,0 +1,12 @@
+Subject: {{ fromName }} chuyển cho bạn một vé: {{ eventTitle }}
+
+Xin chào {{ name }},
+
+{{ fromName }} muốn chuyển cho bạn một vé của sự kiện {{ eventTitle }} ({{ startsAtText }}).
+
+Hãy đăng nhập (hoặc tạo tài khoản) bằng chính địa chỉ email này và chấp nhận vé trước {{ expiresAtText }}. Sau khi bạn chấp nhận, vé sẽ có mã QR mới dành riêng cho bạn.
+
+Nhận vé:
+{{ link }}
+
+Nếu bạn không quen người gửi, bạn có thể bỏ qua email này: vé sẽ tự trả lại cho họ.

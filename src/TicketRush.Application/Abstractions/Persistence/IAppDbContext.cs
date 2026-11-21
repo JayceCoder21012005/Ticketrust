@@ -44,6 +44,13 @@ public interface IAppDbContext
 
     DbSet<ReminderDispatch> ReminderDispatches { get; }
 
+    /// <summary>Resale and transfer (spec 14).</summary>
+    DbSet<TicketRush.Domain.Resale.ResaleListing> ResaleListings { get; }
+
+    DbSet<TicketRush.Domain.Resale.TicketTransfer> TicketTransfers { get; }
+
+    DbSet<TicketRush.Domain.Resale.SellerPayout> SellerPayouts { get; }
+
     DbSet<GateAssignment> GateAssignments { get; }
 
     /// <summary>The log of every gate scan (spec 11).</summary>

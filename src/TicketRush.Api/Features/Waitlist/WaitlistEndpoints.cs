@@ -47,6 +47,7 @@ public static class WaitlistEndpoints
         offers.MapPost("/accept", AcceptAsync)
             .WithName("AcceptWaitlistOffer")
             .Produces<AcceptedWaitlistOffer>()
+            .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
         return v1;
@@ -70,6 +71,9 @@ public static class WaitlistEndpoints
     private static async Task<IResult> GetOfferAsync(Guid offerId, ClaimsPrincipal user, GetWaitlistOfferHandler handler, CancellationToken ct) =>
         (await handler.HandleAsync(user.UserId(), offerId, ct)).ToHttpResult();
 
-    private static async Task<IResult> AcceptAsync(Guid offerId, ClaimsPrincipal user, AcceptWaitlistOfferHandler handler, CancellationToken ct) =>
-        (await handler.HandleAsync(user.UserId(), offerId, ct)).ToHttpResult();
+    private static async Task<IResult> AcceptAsync(Guid offerId, ClaimsPrincipal user, AcceptWaitlistOfferHandler handler, CancellationToken ct)
+    {
+        var verified = bool.TryParse(user.FindFirstValue(AuthClaims.EmailVerified), out var value) && value;
+        return (await handler.HandleAsync(user.UserId(), verified, offerId, ct)).ToHttpResult();
+    }
 }

@@ -45,7 +45,19 @@ public sealed record TicketDetail(
     TicketStatus Status,
     string HolderName,
     TicketEventSummary Event,
-    IReadOnlyList<Guid> OrderTicketIds);
+    IReadOnlyList<Guid> OrderTicketIds,
+    TicketResale Resale);
+
+/// <summary>What the wallet's "…" menu needs (spec 14).</summary>
+/// <param name="FaceValue">The most a resale may ask (the tier price).</param>
+/// <param name="CanChange">The ticket is Valid and its event is published and more than 2 hours away: it may be listed or transferred.</param>
+/// <param name="Listing">The live listing (Active or Reserved) while the ticket is Listed for resale.</param>
+/// <param name="Transfer">The pending transfer while the ticket is Listed for a friend.</param>
+public sealed record TicketResale(long FaceValue, string Currency, bool CanChange, TicketListingState? Listing, TicketTransferState? Transfer);
+
+public sealed record TicketListingState(Guid ListingId, long Price, TicketRush.Domain.Resale.ResaleListingStatus Status, DateTimeOffset? WaitlistUntil);
+
+public sealed record TicketTransferState(Guid TransferId, string ToEmail, DateTimeOffset ExpiresAt);
 
 /// <param name="Secret">Standard base64 of the 32 secret bytes.</param>
 /// <param name="StepSeconds">How long a code stays the same.</param>

@@ -16,6 +16,7 @@ public static class DependencyInjection
         services.AddScoped<Features.Notifications.OrderNoticeSender>();
         services.TryAddSingleton<Features.Holds.IBestAvailablePicker, Features.Holds.BestAvailableSeatPicker>();
         services.AddScoped<Features.Waitlist.WaitlistOffers>();
+        services.AddScoped<Features.Resale.ResaleSettlement>();
         services.AddScoped<Features.Waitlist.IWaitlistOfferDecliner>(provider => provider.GetRequiredService<Features.Waitlist.WaitlistOffers>());
         return services;
     }

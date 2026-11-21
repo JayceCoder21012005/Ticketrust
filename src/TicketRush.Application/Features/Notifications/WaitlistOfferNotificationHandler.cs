@@ -36,13 +36,13 @@ public sealed partial class WaitlistOfferNotificationHandler(
 
         var path = $"/waitlist/offers/{message.EntryId}";
         var expiresText = VietnamTimeText.Format(message.ExpiresAt);
-        var (noticeTitle, body) = NotificationCopy.ForWaitlistOffer(title, expiresText);
+        var (noticeTitle, body) = NotificationCopy.ForWaitlistOffer(title, expiresText, message.ListingId is not null);
         var email = new EmailPlan(
             "waitlist-offer",
-            new { name = contact.FullName, eventTitle = title, expiresAtText = expiresText, link = $"{frontend.Value.BaseUrl.TrimEnd('/')}{path}" },
+            new { name = contact.FullName, eventTitle = title, expiresAtText = expiresText, link = $"{frontend.Value.BaseUrl.TrimEnd('/')}{path}", offerKind = message.ListingId is null ? "returned" : "resale" },
             ExpiresAt: message.ExpiresAt);
         var draft = new NotificationDraft(
-            message.UserId, NotificationType.WaitlistOffer, noticeTitle, body, path, $"waitlist-offer:{message.EntryId}:{message.HoldId}", email);
+            message.UserId, NotificationType.WaitlistOffer, noticeTitle, body, path, $"waitlist-offer:{message.EntryId}:{message.ListingId ?? message.HoldId}", email);
 
         if (await writer.AddAsync(draft, ct) is { } notificationId)
         {

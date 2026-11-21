@@ -77,15 +77,21 @@ public sealed class WaitlistOffers(IAppDbContext db, IHoldCatalog catalog, IInve
         var handled = 0;
         foreach (var entry in due)
         {
-            var holdId = entry.OfferHoldId!.Value;
+            var holdId = entry.OfferHoldId ?? entry.OfferListingId!.Value;
             if (await HasOpenOrderAsync(holdId, ct))
             {
-                // Checkout (08) is still deciding about a payment on this hold; its order expiry comes first.
+                // Checkout (08) is still deciding about a payment on this hold (or listing); its order expiry comes first.
                 continue;
             }
 
+            var listing = entry.OfferListingId is not null;
             entry.Miss(now);
-            await HandOnAsync(entry, holdId, ct);
+            if (!listing)
+            {
+                await HandOnAsync(entry, holdId, ct);
+            }
+
+            // A listing's window simply ended (spec 14, approach A): it is public now and nothing moves on.
             await db.SaveChangesAsync(ct);
             handled++;
         }
@@ -232,7 +238,8 @@ public sealed class OrderPaidWaitlistHandler(IAppDbContext db) : IIntegrationEve
     public async Task HandleAsync(OrderPaid message, IntegrationEventContext context, CancellationToken ct)
     {
         var entry = await db.WaitlistEntries.FirstOrDefaultAsync(
-            e => e.EventId == message.EventId && e.UserId == message.UserId && e.Status == WaitlistStatus.Offered && e.OfferHoldId == message.HoldId, ct);
+            e => e.EventId == message.EventId && e.UserId == message.UserId && e.Status == WaitlistStatus.Offered
+                && (e.OfferHoldId == message.HoldId || e.OfferListingId == message.HoldId), ct);
         entry?.Convert();
     }
 }

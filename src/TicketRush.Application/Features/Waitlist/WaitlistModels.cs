@@ -59,7 +59,10 @@ public sealed record MyWaitlistItem(
     string? CoverImageUrl,
     string? TierName);
 
-/// <summary>The offer page: the held tickets, priced, and when they go to the next in line.</summary>
+/// <summary>
+/// The offer page: the held tickets, priced, and when they go to the next in line. A resale listing offer (spec 14) has
+/// <see cref="Listing"/> instead of <see cref="Hold"/>, and <see cref="ExpiresAt"/> is the end of its waitlist window.
+/// </summary>
 public sealed record WaitlistOfferResponse(
     Guid OfferId,
     Guid EventId,
@@ -67,7 +70,14 @@ public sealed record WaitlistOfferResponse(
     string EventTitle,
     DateTimeOffset StartsAt,
     DateTimeOffset ExpiresAt,
-    HoldResponse Hold);
+    HoldResponse? Hold,
+    WaitlistListingOffer? Listing = null);
 
-/// <summary>What checkout needs to continue from the offered hold (spec 08 works from the user's hold).</summary>
-public sealed record AcceptedWaitlistOffer(Guid HoldId, Guid EventId, string EventSlug, DateTimeOffset ExpiresAt);
+/// <summary>A resale listing offered to the waitlist during its window.</summary>
+public sealed record WaitlistListingOffer(Guid ListingId, Guid TierId, string TierName, string? SeatLabel, long Price, string Currency);
+
+/// <summary>
+/// What checkout needs to continue: the offered hold (spec 08 works from the user's hold), or, for a listing offer, the resale order
+/// already made (<c>/checkout/{orderId}</c>).
+/// </summary>
+public sealed record AcceptedWaitlistOffer(Guid? HoldId, Guid EventId, string EventSlug, DateTimeOffset ExpiresAt, Guid? OrderId);

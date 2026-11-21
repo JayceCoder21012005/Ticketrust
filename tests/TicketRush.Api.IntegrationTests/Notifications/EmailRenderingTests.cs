@@ -28,11 +28,14 @@ public sealed partial class EmailRenderingTests
         "reminder-sale-opens",
         "reminder-event-starts",
         "waitlist-offer",
+        "ticket-transfer",
     ];
 
-    private static object Model(string name = "Nguyễn Văn Đạt") => new
+    private static object Model(string name = "Nguyễn Văn Đạt", bool resale = false) => new
     {
         name,
+        offerKind = resale ? "resale" : "returned",
+        fromName = "Trần Thị Bình",
         eventTitle = "Đêm nhạc Mùa Thu",
         orderCode = "TR-20261111-0042",
         amount = "1.250.000 ₫",
@@ -51,6 +54,28 @@ public sealed partial class EmailRenderingTests
         email.Text.ShouldContain("10:15, 20/11/2026");
         email.Html.ShouldContain("10:15, 20/11/2026");
         email.Html.ShouldContain("Mua ngay");
+        email.Text.ShouldContain("vừa được trả lại");
+    }
+
+    [Fact]
+    public void A_resale_waitlist_offer_says_the_listing_opens_to_everyone_after_the_window()
+    {
+        var email = _renderer.Render("waitlist-offer", Model(resale: true));
+
+        email.Text.ShouldContain("vé bán lại");
+        email.Text.ShouldContain("mở bán cho mọi người");
+        email.Text.ShouldNotContain("vừa được trả lại");
+    }
+
+    [Fact]
+    public void A_transfer_names_the_sender_the_event_and_the_deadline()
+    {
+        var email = _renderer.Render("ticket-transfer", Model());
+
+        email.Subject.ShouldContain("Trần Thị Bình");
+        email.Subject.ShouldContain("Đêm nhạc Mùa Thu");
+        email.Text.ShouldContain("10:15, 20/11/2026");
+        email.Html.ShouldContain("Nhận vé");
     }
 
     [Theory]
@@ -100,6 +125,7 @@ public sealed partial class EmailRenderingTests
         "reminder-sale-opens",
         "reminder-event-starts",
         "waitlist-offer",
+        "ticket-transfer",
     ];
 
     [Theory]
@@ -110,6 +136,8 @@ public sealed partial class EmailRenderingTests
         var model = new
         {
             name = "Nguyễn Văn Đạt",
+            offerKind = "returned",
+            fromName = "Trần Thị Bình",
             eventTitle = EventTitle,
             orderCode = "TR-20261111-0042",
             amount = "1.250.000 ₫",

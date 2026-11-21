@@ -2,9 +2,11 @@ Subject: Có vé cho bạn: {{ eventTitle }}
 
 Xin chào {{ name }},
 
-Có vé cho bạn! Một vé của sự kiện {{ eventTitle }} vừa được trả lại và đang được giữ riêng cho bạn trong danh sách chờ.
+{{ if offerKind == "resale" }}Có vé cho bạn! Một vé bán lại của sự kiện {{ eventTitle }} vừa được đăng, và bạn được ưu tiên mua trước trong danh sách chờ.
 
-Vé được giữ đến {{ expiresAtText }}. Sau thời điểm đó, vé sẽ được chuyển cho người tiếp theo trong danh sách chờ.
+Bạn được mua trước đến {{ expiresAtText }}. Sau thời điểm đó, vé sẽ được mở bán cho mọi người.{{ else }}Có vé cho bạn! Một vé của sự kiện {{ eventTitle }} vừa được trả lại và đang được giữ riêng cho bạn trong danh sách chờ.
+
+Vé được giữ đến {{ expiresAtText }}. Sau thời điểm đó, vé sẽ được chuyển cho người tiếp theo trong danh sách chờ.{{ end }}
 
 Mua ngay:
 {{ link }}

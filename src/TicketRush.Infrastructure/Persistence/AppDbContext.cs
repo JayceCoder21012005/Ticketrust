@@ -54,6 +54,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataPr
 
     public DbSet<ReminderDispatch> ReminderDispatches => Set<ReminderDispatch>();
 
+    public DbSet<TicketRush.Domain.Resale.ResaleListing> ResaleListings => Set<TicketRush.Domain.Resale.ResaleListing>();
+
+    public DbSet<TicketRush.Domain.Resale.TicketTransfer> TicketTransfers => Set<TicketRush.Domain.Resale.TicketTransfer>();
+
+    public DbSet<TicketRush.Domain.Resale.SellerPayout> SellerPayouts => Set<TicketRush.Domain.Resale.SellerPayout>();
+
     public DbSet<GateAssignment> GateAssignments => Set<GateAssignment>();
 
     public DbSet<CheckIn> CheckIns => Set<CheckIn>();

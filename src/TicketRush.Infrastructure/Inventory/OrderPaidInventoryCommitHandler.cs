@@ -28,6 +28,12 @@ public sealed partial class OrderPaidInventoryCommitHandler(IAppDbContext db, II
 {
     public async Task HandleAsync(OrderPaid message, IntegrationEventContext context, CancellationToken ct)
     {
+        if (message.Kind == OrderKind.Resale)
+        {
+            // Spec 14: a resold seat was sold all along; only its owner changed.
+            return;
+        }
+
         // Ascending (C9); the store sorts again, so a caller can never break the lock order.
         var seats = message.Lines.Where(l => l.SeatIndex is not null).Select(l => l.SeatIndex!.Value).Order().ToList();
         var ga = message.Lines

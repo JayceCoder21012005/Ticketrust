@@ -145,4 +145,18 @@ public sealed class WaitlistTests
         entry.Miss(Now.AddMinutes(10));
         entry.OfferListingId.ShouldBeNull();
     }
+
+    [Fact]
+    public void A_withdrawn_listing_offer_puts_the_entry_back_in_its_place_without_a_miss()
+    {
+        var entry = Join(quantity: 1);
+        entry.OfferListing(Guid.NewGuid(), Now.AddMinutes(10));
+
+        entry.WithdrawOffer();
+
+        entry.Status.ShouldBe(WaitlistStatus.Waiting);
+        entry.Misses.ShouldBe(0);
+        entry.QueuedAt.ShouldBe(Now);
+        entry.OfferListingId.ShouldBeNull();
+    }
 }

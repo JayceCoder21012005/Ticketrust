@@ -29,6 +29,7 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.HasKey(o => o.Id);
         builder.Property(o => o.Id).ValueGeneratedNever();
         builder.Property(o => o.Status).HasConversion<string>().HasMaxLength(20);
+        builder.Property(o => o.Kind).HasConversion<string>().HasMaxLength(16).HasDefaultValue(OrderKind.Primary).HasSentinel(OrderKind.Primary);
         builder.Property(o => o.RefundReason).HasMaxLength(50);
         builder.ComplexProperty(o => o.Total, total =>
         {
