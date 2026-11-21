@@ -118,6 +118,27 @@ public sealed class Ticket : AggregateRoot, IAuditable
     }
 
     /// <summary>
+    /// Listed → Voided because the ticket changes owner (spec 14: resale paid or transfer accepted). Unlike <see cref="Void"/>
+    /// nothing goes back to the sale: the seat stays sold and <see cref="Reissue"/> gives it to the new owner.
+    /// </summary>
+    public void HandOver() => Move(TicketStatus.Voided, nameof(HandOver), TicketStatus.Listed);
+
+    /// <summary>
+    /// The new owner's ticket for the same seat (or GA unit) of a ticket just <see cref="HandOver">handed over</see>, with a
+    /// new <see cref="QrSecret"/> so the old QR dies. Insert it after the void is saved: the partial unique seat index counts
+    /// only non-voided rows.
+    /// </summary>
+    public Ticket Reissue(Guid orderId, Guid ownerUserId)
+    {
+        if (Status != TicketStatus.Voided)
+        {
+            throw new DomainException("ticket.illegal_transition", $"Cannot reissue a ticket that is {Status}; hand it over first.");
+        }
+
+        return Issue(orderId, EventId, TierId, SeatIndex, ownerUserId);
+    }
+
+    /// <summary>
     /// Valid, Listed or CheckedIn → Voided because the organizer cancelled the event (spec 08): the whole order is refunded,
     /// so no ticket of it may stay usable, a checked-in one included. An already voided ticket is refused like everywhere else.
     /// </summary>

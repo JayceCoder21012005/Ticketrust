@@ -16,6 +16,7 @@ public sealed class TicketTests
         [nameof(Ticket.List)] = t => t.List(),
         [nameof(Ticket.Unlist)] = t => t.Unlist(),
         [nameof(Ticket.Void)] = t => t.Void(),
+        [nameof(Ticket.HandOver)] = t => t.HandOver(),
         [nameof(Ticket.VoidForCancelledEvent)] = t => t.VoidForCancelledEvent(),
     };
 
@@ -24,6 +25,7 @@ public sealed class TicketTests
         [nameof(Ticket.CheckIn)] = new() { [TicketStatus.Valid] = TicketStatus.CheckedIn },
         [nameof(Ticket.List)] = new() { [TicketStatus.Valid] = TicketStatus.Listed },
         [nameof(Ticket.Unlist)] = new() { [TicketStatus.Listed] = TicketStatus.Valid },
+        [nameof(Ticket.HandOver)] = new() { [TicketStatus.Listed] = TicketStatus.Voided },
         [nameof(Ticket.Void)] = new()
         {
             [TicketStatus.Valid] = TicketStatus.Voided,

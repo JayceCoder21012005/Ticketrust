@@ -129,4 +129,20 @@ public sealed class WaitlistTests
 
         Should.Throw<DomainException>(left.Close).Code.ShouldBe("waitlist.illegal_transition");
     }
+
+    [Fact]
+    public void A_listing_offer_records_the_listing_and_a_miss_clears_it()
+    {
+        var entry = Join(quantity: 1);
+        var listing = Guid.NewGuid();
+
+        entry.OfferListing(listing, Now.AddMinutes(10));
+
+        entry.Status.ShouldBe(WaitlistStatus.Offered);
+        entry.OfferListingId.ShouldBe(listing);
+        entry.OfferHoldId.ShouldBeNull();
+        entry.DomainEvents.OfType<WaitlistOfferIssued>().Single().ListingId.ShouldBe(listing);
+        entry.Miss(Now.AddMinutes(10));
+        entry.OfferListingId.ShouldBeNull();
+    }
 }

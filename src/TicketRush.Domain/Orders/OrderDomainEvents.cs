@@ -16,7 +16,19 @@ public sealed record OrderPaid(
     string Currency,
     int TicketCount,
     DateTimeOffset PaidAt,
-    IReadOnlyList<OrderPaidLine> Lines) : IDomainEvent;
+    IReadOnlyList<OrderPaidLine> Lines,
+    OrderKind Kind = OrderKind.Primary) : IDomainEvent;
+
+/// <summary>
+/// <see cref="Primary"/>: bought from the sale (a Redis hold). <see cref="Resale"/>: a listed ticket bought from its owner
+/// (spec 14); the seat is already sold, so the inventory consumers of <see cref="OrderPaid"/> skip it. Messages written before
+/// spec 14 have no kind and read as <see cref="Primary"/>.
+/// </summary>
+public enum OrderKind
+{
+    Primary,
+    Resale,
+}
 
 /// <summary>One paid line: a single seat (<see cref="SeatIndex"/> set, quantity 1) or a general-admission quantity.</summary>
 public sealed record OrderPaidLine(Guid TierId, int? SeatIndex, int Quantity);
