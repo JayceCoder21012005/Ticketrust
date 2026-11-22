@@ -53,7 +53,8 @@ public static class Extensions
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
                 .AddRuntimeInstrumentation()
-                .AddMeter($"{TelemetryPrefix}.*"))
+                // The bare name is spec 17's sale meter; the wildcard does not match it.
+                .AddMeter(TelemetryPrefix, $"{TelemetryPrefix}.*"))
             .WithTracing(tracing => tracing
                 .AddSource(builder.Environment.ApplicationName)
                 .AddSource($"{TelemetryPrefix}.*")

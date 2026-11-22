@@ -1,5 +1,6 @@
 using TicketRush.Application.Abstractions.Inventory;
 using TicketRush.Application.Abstractions.Locking;
+using TicketRush.Application.Abstractions.Observability;
 using TicketRush.Worker.Common;
 
 namespace TicketRush.Worker.Inventory;
@@ -11,6 +12,7 @@ namespace TicketRush.Worker.Inventory;
 public sealed class HoldExpiryService(
     LiveInventoryEvents live,
     IInventoryStore store,
+    ISalesMetrics metrics,
     IDistributedLock distributedLock,
     TimeProvider time,
     ILogger<HoldExpiryService> logger)
@@ -46,10 +48,16 @@ public sealed class HoldExpiryService(
         var now = _clock.GetUtcNow();
         foreach (var evt in await live.GetAsync(ct))
         {
+            var released = 0;
             foreach (var holdId in await store.DueHoldsAsync(evt.EventId, now, BatchSize, ct))
             {
-                await store.ReleaseHoldAsync(evt.EventId, holdId, evt.GaTierIds, ct);
+                if (await store.ReleaseHoldAsync(evt.EventId, holdId, evt.GaTierIds, ct))
+                {
+                    released++;
+                }
             }
+
+            metrics.HoldsExpired(released);
         }
 
         Interlocked.Increment(ref _tickCount);

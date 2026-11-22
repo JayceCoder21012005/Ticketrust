@@ -18,6 +18,7 @@ public sealed class CreateHoldHandlerTests
     private readonly IHoldCatalog _catalog = Substitute.For<IHoldCatalog>();
     private readonly IInventorySeeder _seeder = Substitute.For<IInventorySeeder>();
     private readonly Abstractions.Dashboard.IDashboardStore _dashboard = Substitute.For<Abstractions.Dashboard.IDashboardStore>();
+    private readonly Abstractions.Observability.ISalesMetrics _metrics = Substitute.For<Abstractions.Observability.ISalesMetrics>();
     private readonly List<HoldRequest> _requests = [];
 
     public CreateHoldHandlerTests()
@@ -40,7 +41,7 @@ public sealed class CreateHoldHandlerTests
     }
 
     private CreateHoldHandler Handler(int maxSeatsPerHold = 8) =>
-        new(_catalog, _store, _seeder, new BestAvailableSeatPicker(), _dashboard, Microsoft.Extensions.Options.Options.Create(new HoldsOptions { MaxSeatsPerHold = maxSeatsPerHold }), _time);
+        new(_catalog, _store, _seeder, new BestAvailableSeatPicker(), _dashboard, _metrics, Microsoft.Extensions.Options.Options.Create(new HoldsOptions { MaxSeatsPerHold = maxSeatsPerHold }), _time);
 
     private static CreateHoldCommand Command(int[]? seats = null, GaLine[]? ga = null, BestAvailableRequest? best = null, bool replace = false, Guid? phase = null) =>
         new(User, HoldTestCatalog.EventId, phase ?? HoldTestCatalog.Phase, seats, ga, best, replace);
@@ -196,5 +197,23 @@ public sealed class CreateHoldHandlerTests
         StoreAnswers(HoldOutcome.Failed(HoldStatus.SeatUnavailable, [5]));
         (await Handler().HandleAsync(Command([5]), Ct)).IsSuccess.ShouldBeFalse();
         await _dashboard.DidNotReceive().RecordHeldAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Every_hold_attempt_is_counted_by_its_result()
+    {
+        StoreAnswers(Ok());
+        await Handler().HandleAsync(Command([4]), Ct);
+        StoreAnswers(HoldOutcome.Failed(HoldStatus.SeatUnavailable, [5]));
+        await Handler().HandleAsync(Command([5]), Ct);
+        _store.CreateHoldAsync(Arg.Any<HoldRequest>(), Arg.Any<CancellationToken>()).ThrowsAsync(new InventoryUnavailableException("down"));
+        await Handler().HandleAsync(Command([6]), Ct);
+
+        Received.InOrder(() =>
+        {
+            _metrics.HoldCreated("ok");
+            _metrics.HoldCreated("hold.seats_unavailable");
+            _metrics.HoldCreated("system.busy");
+        });
     }
 }

@@ -1,5 +1,6 @@
 using TicketRush.Application.Abstractions.Inventory;
 using TicketRush.Application.Abstractions.Locking;
+using TicketRush.Application.Abstractions.Observability;
 using TicketRush.Infrastructure.Inventory;
 using TicketRush.Worker.Common;
 
@@ -13,6 +14,7 @@ public sealed partial class InventoryReconcilerService(
     LiveInventoryEvents live,
     IInventoryStore store,
     IServiceScopeFactory scopes,
+    ISalesMetrics metrics,
     IDistributedLock distributedLock,
     TimeProvider time,
     ILogger<InventoryReconcilerService> logger)
@@ -56,9 +58,11 @@ public sealed partial class InventoryReconcilerService(
                 continue;
             }
 
+            // Only a full pass over a warm event finds drift; seeding a cold one (after a Redis restart) is a rebuild, not a fix.
             if (await seeder.SeedAsync(evt.EventId, ct) is { HadDrift: true } report && full)
             {
                 LogDrift(_logger, evt.EventId, report.SoldAdded, report.SoldRemoved, report.GaFixed.Count);
+                metrics.DriftFixed(report.SoldAdded + report.SoldRemoved + report.GaFixed.Count);
             }
         }
     }

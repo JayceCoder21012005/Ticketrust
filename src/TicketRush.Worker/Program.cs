@@ -17,6 +17,7 @@ builder.Services.AddApplication();
 
 // Each spec registers its own BackgroundService here.
 builder.Services.AddHostedService<OutboxDispatcherService>();
+builder.Services.AddHostedService<OutboxMonitorService>();
 builder.Services.AddSingleton<LiveSales>();
 builder.Services.AddHostedService<QueueOpenerService>();
 builder.Services.AddHostedService<QueueAdmitterService>();

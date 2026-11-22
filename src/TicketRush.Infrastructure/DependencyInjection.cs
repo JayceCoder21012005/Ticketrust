@@ -90,6 +90,9 @@ public static class DependencyInjection
         services.AddSingleton<IDistributedLock, RedisDistributedLock>();
         services.AddSingleton<DomainEventTypeRegistry>();
         services.AddSingleton<OutboxMetrics>();
+        services.AddScoped<OutboxStats>();
+        services.AddSingleton<Observability.SalesMetrics>();
+        services.AddSingleton<Application.Abstractions.Observability.ISalesMetrics>(provider => provider.GetRequiredService<Observability.SalesMetrics>());
         services.AddSingleton<OutboxProcessor>();
 
         services.AddSingleton<IAdmissionTokenFactory, AdmissionTokenFactory>();
@@ -287,6 +290,11 @@ public static class DependencyInjection
         services.AddIntegrationEventHandler<OrderRefunded, OrderRefundedNotificationHandler>();
         services.AddIntegrationEventHandler<PaymentRefunded, PaymentRefundedNotificationHandler>();
         services.AddIntegrationEventHandler<TicketReturned, TicketReturnedWaitlistHandler>();
+
+        // Spec 17: registered last, so a message counts once its real work is done.
+        services.AddIntegrationEventHandler<OrderPaid, Application.Features.Observability.OrderPaidMetricHandler>();
+        services.AddIntegrationEventHandler<RefundRequested, Application.Features.Observability.RefundRequestedMetricHandler>();
+        services.AddIntegrationEventHandler<PaymentRefundRequested, Application.Features.Observability.PaymentRefundRequestedMetricHandler>();
     }
 
     /// <summary>Spec 09: the notification writer and the email delivery worker's processor.</summary>

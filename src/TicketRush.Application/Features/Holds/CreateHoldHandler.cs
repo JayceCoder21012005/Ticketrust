@@ -17,6 +17,7 @@ public sealed class CreateHoldHandler(
     IInventorySeeder seeder,
     IBestAvailablePicker picker,
     Abstractions.Dashboard.IDashboardStore dashboard,
+    Abstractions.Observability.ISalesMetrics metrics,
     IOptions<HoldsOptions> options,
     TimeProvider time)
 {
@@ -58,10 +59,12 @@ public sealed class CreateHoldHandler(
                 await dashboard.RecordHeldAsync(entry.EventId, ct);
             }
 
+            metrics.HoldCreated(held.IsSuccess ? "ok" : held.Error.Code);
             return held;
         }
         catch (InventoryUnavailableException)
         {
+            metrics.HoldCreated(CommonErrors.SystemBusy.Code);
             return CommonErrors.SystemBusy;
         }
     }

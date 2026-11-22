@@ -33,7 +33,8 @@ public static class PaymentsServiceCollectionExtensions
                 MockPaymentGateway.ProviderName,
                 provider.GetRequiredService<IOptions<GatewayResilienceOptions>>().Value,
                 provider.GetRequiredService<TimeProvider>(),
-                provider.GetRequiredService<ILoggerFactory>().CreateLogger<GatewayResilience>())));
+                provider.GetRequiredService<ILoggerFactory>().CreateLogger<GatewayResilience>()),
+            provider.GetRequiredService<Application.Abstractions.Observability.ISalesMetrics>()));
         services.AddSingleton<IPaymentGatewayResolver, PaymentGatewayResolver>();
 
         // Deliveries have their own backoff and attempt limit; the host-wide resilience defaults would stack a second layer on top.
