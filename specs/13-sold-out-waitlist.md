@@ -69,6 +69,8 @@ Error codes: `waitlist.not_available`, `waitlist.already_joined`, `waitlist.offe
   - A retry after a crash between Redis and the database save therefore finds the hold it already made and finishes that offer. It never leaves an orphaned hold, which nothing would sweep.
   - Database effects of the outbox handler commit with its consumer receipt.
 - **Declining.** Releasing the offered hold (`DELETE /events/{id}/holds/me`, or cancelling its order) or leaving the waitlist ends the entry as `Left`. The hold goes to the next in line, never to the public first.
+- **Cancelled event:** `EventCancelledWaitlistHandler` (the last `EventCancelled` consumer, after the holds are released) closes every live entry of the event (`Closed`).
+- **Started event:** a ticket returned after the event's start is offered to nobody and goes straight back (free); an offer that runs out after the start is released, not passed on. Joining was already refused then.
 - **Accept** returns `{holdId, eventId, eventSlug, expiresAt}` and **no admission token**: `POST /orders` is guarded by the user's live hold alone (08), and the waitlist already made that hold. The web then opens `/events/{slug}/checkout`.
 - **Join rules:**
   - Confirmed email (403 `waitlist.email_not_confirmed`).

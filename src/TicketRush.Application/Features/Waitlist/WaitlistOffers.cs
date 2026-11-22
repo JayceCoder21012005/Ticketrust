@@ -39,7 +39,8 @@ public sealed class WaitlistOffers(IAppDbContext db, IHoldCatalog catalog, IInve
         int[] seats = returned.SeatIndex is { } seat ? [seat] : [];
         GaLine[] ga = returned.SeatIndex is null ? [new GaLine(returned.TierId, 1)] : [];
         var holdId = returned.TicketId;
-        foreach (var candidate in await CandidatesAsync(returned.EventId, returned.TierId, 1, null, ct))
+        var waiters = await HasStartedAsync(returned.EventId, ct) ? [] : await CandidatesAsync(returned.EventId, returned.TierId, 1, null, ct);
+        foreach (var candidate in waiters)
         {
             var outcome = await store.HoldReturnedAsync(returned.EventId, holdId, candidate.UserId, seats, ga, returned.PreviousOwnerUserId, Ttl, ct);
             switch (outcome.Status)
@@ -127,7 +128,8 @@ public sealed class WaitlistOffers(IAppDbContext db, IHoldCatalog catalog, IInve
 
         var tiers = entry.Seats.Where(s => hold.Seats.Contains(s.Index)).Select(s => s.TierId).Concat(hold.Ga.Select(l => l.TierId)).Distinct().ToList();
         var units = hold.Seats.Count + hold.Ga.Sum(l => l.Quantity);
-        if (tiers.Count == 1)
+        // Once the event has started nobody can still use an offer: the hold goes back, it is not passed on.
+        if (tiers.Count == 1 && !await HasStartedAsync(from.EventId, ct))
         {
             foreach (var candidate in await CandidatesAsync(from.EventId, tiers[0], units, from.Id, ct))
             {
@@ -181,7 +183,13 @@ public sealed class WaitlistOffers(IAppDbContext db, IHoldCatalog catalog, IInve
             .Take(CandidatesPerTicket)
             .ToListAsync(ct);
 
-    private Task<bool> HasOpenOrderAsync(Guid holdId, CancellationToken ct) =>
+    private Task<bool> HasStartedAsync(Guid eventId, CancellationToken ct)
+    {
+        var now = time.GetUtcNow();
+        return db.Events.AnyAsync(e => e.Id == eventId && e.StartsAt <= now, ct);
+    }
+
+        private Task<bool> HasOpenOrderAsync(Guid holdId, CancellationToken ct) =>
         db.Orders.AnyAsync(
             o => o.HoldId == holdId && (o.Status == OrderStatus.Pending || o.Status == OrderStatus.AwaitingPayment || o.Status == OrderStatus.PaymentFailed),
             ct);
@@ -198,6 +206,24 @@ public interface IWaitlistOfferDecliner
 public sealed class TicketReturnedWaitlistHandler(WaitlistOffers offers) : IIntegrationEventHandler<TicketReturned>
 {
     public Task HandleAsync(TicketReturned message, IntegrationEventContext context, CancellationToken ct) => offers.OfferReturnedAsync(message, ct);
+}
+
+/// <summary>
+/// The event was cancelled: every live entry closes. The cancellation already released the event's holds (offers included) and
+/// tells ticket holders and followers; a waiter has nothing left to wait for.
+/// </summary>
+public sealed class EventCancelledWaitlistHandler(IAppDbContext db) : IIntegrationEventHandler<Domain.Events.EventCancelled>
+{
+    public async Task HandleAsync(Domain.Events.EventCancelled message, IntegrationEventContext context, CancellationToken ct)
+    {
+        var live = await db.WaitlistEntries
+            .Where(e => e.EventId == message.EventId && (e.Status == WaitlistStatus.Waiting || e.Status == WaitlistStatus.Offered))
+            .ToListAsync(ct);
+        foreach (var entry in live)
+        {
+            entry.Close();
+        }
+    }
 }
 
 /// <summary>The waiter paid for the offered hold: the entry is done.</summary>

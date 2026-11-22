@@ -262,4 +262,57 @@ public sealed class WaitlistOfferTests(ContainersFixture containers) : IAsyncLif
         var emails = await _h.WithDbAsync(db => db.EmailDeliveries.AsNoTracking().Where(e => e.UserId == userId).ToListAsync(Ct));
         emails.ShouldHaveSingleItem().Template.ShouldBe("waitlist-offer");
     }
+
+    private async Task PastTheStartAsync()
+    {
+        var startsAt = await _h.WithDbAsync(db => db.Events.Where(e => e.Id == _h.EventId).Select(e => e.StartsAt).SingleAsync(Ct));
+        _h.Time.Advance(startsAt - _h.Time.GetUtcNow() + TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public async Task Cancelling_the_event_closes_its_live_entries()
+    {
+        var offeredId = await JoinAsync();
+        var waitingId = await JoinAsync();
+        await DeliverAsync(Returned());
+        (await EntryAsync(offeredId)).Status.ShouldBe(WaitlistStatus.Offered);
+
+        await using (var scope = _h.Host.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<EventCancelledWaitlistHandler>()
+                .HandleAsync(new TicketRush.Domain.Events.EventCancelled(_h.EventId, Guid.NewGuid()), new IntegrationEventContext(Guid.NewGuid(), _h.Time.GetUtcNow(), 1), Ct);
+            await scope.ServiceProvider.GetRequiredService<TicketRush.Infrastructure.Persistence.AppDbContext>().SaveChangesAsync(Ct);
+        }
+
+        (await EntryAsync(offeredId)).Status.ShouldBe(WaitlistStatus.Closed);
+        (await EntryAsync(waitingId)).Status.ShouldBe(WaitlistStatus.Closed);
+    }
+
+    [Fact]
+    public async Task A_ticket_returned_after_the_event_started_is_offered_to_nobody()
+    {
+        var waiter = await JoinAsync();
+        await PastTheStartAsync();
+
+        await DeliverAsync(Returned());
+
+        (await EntryAsync(waiter)).Status.ShouldBe(WaitlistStatus.Waiting);
+        (await SeatOwnerAsync()).ShouldBeNull();
+        (await _h.OutboxCountAsync(nameof(WaitlistOfferIssued))).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task An_offer_that_runs_out_after_the_event_started_is_not_passed_on()
+    {
+        var first = await JoinAsync();
+        var second = await JoinAsync();
+        await DeliverAsync(Returned());
+        await PastTheStartAsync();
+
+        (await ExpireAsync()).ShouldBe(1);
+
+        (await EntryAsync(second)).Status.ShouldBe(WaitlistStatus.Waiting);
+        (await EntryAsync(first)).OfferHoldId.ShouldBeNull();
+        (await SeatOwnerAsync()).ShouldBeNull("the hold is released, not handed to someone who can no longer use it");
+    }
 }

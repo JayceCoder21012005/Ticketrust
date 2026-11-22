@@ -6515,7 +6515,8 @@
           "Offered",
           "Converted",
           "Expired",
-          "Left"
+          "Left",
+          "Closed"
         ]
       },
       "WaitlistStatusResponse": {

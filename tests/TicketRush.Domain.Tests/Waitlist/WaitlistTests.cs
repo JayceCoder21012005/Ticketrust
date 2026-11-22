@@ -105,4 +105,28 @@ public sealed class WaitlistTests
         Join(2, tier).Wants(Guid.NewGuid(), 2).ShouldBeFalse();
         Join(3, null).Wants(tier, 2).ShouldBeFalse();
     }
+
+    [Fact]
+    public void A_cancelled_event_closes_a_waiting_or_offered_entry()
+    {
+        var waiting = Join();
+        waiting.Close();
+        waiting.Status.ShouldBe(WaitlistStatus.Closed);
+        waiting.IsLive.ShouldBeFalse();
+
+        var offered = Join();
+        offered.Offer(Guid.NewGuid(), Now.AddMinutes(15));
+        offered.Close();
+        offered.Status.ShouldBe(WaitlistStatus.Closed);
+        offered.OfferHoldId.ShouldBeNull();
+    }
+
+    [Fact]
+    public void A_finished_entry_cannot_be_closed()
+    {
+        var left = Join();
+        left.Leave();
+
+        Should.Throw<DomainException>(left.Close).Code.ShouldBe("waitlist.illegal_transition");
+    }
 }
