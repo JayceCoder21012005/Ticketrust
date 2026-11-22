@@ -64,5 +64,55 @@
     "card": {
       "hot": "Đang hot"
     }
+  },
+  "lab": {
+    "title": "Phòng thí nghiệm tải",
+    "description": "Số đo thật của TicketRush khi chịu tải: mở bán, hàng nghìn người mua, bão webhook, chạy dài và sự cố có chủ đích.",
+    "intro": "Mọi con số dưới đây đo được trên chính chiếc máy ghi bên dưới, không làm tròn cho đẹp. Ngưỡng nào không đạt thì ghi là không đạt; điều không bao giờ được sai là các bất biến: không ghế nào bán hai lần, không hạng vé nào bán quá sức chứa.",
+    "generated": "Lần chạy lúc {at} · commit {commit}",
+    "noResults": "Chưa có lần chạy nào được ghi lại. Chạy make load-test rồi build lại trang.",
+    "machine": "Máy đo",
+    "threads": "luồng",
+    "os": "Hệ điều hành",
+    "scenarios": "Kịch bản",
+    "scenariosHint": "Độ trễ ghi theo p50 / p95 / p99. Lỗi: câu trả lời ngoài dự kiến / bị giới hạn tốc độ (429).",
+    "columns": {
+      "scenario": "Kịch bản",
+      "scale": "Quy mô",
+      "latency": "Độ trễ",
+      "errors": "Lỗi",
+      "budget": "Ngân sách"
+    },
+    "scale": "{vus} VU · {iterations} lượt · {seconds} s",
+    "errorCounts": "{unexpected} / {limited}",
+    "notRun": "Chưa chạy",
+    "met": "Đạt",
+    "missed": "Không đạt",
+    "invariants": "Bất biến sau mỗi kịch bản",
+    "invariantsHint": "Không ghế nào có hai vé, không hạng vé nào vượt sức chứa, mỗi đơn đã trả có đúng số vé, không ai giữ quá giới hạn vé, và Redis khớp với cơ sở dữ liệu. Kiểm tra ngay sau kịch bản và lần nữa khi webhook trễ, đơn hết hạn và hoàn tiền đã xong.",
+    "phase": {
+      "after": "Ngay sau",
+      "settled": "Khi đã lắng"
+    },
+    "holds": "Đúng hết",
+    "violated": "Bị vi phạm",
+    "violations": "{count} vi phạm",
+    "notChecked": "Chưa kiểm tra",
+    "soak": "Chạy dài",
+    "soakHint": "Độ dốc bộ nhớ trong 20 phút cuối và số khoá giữ chỗ trong Redis: ổn định nghĩa là không tăng dần.",
+    "soakApi": "Bộ nhớ api",
+    "soakWorker": "Bộ nhớ worker",
+    "soakHolds": "Khoá giữ chỗ Redis",
+    "soakHoldsValue": "cao nhất {peak}, cuối cùng {end}",
+    "minutes": "phút",
+    "verdict": "Kết luận",
+    "chaos": "Sự cố đã gây ra",
+    "faults": {
+      "worker_leader_killed": "Tắt cưỡng bức worker đang làm leader",
+      "redis_restarted": "Khởi động lại Redis",
+      "postgres_paused": "Tạm dừng Postgres",
+      "postgres_resumed": "Postgres chạy lại"
+    },
+    "broke": "Hỏng gì và đã sửa thế nào"
   }
 }

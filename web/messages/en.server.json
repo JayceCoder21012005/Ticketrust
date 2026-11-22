@@ -64,5 +64,55 @@
     "card": {
       "hot": "Hot"
     }
+  },
+  "lab": {
+    "title": "Load lab",
+    "description": "TicketRush measured under load: a sale opening, thousands of buyers, a webhook storm, a long soak and deliberate faults.",
+    "intro": "Every number below was measured on the machine listed, as it came out. A budget that was missed says so; what must never be wrong are the invariants: no seat sold twice, no tier sold beyond its capacity.",
+    "generated": "Run at {at} · commit {commit}",
+    "noResults": "No run recorded yet. Run make load-test, then rebuild the page.",
+    "machine": "Machine",
+    "threads": "threads",
+    "os": "OS",
+    "scenarios": "Scenarios",
+    "scenariosHint": "Latency as p50 / p95 / p99. Errors: unexpected answers / rate limited (429).",
+    "columns": {
+      "scenario": "Scenario",
+      "scale": "Scale",
+      "latency": "Latency",
+      "errors": "Errors",
+      "budget": "Budget"
+    },
+    "scale": "{vus} VUs · {iterations} iterations · {seconds} s",
+    "errorCounts": "{unexpected} / {limited}",
+    "notRun": "Not run",
+    "met": "Met",
+    "missed": "Missed",
+    "invariants": "Invariants after every scenario",
+    "invariantsHint": "No seat with two tickets, no tier beyond capacity, every paid order with exactly its tickets, nobody over the ticket limit, and Redis agreeing with the database. Checked right after the scenario and again once late webhooks, expiries and refunds settled.",
+    "phase": {
+      "after": "Right after",
+      "settled": "Settled"
+    },
+    "holds": "All hold",
+    "violated": "Violated",
+    "violations": "{count} violations",
+    "notChecked": "Not checked",
+    "soak": "Soak",
+    "soakHint": "Memory slope over the last 20 minutes and the Redis hold keys: stable means no steady growth.",
+    "soakApi": "api memory",
+    "soakWorker": "worker memory",
+    "soakHolds": "Redis hold keys",
+    "soakHoldsValue": "peak {peak}, at the end {end}",
+    "minutes": "min",
+    "verdict": "Verdict",
+    "chaos": "Faults injected",
+    "faults": {
+      "worker_leader_killed": "Killed the leading worker",
+      "redis_restarted": "Restarted Redis",
+      "postgres_paused": "Paused Postgres",
+      "postgres_resumed": "Postgres resumed"
+    },
+    "broke": "What broke and how we fixed it"
   }
 }

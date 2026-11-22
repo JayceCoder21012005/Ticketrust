@@ -1,0 +1,16 @@
+{
+  "generatedAt": null,
+  "commit": null,
+  "machine": null,
+  "scaleNote": null,
+  "scenarios": [
+    { "id": "01", "title": "Sale-open spike", "shape": "Buyers join during the pre-queue, then poll as the server says", "budget": "Queue status p99 < 50 ms, no error other than 429", "ran": false },
+    { "id": "02", "title": "Buy flow", "shape": "Admitted buyers: hold (30 % on the same hot seats) → order → mock pay, double clicks included", "budget": "Hold p99 < 150 ms, checkout p99 < 300 ms", "ran": false },
+    { "id": "03", "title": "Webhook storm", "shape": "Every payment webhook 3× in parallel, then 3× again after a random 0–5 min delay", "budget": "Tickets issued once per order", "ran": false },
+    { "id": "04", "title": "Soak", "shape": "Moderate constant load; half the holds are left to expire", "budget": "Memory and GC stable, no growth in Redis hold keys", "ran": false },
+    { "id": "05", "title": "Chaos", "shape": "Buy flow while the worker leader is killed, Redis restarts and Postgres pauses 10 s", "budget": "The system recovers and the invariants hold", "ran": false }
+  ],
+  "soak": null,
+  "chaos": [],
+  "brokeAndFixed": []
+}
