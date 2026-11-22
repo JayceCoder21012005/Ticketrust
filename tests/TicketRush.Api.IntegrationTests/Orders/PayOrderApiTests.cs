@@ -379,7 +379,7 @@ public sealed class PayOrderApiTests(ContainersFixture containers) : IAsyncLifet
     private async Task<PaymentSession> OpenOrphanSessionAsync(Placed placed, int attempt)
     {
         var order = await WithDbAsync(db => db.Orders.AsNoTracking().SingleAsync(o => o.Id == placed.OrderId, Ct));
-        var gateway = _spyHost.Services.GetRequiredService<IEnumerable<IPaymentGateway>>().Single();
+        var gateway = _spyHost.Services.GetRequiredService<IEnumerable<IPaymentGateway>>().Single(g => g.Provider == "mock");
         return await gateway.CreateSessionAsync(
             order,
             new Uri($"http://localhost:3000/checkout/{placed.OrderId}/result"),

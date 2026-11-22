@@ -21,6 +21,7 @@ public sealed class RedisOptions
 /// <item><c>tr:{env}:q:{sale:&lt;phaseId&gt;}:state|pre|line|seq|admitted|active|tokens|done</c> — waiting room of one sale phase (spec 06). One hash tag, so Lua scripts stay Cluster-safe.</item>
 /// <item><c>tr:{env}:inv:{evt:&lt;eventId&gt;}:sold|held|ga:&lt;tier&gt;|gaheld|hold:&lt;id&gt;|expiry|userhold:&lt;user&gt;|bought:&lt;user&gt;|ver|commits|committed:&lt;orderId&gt;|meta</c> and channel <c>…:changes</c> — inventory of one event (spec 07).</item>
 /// <item><c>tr:{env}:pay:mock:session:{id}|idem:{sha256}|refund:{sha256}|deliveries</c> — sessions, idempotency markers and the webhook delivery queue of the mock payment gateway (spec 08).</item>
+/// <item><c>tr:{env}:pay:momo:idem:{sha256}</c> — the MoMo session created for one idempotency key (spec 18).</item>
 /// <item><c>tr:{env}:qr-key:{userId}</c> — string counter of one user's qr-key requests in the current 60 s window (spec 10, <see cref="Tickets.RedisQrKeyThrottle"/>).</item>
 /// <item><c>tr:{env}:login-fail:{hash}</c> — failed sign-ins of one email, 15-minute window (spec 12, <see cref="Security.RedisLoginFailureCounter"/>).</item>
 /// <item><c>tr:{env}:flag:joins:{hash}:{minute}</c> — queue joins of one /24 (or /48) subnet in one minute (spec 12, <see cref="Security.SuspiciousActivityDetector"/>).</item>
@@ -123,6 +124,9 @@ public sealed class RedisKeys(IOptions<RedisOptions> options)
 
     /// <summary>ZSET: JSON delivery (id, body, attempt) → due time (unix ms). A claimed delivery is pushed out by a lease until it is acknowledged.</summary>
     public RedisKey PayMockDeliveries => $"{Prefix}pay:mock:deliveries";
+
+    /// <summary>STRING: JSON of the MoMo session (sessionId, payUrl, expiry) created for one idempotency key (spec 18); hashed key, PX = expiry + margin.</summary>
+    public RedisKey PayMoMoSession(string idempotencyKey) => $"{Prefix}pay:momo:idem:{Hash(idempotencyKey)}";
 
     /// <summary>STRING: qr-key requests made by one user in the current fixed window (PX = the window, set by the first request).</summary>
     public RedisKey QrKeyThrottle(Guid userId) => $"{Prefix}qr-key:{userId:N}";
