@@ -1,0 +1,79 @@
+# Spec 17 alerts. No contact point is provisioned: they show in Grafana's alert list. To be notified, add one, e.g.
+#   contactPoints: [{ orgId: 1, name: email, receivers: [{ uid: email, type: email, settings: { addresses: ops@example.com } }] }]
+# and a notification policy that routes folder TicketRush to it.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: flash-sale
+    folder: TicketRush
+    interval: 30s
+    rules:
+      - uid: tr-outbox-lag
+        title: Outbox lag above 30 s
+        condition: C
+        for: 1m
+        annotations: { summary: "Outbox messages wait more than 30 s: emails, inventory commits and refunds are late." }
+        labels: { severity: warning }
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: A, expr: max(ticketrush_outbox_lag_seconds), instant: true }
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: B, conditions: [{ evaluator: { type: gt, params: [30] } }] }
+      - uid: tr-dead-letters
+        title: Outbox dead letters
+        condition: C
+        for: 0s
+        annotations: { summary: "A message exhausted its retries; an admin must retry or discard it (/admin/outbox)." }
+        labels: { severity: critical }
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: A, expr: max(ticketrush_outbox_dead_letters), instant: true }
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: B, conditions: [{ evaluator: { type: gt, params: [0] } }] }
+      - uid: tr-payment-p95
+        title: Payment gateway p95 above 3 s
+        condition: C
+        for: 5m
+        annotations: { summary: "The payment gateway is slow: checkouts will time out." }
+        labels: { severity: warning }
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: A, expr: "histogram_quantile(0.95, sum by (le) (rate(ticketrush_payment_gateway_duration_seconds_bucket[5m])))", instant: true }
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: B, conditions: [{ evaluator: { type: gt, params: [3] } }] }
+      - uid: tr-drift-during-sale
+        title: Inventory drift fixed during a sale
+        condition: C
+        for: 0s
+        annotations: { summary: "The reconciler corrected Redis while buyers were queuing: something wrote inventory outside the scripts." }
+        labels: { severity: critical }
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            # "During a sale" = someone is waiting in or shopping from a waiting room.
+            model: { refId: A, expr: "sum(increase(ticketrush_inventory_drift_fixed_total[5m])) and on() (sum(ticketrush_queue_length) + sum(ticketrush_queue_active_shoppers)) > 0", instant: true }
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: replaceNN, replaceWithValue: 0 } }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: B, conditions: [{ evaluator: { type: gt, params: [0] } }] }

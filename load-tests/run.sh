@@ -15,7 +15,13 @@ cd "$repo"
 export ENV_FILE="${ENV_FILE:-$repo/.env}"
 results="$here/results"
 mkdir -p "$results"
-compose=(docker compose -p ticketrush-loadtest -f docker-compose.prod.yml -f load-tests/docker-compose.loadtest.yml --env-file "$ENV_FILE")
+compose=(docker compose -p ticketrush-loadtest -f docker-compose.prod.yml -f load-tests/docker-compose.loadtest.yml)
+# OBSERVABILITY=0 skips Grafana/Prometheus/Tempo; with it (the default) the soak sampler reads GC from Prometheus and every
+# purchase's trace can be opened in Grafana at http://127.0.0.1:3001 (admin / the password printed below).
+if [[ "${OBSERVABILITY:-1}" != "0" ]]; then
+  compose+=(-f docker-compose.observability.yml)
+fi
+compose+=(--env-file "$ENV_FILE")
 api="http://127.0.0.1:8080"
 settle="${SETTLE_SECONDS:-180}"
 scenarios="${SCENARIOS:-01 02 03 04 05}"
@@ -29,12 +35,15 @@ env_value() { grep -E "^$1=" "$ENV_FILE" | head -n1 | cut -d= -f2- | tr -d '\r';
 # A fresh key per run: the seed endpoint only exists in this stack, and only for whoever started it.
 LOADTEST_KEY="$(node -e "process.stdout.write(require('crypto').randomBytes(24).toString('hex'))")"
 export LOADTEST_KEY
+export GRAFANA_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD:-$(node -e "process.stdout.write(require('crypto').randomBytes(12).toString('hex'))")}"
 
 echo "==> stack (project ticketrush-loadtest)"
 if [[ -z "${SKIP_BUILD:-}" ]]; then
   "${compose[@]}" build migrations api worker || exit 2
 fi
-"${compose[@]}" up -d --scale worker=2 postgres redis migrations api worker || exit 2
+services=(postgres redis migrations api worker)
+[[ "${OBSERVABILITY:-1}" != "0" ]] && services+=(otel-collector prometheus tempo grafana) && echo "    Grafana: http://127.0.0.1:3001 (admin / $GRAFANA_ADMIN_PASSWORD)"
+"${compose[@]}" up -d --scale worker=2 "${services[@]}" || exit 2
 for ((i = 0; i < 120; i++)); do
   curl -sf "$api/health" >/dev/null && break
   sleep 2
