@@ -22,6 +22,8 @@ public sealed partial class MockWebhookDeliverer(
 {
     public const int BatchSize = 50;
 
+    public static readonly System.Diagnostics.ActivitySource ActivitySource = new("TicketRush.MockGateway");
+
     private static readonly TimeSpan Lease = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan MaxBackoff = TimeSpan.FromSeconds(60);
 
@@ -48,6 +50,8 @@ public sealed partial class MockWebhookDeliverer(
 
     private async Task<bool> TrySendAsync(MockDelivery delivery, CancellationToken ct)
     {
+        // The HttpClient instrumentation sends this span's traceparent, so the webhook request joins the purchase's trace.
+        using var activity = ActivitySource.StartActivity("mock-gateway deliver", System.Diagnostics.ActivityKind.Producer, Observability.TraceContext.ParentOf(delivery.TraceParent));
         var current = options.CurrentValue;
         using var request = new HttpRequestMessage(HttpMethod.Post, current.WebhookUrl)
         {

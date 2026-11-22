@@ -57,8 +57,8 @@ internal sealed class NotificationWriter(AppDbContext db, IUserDirectory users, 
                 ON CONFLICT (dedupe_key) DO NOTHING
                 RETURNING id)
             -- No ON CONFLICT here on purpose: the delivery shares the notification's dedupe key and is inserted only with it, so only a purged notification could make this raise 23505.
-            INSERT INTO email_deliveries (id, user_id, to_address, template, model, dedupe_key, status, attempts, next_attempt_at, created_at, expires_at)
-            SELECT {d.Id}, {d.UserId}, {d.ToAddress}, {d.Template}, {d.ModelJson}::jsonb, {d.DedupeKey}, {d.Status.ToString()}, {d.Attempts}, {d.NextAttemptAt}, {d.CreatedAt}, {d.ExpiresAt}
+            INSERT INTO email_deliveries (id, user_id, to_address, template, model, dedupe_key, status, attempts, next_attempt_at, created_at, expires_at, trace_parent)
+            SELECT {d.Id}, {d.UserId}, {d.ToAddress}, {d.Template}, {d.ModelJson}::jsonb, {d.DedupeKey}, {d.Status.ToString()}, {d.Attempts}, {d.NextAttemptAt}, {d.CreatedAt}, {d.ExpiresAt}, {Observability.TraceContext.CurrentParent()}
             FROM written
             """,
             ct) == 1;

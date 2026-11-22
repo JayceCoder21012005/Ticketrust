@@ -7,6 +7,8 @@ namespace TicketRush.Infrastructure.Persistence.Configurations;
 /// <summary>Table <c>email_deliveries</c>: emails owed to users, worked off by the delivery service.</summary>
 internal sealed class EmailDeliveryConfiguration : IEntityTypeConfiguration<EmailDelivery>
 {
+    public const string TraceParentProperty = "TraceParent";
+
     public void Configure(EntityTypeBuilder<EmailDelivery> builder)
     {
         builder.ToTable("email_deliveries");
@@ -18,6 +20,9 @@ internal sealed class EmailDeliveryConfiguration : IEntityTypeConfiguration<Emai
         builder.Property(d => d.DedupeKey).HasMaxLength(EmailDelivery.MaxDedupeKeyLength);
         builder.Property(d => d.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(d => d.LastError).HasMaxLength(EmailDelivery.MaxErrorLength);
+
+        // Spec 17: the trace of the work that queued the email, so sending it joins that trace. Telemetry, not domain: a shadow property.
+        builder.Property<string?>(TraceParentProperty).HasMaxLength(Observability.TraceContext.MaxLength);
 
         // The default only serves rows written before the column existed (and raw inserts); the entity always sets it.
         builder.Property(d => d.CreatedAt).HasDefaultValueSql("now()");

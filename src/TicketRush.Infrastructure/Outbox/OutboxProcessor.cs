@@ -112,7 +112,9 @@ public sealed partial class OutboxProcessor(
         OutboxMessage message,
         CancellationToken ct)
     {
-        using var activity = ActivitySource.StartActivity($"outbox {message.Type}", ActivityKind.Consumer);
+        // Continues the trace of the request (or handler) that wrote the message; a message written outside any span starts its own.
+        using var activity = ActivitySource.StartActivity(
+            $"outbox {message.Type}", ActivityKind.Consumer, Observability.TraceContext.ParentOf(message.TraceParent));
         activity?.SetTag("messaging.message.id", message.Id);
 
         try

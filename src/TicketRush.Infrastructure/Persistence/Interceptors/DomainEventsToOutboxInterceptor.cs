@@ -53,7 +53,8 @@ public sealed class DomainEventsToOutboxInterceptor(TimeProvider timeProvider) :
                     DomainEventTypeRegistry.NameOf(domainEvent.GetType()),
                     DomainEventTypeRegistry.Serialize(domainEvent),
                     aggregate.Id,
-                    occurredAt));
+                    occurredAt,
+                    Observability.TraceContext.CurrentParent()));
             }
         }
     }
