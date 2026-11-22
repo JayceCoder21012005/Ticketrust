@@ -105,7 +105,8 @@ export function AdminTable<T>({ caption, columns, rowKey, load, reloadKey, actio
   return (
     <div className="flex flex-col gap-3">
       <div className="flex justify-end">
-        <DropdownMenu>
+        {/* Not modal: the table stays visible and usable while columns are switched, and updates as they are. */}
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button type="button" variant="outline" size="sm">
               <Columns3 aria-hidden />
@@ -120,6 +121,8 @@ export function AdminTable<T>({ caption, columns, rowKey, load, reloadKey, actio
                 <DropdownMenuCheckboxItem
                   key={column.id}
                   checked={!hidden.has(column.id)}
+                  // Stay open: several columns can be switched in a row, and the table updates behind the menu.
+                  onSelect={(event) => event.preventDefault()}
                   onCheckedChange={(on) =>
                     setHidden((current) => {
                       const copy = new Set(current);

@@ -148,6 +148,13 @@ describe("UsersPage", () => {
     fireEvent.pointerDown(screen.getByRole("button", { name: "Cột" }), { button: 0, ctrlKey: false });
     fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "Điện thoại" }));
     await waitFor(() => expect(screen.queryByRole("columnheader", { name: "Điện thoại" })).not.toBeInTheDocument());
+    // The menu stays open for the next column, and switching it back brings the column back.
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Họ tên" }));
+    await waitFor(() => expect(screen.queryByRole("columnheader", { name: "Họ tên" })).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Điện thoại" }));
+    expect(await screen.findByRole("columnheader", { name: "Điện thoại" })).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
 
     fireEvent.pointerDown(screen.getByRole("button", { name: "Thao tác" }), { button: 0, ctrlKey: false });
     fireEvent.click(await screen.findByRole("menuitem", { name: "Khoá tài khoản" }));
