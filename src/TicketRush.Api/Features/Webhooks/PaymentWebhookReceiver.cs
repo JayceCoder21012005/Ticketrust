@@ -39,7 +39,7 @@ public sealed partial class PaymentWebhookReceiver(
         }
 
         var refusal = TryVerify(gateway, request, body, out var webhook);
-        return refusal is not null ? refusal : await DecideAsync(gateway.Provider, webhook, ct);
+        return refusal is not null ? refusal : await DecideAsync(gateway, webhook, ct);
     }
 
     /// <returns>Null when the body could be read in full within the limit; the bytes otherwise.</returns>
@@ -112,8 +112,9 @@ public sealed partial class PaymentWebhookReceiver(
         return Problem(StatusCodes.Status500InternalServerError, "webhook.misconfigured", "Webhook verification is not configured.");
     }
 
-    private async Task<IResult> DecideAsync(string provider, WebhookEvent webhook, CancellationToken ct)
+    private async Task<IResult> DecideAsync(IPaymentGateway gateway, WebhookEvent webhook, CancellationToken ct)
     {
+        var provider = gateway.Provider;
         PaymentWebhookOutcome outcome;
         try
         {
@@ -130,7 +131,8 @@ public sealed partial class PaymentWebhookReceiver(
         var name = NameOf(outcome);
         metrics.Record(provider, name);
         LogDecided(provider, webhook.ProviderEventId, name);
-        return TypedResults.Ok(new PaymentWebhookReceipt(name));
+        // MoMo (spec 18) wants 204 and no body; every other provider gets the receipt.
+        return gateway.AcknowledgesWithNoContent ? TypedResults.NoContent() : TypedResults.Ok(new PaymentWebhookReceipt(name));
     }
 
     private static string NameOf(PaymentWebhookOutcome outcome) => outcome switch

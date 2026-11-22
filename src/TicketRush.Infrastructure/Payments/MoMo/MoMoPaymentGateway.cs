@@ -139,7 +139,49 @@ public sealed class MoMoPaymentGateway(
         return new RefundResult(string.Empty, RefundStatus.Failed, "momo_duplicate_refund_order");
     }
 
-    public WebhookEvent VerifyAndParse(WebhookHeaders headers, string body) => throw new NotImplementedException();
+    public bool AcknowledgesWithNoContent => true;
+
+    /// <summary>
+    /// MoMo's IPN (spec 18): the signature sits in the JSON body and covers the IPN field list, with our accessKey (not sent).
+    /// <c>responseTime</c> must be within <see cref="WebhookTolerance.Window"/>. The event id is <c>{transId}:{resultCode}</c>; a
+    /// pending code is no decision (invalid payload), a final non-success code is a failed payment.
+    /// </summary>
+    public WebhookEvent VerifyAndParse(WebhookHeaders headers, string body)
+    {
+        ArgumentNullException.ThrowIfNull(headers);
+        ArgumentNullException.ThrowIfNull(body);
+        var o = options.CurrentValue;
+        ArgumentException.ThrowIfNullOrWhiteSpace(o.SecretKey, nameof(MoMoOptions.SecretKey));
+        var ipn = MoMoIpn.Parse(body);
+        if (!string.Equals(ipn.PartnerCode, o.PartnerCode, StringComparison.Ordinal))
+        {
+            throw new InvalidWebhookPayloadException("The IPN is for another MoMo partner.");
+        }
+
+        if (!MoMoSignature.Matches(ipn.RawSignature(o.AccessKey), o.SecretKey, ipn.Signature))
+        {
+            throw new InvalidWebhookSignatureException("The MoMo IPN signature does not match.");
+        }
+
+        var occurredAt = DateTimeOffset.FromUnixTimeMilliseconds(ipn.ResponseTime);
+        if ((time.GetUtcNow() - occurredAt).Duration() > WebhookTolerance.Window)
+        {
+            throw new InvalidWebhookSignatureException("The MoMo IPN responseTime is outside the accepted window.");
+        }
+
+        var type = StatusOf(ipn.ResultCode) switch
+        {
+            PaymentStatus.Succeeded => WebhookEventType.Succeeded,
+            PaymentStatus.Pending => throw new InvalidWebhookPayloadException($"MoMo resultCode {ipn.ResultCode} is not a final outcome."),
+            _ => WebhookEventType.Failed,
+        };
+        return new WebhookEvent(
+            $"{ipn.TransId.ToString(System.Globalization.CultureInfo.InvariantCulture)}:{ipn.ResultCode.ToString(System.Globalization.CultureInfo.InvariantCulture)}",
+            ipn.OrderId,
+            type,
+            new Money(ipn.Amount),
+            occurredAt);
+    }
 
     internal static PaymentStatus StatusOf(int resultCode) => resultCode switch
     {

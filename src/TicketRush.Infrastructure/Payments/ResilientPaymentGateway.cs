@@ -17,6 +17,8 @@ public sealed class ResilientPaymentGateway(IPaymentGateway inner, GatewayResili
 {
     public string Provider => inner.Provider;
 
+    public bool AcknowledgesWithNoContent => inner.AcknowledgesWithNoContent;
+
     public Task<PaymentSession> CreateSessionAsync(Order order, Uri returnUrl, DateTimeOffset expiresAt, string idempotencyKey, CancellationToken ct)
     {
         RequireKey(idempotencyKey);

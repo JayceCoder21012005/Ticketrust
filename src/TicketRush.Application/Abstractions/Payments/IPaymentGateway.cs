@@ -41,6 +41,12 @@ public interface IPaymentGateway
     /// <exception cref="InvalidWebhookSignatureException">Missing, malformed or wrong signature, or a timestamp outside the window.</exception>
     /// <exception cref="InvalidWebhookPayloadException">The signature is valid but the body is not a known event.</exception>
     WebhookEvent VerifyAndParse(WebhookHeaders headers, string body);
+
+    /// <summary>
+    /// True when the provider wants its webhook acknowledged with <c>204 No Content</c> and no body (MoMo, spec 18); otherwise the
+    /// receiver answers 200 with a receipt.
+    /// </summary>
+    bool AcknowledgesWithNoContent => false;
 }
 
 /// <param name="SessionId">Provider session id; stored as <c>PaymentAttempt.ProviderSessionId</c>.</param>

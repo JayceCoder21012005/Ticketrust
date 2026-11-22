@@ -11,7 +11,7 @@ public sealed record PaymentWebhookReceipt(string Outcome);
 /// <summary>
 /// <c>POST /webhooks/payments/{provider}</c> (spec 08): the payment provider's server-to-server notification. Anonymous,
 /// authenticated by its signature only; no idempotency filter (the dedupe is <c>processed_webhooks</c>) and no user rate
-/// limit. 200 after every committed decision, 5xx only when nothing was committed (so the provider retries).
+/// limit. 200 (204 with no body for MoMo, spec 18) after every committed decision, 5xx only when nothing was committed (so the provider retries).
 /// </summary>
 public static class PaymentWebhookEndpoints
 {
@@ -27,6 +27,7 @@ public static class PaymentWebhookEndpoints
             .DisableRateLimiting()
             .WithMetadata(new RequestSizeLimitAttribute(MaxBodyBytes))
             .Produces<PaymentWebhookReceipt>()
+            .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound)

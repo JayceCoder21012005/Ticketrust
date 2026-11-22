@@ -221,4 +221,65 @@ public sealed class MoMoPaymentGatewayTests(ContainersFixture containers) : IAsy
         await Should.ThrowAsync<HttpRequestException>(() => Gateway.GetStatusAsync(session.SessionId, Ct));
         await Should.ThrowAsync<HttpRequestException>(() => Gateway.RefundAsync(session.SessionId, new Money(1_000), "refund:down", Ct));
     }
+
+    // ---------------------------------------------------------------- IPN
+
+    private static readonly WebhookHeaders NoHeaders = new([]);
+
+    [Fact]
+    public void VerifyAndParse_accepts_a_MoMo_signed_IPN()
+    {
+        var at = Time.GetUtcNow().AddSeconds(-20);
+        var body = FakeMoMo.SignedIpn("TRabc", 1_200_000, 4_100_000_123, 0, at, extraData: "eyJvIjoxfQ==");
+
+        var webhook = Gateway.VerifyAndParse(NoHeaders, body);
+
+        webhook.Type.ShouldBe(WebhookEventType.Succeeded);
+        webhook.ProviderEventId.ShouldBe("4100000123:0");
+        webhook.SessionId.ShouldBe("TRabc");
+        webhook.Amount.ShouldBe(new Money(1_200_000));
+        webhook.OccurredAt.ShouldBe(DateTimeOffset.FromUnixTimeMilliseconds(at.ToUnixTimeMilliseconds()));
+    }
+
+    [Fact]
+    public void VerifyAndParse_maps_9000_to_Succeeded_and_1006_to_Failed()
+    {
+        Gateway.VerifyAndParse(NoHeaders, FakeMoMo.SignedIpn("TRabc", 10_000, 7, 9000, Time.GetUtcNow())).Type.ShouldBe(WebhookEventType.Succeeded);
+        var failed = Gateway.VerifyAndParse(NoHeaders, FakeMoMo.SignedIpn("TRabc", 10_000, 8, 1006, Time.GetUtcNow()));
+        failed.Type.ShouldBe(WebhookEventType.Failed);
+        failed.ProviderEventId.ShouldBe("8:1006");
+    }
+
+    [Fact]
+    public void VerifyAndParse_pending_1000_is_an_invalid_payload()
+    {
+        Should.Throw<InvalidWebhookPayloadException>(() => Gateway.VerifyAndParse(NoHeaders, FakeMoMo.SignedIpn("TRabc", 10_000, 0, 1000, Time.GetUtcNow())));
+    }
+
+    [Fact]
+    public void VerifyAndParse_rejects_forgeries()
+    {
+        var now = Time.GetUtcNow();
+        Should.Throw<InvalidWebhookSignatureException>(() =>
+            Gateway.VerifyAndParse(NoHeaders, FakeMoMo.SignedIpn("TRabc", 10_000, 9, 0, now, tamper: b => b["amount"] = 10)));
+        Should.Throw<InvalidWebhookSignatureException>(() =>
+            Gateway.VerifyAndParse(NoHeaders, FakeMoMo.SignedIpn("TRabc", 10_000, 9, 0, now, secretKey: "someone-elses-secret-key-000000")));
+        Should.Throw<InvalidWebhookSignatureException>(() =>
+            Gateway.VerifyAndParse(NoHeaders, FakeMoMo.SignedIpn("TRabc", 10_000, 9, 0, now, tamper: b => b.Remove("signature"))));
+        Should.Throw<InvalidWebhookSignatureException>(() =>
+            Gateway.VerifyAndParse(NoHeaders, FakeMoMo.SignedIpn("TRabc", 10_000, 9, 0, now.AddMinutes(-6))));
+        Should.Throw<InvalidWebhookSignatureException>(() =>
+            Gateway.VerifyAndParse(NoHeaders, FakeMoMo.SignedIpn("TRabc", 10_000, 9, 0, now.AddMinutes(6))));
+        Should.Throw<InvalidWebhookPayloadException>(() =>
+            Gateway.VerifyAndParse(NoHeaders, FakeMoMo.SignedIpn("TRabc", 10_000, 9, 0, now, partnerCode: "OTHER")));
+        Should.Throw<InvalidWebhookPayloadException>(() => Gateway.VerifyAndParse(NoHeaders, "not json"));
+        Should.Throw<InvalidWebhookPayloadException>(() => Gateway.VerifyAndParse(NoHeaders, "{}"));
+    }
+
+    [Fact]
+    public void MoMo_IPNs_are_acknowledged_with_no_content()
+    {
+        Gateway.AcknowledgesWithNoContent.ShouldBeTrue();
+        ((IPaymentGateway)new TicketRush.Infrastructure.Payments.ResilientPaymentGateway(Gateway, null!)).AcknowledgesWithNoContent.ShouldBeTrue();
+    }
 }
