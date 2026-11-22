@@ -5,8 +5,8 @@ using TicketRush.Infrastructure.Persistence;
 namespace TicketRush.Api.IntegrationTests.Infrastructure;
 
 /// <summary>
-/// Runs <c>load-tests/sql/sale-invariants.sql</c> (spec 08 acceptance #8), the very file the k6 sale run is checked with
-/// (<c>load-tests/check-sale-invariants.sh</c>), so the automated tests and the load test share one definition of "never oversold".
+/// Runs <c>load-tests/check-invariants.sql</c> (spec 08 acceptance #8), the very file the k6 sale run is checked with
+/// (<c>load-tests/check-invariants.sh</c>), so the automated tests and the load test share one definition of "never oversold".
 /// </summary>
 internal static class SaleInvariants
 {
@@ -18,7 +18,7 @@ internal static class SaleInvariants
         public override string ToString() => $"{Check} [{Subject}] {Detail}";
     }
 
-    public static string Sql() => RepoFiles.Read("load-tests", "sql", "sale-invariants.sql");
+    public static string Sql() => RepoFiles.Read("load-tests", "check-invariants.sql");
 
     /// <summary>Every violation the query finds in the database behind <paramref name="connectionString"/>; empty = all invariants hold.</summary>
     public static async Task<IReadOnlyList<Violation>> CheckAsync(string connectionString, CancellationToken ct)

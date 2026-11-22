@@ -187,7 +187,7 @@ npm run lighthouse                  # budget LCP/TBT/CLS/JS (cần Chrome)
 
 `load-tests/sale.js` (k6) cho nhiều người mua cùng lúc đi hết luồng admission, giữ ghế, tạo đơn, thanh toán và nhận webhook
 (thành công, thất bại, trễ, gửi 2 lần, bỏ dở), có chủ ý tranh nhau ghế nóng và đòi vé GA nhiều hơn sức chứa. Sau đó
-`load-tests/check-sale-invariants.sh` chạy `load-tests/sql/sale-invariants.sql` và thoát với mã khác 0 nếu có vi phạm:
+`load-tests/check-invariants.sh` chạy `load-tests/check-invariants.sql` và thoát với mã khác 0 nếu có vi phạm:
 một ghế có hơn một vé chưa bị huỷ, `sold_count` vượt sức chứa hoặc lệch số vé GA, đơn `Paid` thiếu vé, đơn chưa trả tiền hoặc
 đang hoàn tiền mà còn vé. Hướng dẫn đầy đủ (stack compose, dữ liệu mẫu, biến môi trường) nằm ở [load-tests/README.md](load-tests/README.md).
 
@@ -196,11 +196,11 @@ một ghế có hơn một vé chưa bị huỷ, `sold_count` vượt sức ch�
 ```bash
 docker compose -p ticketrush-loadtest -f docker-compose.prod.yml -f load-tests/docker-compose.loadtest.yml --env-file .env up -d --build
 k6 run -e EVENT_ID=<uuid> -e GA_TIER_ID=<uuid> -e BUYERS=500 -e VUS=100 load-tests/sale.js
-ENV_FILE=.env load-tests/check-sale-invariants.sh      # exit 0 = mọi bất biến đúng (mặc định nhắm vào project ticketrush-loadtest)
+ENV_FILE=.env load-tests/check-invariants.sh      # exit 0 = mọi bất biến đúng (mặc định nhắm vào project ticketrush-loadtest)
 ```
 
 Bản tự động của cùng truy vấn là `SaleInvariantTests` (dòng `dotnet test` ở trên). Lần chạy k6 thật (2026-11-10, laptop, một node, `BUYERS=500 VUS=50`, GA thu nhỏ còn 60): 253 đơn `Paid`, 64 `Expired`, 2 `Refunded`, mỗi ghế tối đa 1 vé, `sold_count` GA 52/60, `sale_unexpected_responses` = 0, 
-`check-sale-invariants.sh` thoát với mã 0 (ngay sau khi chạy và 3 phút sau, khi webhook trễ đã về). p99 giữ ghế 244 ms và checkout 764 ms nên chỉ qua với ngưỡng cho laptop (`HOLD_P99_MS=1000 CHECKOUT_P99_MS=2000`); mức mặc định 150/300 ms là ngân sách spec 17 cho máy riêng. 
+`check-invariants.sh` thoát với mã 0 (ngay sau khi chạy và 3 phút sau, khi webhook trễ đã về). p99 giữ ghế 244 ms và checkout 764 ms nên chỉ qua với ngưỡng cho laptop (`HOLD_P99_MS=1000 CHECKOUT_P99_MS=2000`); mức mặc định 150/300 ms là ngân sách spec 17 cho máy riêng. 
 Với `VUS=100` bất biến vẫn đúng nhưng 6 lần đăng nhập trả 500 vì Postgres hết kết nối (`max_connections` 100): giữ `VUS` ở 50 với cấu hình mặc định. Chi tiết và ghi chú chạy ở [load-tests/README.md](load-tests/README.md).
 
 CI (`.github/workflows/ci.yml`) gồm tất cả các bước trên (trừ lần chạy k6). Nó cũng kiểm tra API client không bị lệch so với

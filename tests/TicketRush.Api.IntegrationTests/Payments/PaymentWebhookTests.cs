@@ -194,7 +194,7 @@ public sealed class PaymentWebhookTests(ContainersFixture containers) : IAsyncLi
         WithDbAsync(db => db.ProcessedWebhooks.CountAsync(w => w.Provider == "mock" && w.ProviderEventId == providerEventId, Ct));
 
     /// <summary>
-    /// The spec's SQL invariant (C1), from <c>load-tests/sql/sale-invariants.sql</c>: per seat at most one non-voided ticket, per GA tier
+    /// The spec's SQL invariant (C1), from <c>load-tests/check-invariants.sql</c>: per seat at most one non-voided ticket, per GA tier
     /// <c>sold_count &lt;= capacity</c> and <c>sold_count</c> equal to the tier's non-voided GA tickets.
     /// </summary>
     private Task<int> AssertInventoryInvariantsAsync() => WithDbAsync(db => SaleInvariants.AssertInventoryAsync(db, Ct));

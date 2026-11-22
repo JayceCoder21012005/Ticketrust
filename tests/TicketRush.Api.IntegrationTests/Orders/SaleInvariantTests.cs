@@ -23,7 +23,7 @@ namespace TicketRush.Api.IntegrationTests.Orders;
 /// Spec 08 acceptance #8 as an automated test: a concurrent mini-sale through the real HTTP pipeline (hold in Redis, then
 /// <c>POST /orders</c> and <c>/pay</c> with double-clicks, the mock gateway deciding, signed webhooks delivered over HTTP by
 /// several runners at once, duplicates and late ones, the expiry sweeper and the refund worker), then
-/// <c>load-tests/sql/sale-invariants.sql</c> (the SAME query the k6 run is checked with) must return zero rows.
+/// <c>load-tests/check-invariants.sql</c> (the SAME query the k6 run is checked with) must return zero rows.
 /// <para>
 /// The sale is built to collide: eight hot seats with four buyers each, a general-admission tier of 6 with 15+ tickets of
 /// demand, and "delayed" payers who free their hold (as an expired hold would) so a second buyer takes the seat before the
@@ -147,6 +147,9 @@ public sealed class SaleInvariantTests(ContainersFixture containers) : IAsyncLif
         // The right number of tickets in total (2), but one of them in the wrong tier: only the per-tier check can see it.
         await Corrupt($"UPDATE tickets SET tier_id = {_h.Seated.Id} WHERE id = (SELECT id FROM tickets WHERE order_id = {wrongTier.OrderId} LIMIT 1)");
         await Corrupt($"UPDATE ticket_tiers SET sold_count = capacity + 1 WHERE id = {_h.Ga.Id}");
+        // Five live tickets of the event end up with one user, over the event's limit of 4 (spec 17).
+        var hoarder = Guid.CreateVersion7();
+        await Corrupt($"UPDATE tickets SET owner_user_id = {hoarder} WHERE order_id IN ({unpaid.OrderId}, {wrongTier.OrderId}, {refunding.OrderId})");
         await _h.WithDbAsync(db => db.Database.ExecuteSqlRawAsync(DropTicketSeatIndex, Ct));
         await Corrupt($"""
             INSERT INTO tickets (id, order_id, event_id, tier_id, seat_index, owner_user_id, status, qr_secret, created_at, updated_at)
@@ -165,7 +168,8 @@ public sealed class SaleInvariantTests(ContainersFixture containers) : IAsyncLif
         SubjectsOf(found, "paid_order_ticket_count").ShouldBe([duplicated.OrderId.ToString(), emptied.OrderId.ToString()], ignoreOrder: true);
         SubjectsOf(found, "paid_order_tier_tickets").Select(x => x.Split('/')[0]).ShouldBe(
             [duplicated.OrderId.ToString(), emptied.OrderId.ToString(), wrongTier.OrderId.ToString()], ignoreOrder: true);
-        found.Select(v => v.Check).Distinct().Count().ShouldBe(8, "no other check fires");
+        SubjectsOf(found, "user_over_ticket_limit").ShouldBe([$"{_h.EventId}/user {hoarder}"]);
+        found.Select(v => v.Check).Distinct().Count().ShouldBe(9, "no other check fires");
     }
 
     private static string[] SubjectsOf(IReadOnlyList<SaleInvariants.Violation> found, string check) =>

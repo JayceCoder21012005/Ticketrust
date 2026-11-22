@@ -7,8 +7,8 @@ The other spec 17 scenarios (queue spike, webhook storm, soak, chaos), the seedi
 | File | What it is |
 |---|---|
 | `sale.js` | k6 scenario: login, waiting room, hold, `POST /orders`, `POST /orders/{id}/pay`, mock gateway outcome, poll the order |
-| `sql/sale-invariants.sql` | **The** invariant query. Zero rows = every invariant holds. Also loaded by the integration test `SaleInvariantTests` |
-| `check-sale-invariants.sh` | Runs that query with `psql`; exit 0 = holds, 1 = violated (rows printed), 2 = could not run |
+| `check-invariants.sql` | **The** invariant query. Zero rows = every invariant holds. Also loaded by the integration test `SaleInvariantTests` |
+| `check-invariants.sh` | Runs that query with `psql`; exit 0 = holds, 1 = violated (rows printed), 2 = could not run |
 | `sql/seed-buyers.sql` | Fixture: N confirmed buyers `loadbuyer00001@ticketrush.test` ... (password `Dev@12345`), cloned from the dev seed customer |
 | `sql/event-ids.sql` | Prints the `EVENT_ID` and `GA_TIER_ID` the scenario needs |
 | `docker-compose.loadtest.yml` | Overlay for `docker-compose.prod.yml`: dev data, api on `:8080`, mock gateway on, short hold, late webhooks |
@@ -37,7 +37,7 @@ Thresholds (the run fails on any): `sale_unexpected_responses == 0` (any answer 
 > **Never point this at a real deployment.** The overlay seeds dev data and opens the mock gateway. Every compose command here carries `-p ticketrush-loadtest`: the project name prefixes
 > the volumes and containers (`ticketrush-loadtest_postgres-data`, ...), so the stack cannot reuse or overwrite those of a real `ticketrush` project on the same Docker host. (`-p` on the command
 > line beats the `name:` in the compose files; the overlay also sets `name: ticketrush-loadtest` and switches Caddy off, whose ports 80/443 belong to a real deployment. Both facts
-> were checked with `docker compose config`.) `sale.js` refuses a `BASE_URL` that is not localhost, and `check-sale-invariants.sh` refuses a `PSQL_CMD`, unless `LOADTEST_CONFIRM=loadtest`.
+> were checked with `docker compose config`.) `sale.js` refuses a `BASE_URL` that is not localhost, and `check-invariants.sh` refuses a `PSQL_CMD`, unless `LOADTEST_CONFIRM=loadtest`.
 
 Needs Docker, [k6](https://grafana.com/docs/k6/latest/set-up/install-k6/) and bash (Git Bash or WSL on Windows). From the repository root:
 
@@ -62,10 +62,10 @@ k6 run -e BASE_URL=http://localhost:8080 -e EVENT_ID=<EVENT_ID> -e GA_TIER_ID=<G
        -e BUYERS=500 -e VUS=100 load-tests/sale.js
 
 # 5. The invariants (exit code 0 = no violation).
-ENV_FILE=.env load-tests/check-sale-invariants.sh
+ENV_FILE=.env load-tests/check-invariants.sh
 ```
 
-Without Docker for the database, point the checker at any *load-test* Postgres: `LOADTEST_CONFIRM=loadtest PSQL_CMD="psql postgresql://user:pass@host:5432/ticketrush" load-tests/check-sale-invariants.sh`.
+Without Docker for the database, point the checker at any *load-test* Postgres: `LOADTEST_CONFIRM=loadtest PSQL_CMD="psql postgresql://user:pass@host:5432/ticketrush" load-tests/check-invariants.sh`.
 Run the check after any other scenario too: it is read-only and the invariants must hold at every instant, not only when the sale is quiet.
 
 Notes:
@@ -93,7 +93,7 @@ Run notes (first real run, 2026-11-10, Windows laptop with 7.8 GB RAM, Docker De
   (`HOLD_P99_MS=1000 CHECKOUT_P99_MS=2000`) pass.
 - One run uses each buyer once: the buyers of an earlier run own tickets and may hit the per-user limit. For a clean run, `down -v` the load-test project and seed again. Starting a single service (`$COMPOSE start web`) re-runs the migration container; that is harmless.
 
-## The invariants (`sql/sale-invariants.sql`)
+## The invariants (`check-invariants.sql`)
 
 | Check name | Violated when |
 |---|---|

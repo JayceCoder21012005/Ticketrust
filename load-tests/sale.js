@@ -3,7 +3,7 @@
 // One virtual buyer per iteration: login -> waiting room -> hold (seats and/or GA) -> POST /orders -> POST /orders/{id}/pay
 // -> the mock gateway decides -> poll the order. Contention is on purpose: several buyers aim at the same few "hot" seats
 // and the GA demand is larger than the tier's capacity. The database invariants are checked afterwards by
-// load-tests/check-sale-invariants.sh (see load-tests/README.md).
+// load-tests/check-invariants.sh (see load-tests/README.md).
 //
 //   k6 run -e BASE_URL=http://localhost:8080 -e EVENT_ID=<uuid> -e GA_TIER_ID=<uuid> load-tests/sale.js
 //
@@ -338,7 +338,7 @@ function overview(data) {
     `  GA out of stock         ${count('sale_holds_ga_insufficient')}`,
     `  not admitted            ${count('sale_not_admitted')}`,
     `  unexpected responses    ${count('sale_unexpected_responses')}`,
-    '  Now run the invariant check: load-tests/check-sale-invariants.sh',
+    '  Now run the invariant check: load-tests/check-invariants.sh',
     '',
   ].join('\n');
 }

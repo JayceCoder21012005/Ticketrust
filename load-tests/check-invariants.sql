@@ -1,7 +1,7 @@
 -- Sale invariants (spec 08 acceptance #8, spec 17 "invariant checker").
 --
 -- Returns one row per violation; ZERO ROWS = every invariant holds. Read-only, safe to run against a live database.
--- Single source of truth: load-tests/check-sale-invariants.sh runs it with psql, and the integration test
+-- Single source of truth: load-tests/check-invariants.sh runs it with psql, and the integration test
 -- SaleInvariantTests loads this very file after its concurrent mini-sale.
 --
 -- Column names are those of the EF mapping (snake_case): tickets, ticket_tiers, orders, order_items.
@@ -99,5 +99,18 @@ FROM (
     JOIN tickets t ON t.order_id = o.id AND t.status <> 'Voided'
     WHERE o.status IN ('RefundPending', 'Refunded')
     GROUP BY o.id, o.status
+
+    UNION ALL
+
+    -- (f) Spec 17: nobody holds more live tickets of an event than its limit (the largest MaxTicketsPerUser of its phases),
+    --     the same rule the fulfilment checks under its per-buyer lock.
+    SELECT 'user_over_ticket_limit',
+           t.event_id::text || '/user ' || t.owner_user_id::text,
+           count(*)::text || ' live tickets > limit ' || lim.max_tickets::text
+    FROM tickets t
+    JOIN (SELECT event_id, max(max_tickets_per_user) AS max_tickets FROM sale_phases GROUP BY event_id) lim ON lim.event_id = t.event_id
+    WHERE t.status <> 'Voided'
+    GROUP BY t.event_id, t.owner_user_id, lim.max_tickets
+    HAVING count(*) > lim.max_tickets
 ) violations
 ORDER BY check_name, subject;
