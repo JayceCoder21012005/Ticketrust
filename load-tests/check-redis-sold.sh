@@ -7,7 +7,8 @@
 #   ENV_FILE     the compose --env-file (REDIS_PASSWORD is read from it)
 #
 # Redis learns a sale from the outbox (OrderPaidInventoryCommitHandler), a moment after the database committed it. The check
-# waits (up to SETTLE_SECONDS, default 90) until no outbox message is due, so it compares a settled system, not one in flight.
+# waits (up to SETTLE_SECONDS, default 90) until no outbox message is left unprocessed (due or waiting for a retry), so it
+# compares a settled system, not one in flight; if some are still left, it compares anyway and says so.
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,11 +32,12 @@ if ! [[ "$EVENT_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
 fi
 
 for ((i = 0; i < settle; i++)); do
-  due="$(sql "SELECT count(*) FROM outbox_messages WHERE processed_at IS NULL AND next_attempt_at <= now()")" || exit 2
+  due="$(sql "SELECT count(*) FROM outbox_messages WHERE processed_at IS NULL")" || exit 2
   [[ "$due" == "0" ]] && break
   sleep 1
 done
 
+[[ "$due" != "0" ]] && echo "redis sold: $due outbox messages still unprocessed after ${settle}s; comparing anyway" >&2
 evt="${EVENT_ID//-/}"
 prefix="tr:${redis_env}:inv:{evt:${evt}}"
 failed=0

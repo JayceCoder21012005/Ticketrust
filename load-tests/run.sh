@@ -15,6 +15,9 @@ cd "$repo"
 export ENV_FILE="${ENV_FILE:-$repo/.env}"
 results="$here/results"
 mkdir -p "$results"
+# Node and k6 are native programs: on Git Bash they need D:/... paths, not /d/...
+native() { if command -v cygpath >/dev/null; then cygpath -m "$1"; else echo "$1"; fi; }
+nresults="$(native "$results")"
 compose=(docker compose -p ticketrush-loadtest -f docker-compose.prod.yml -f load-tests/docker-compose.loadtest.yml)
 # OBSERVABILITY=0 skips Grafana/Prometheus/Tempo; with it (the default) the soak sampler reads GC from Prometheus and every
 # purchase's trace can be opened in Grafana at http://127.0.0.1:3001 (admin / the password printed below).
@@ -50,7 +53,7 @@ for ((i = 0; i < 120; i++)); do
 done
 curl -sf "$api/health" >/dev/null || { echo "run.sh: api did not come up" >&2; exit 2; }
 
-node "$here/machine.mjs" >"$results/machine.json"
+node "$(native "$here/machine.mjs")" >"$results/machine.json"
 
 # seed <name> <json body>: writes results/fixtures/<name>/{seed,buyers}.json and prints the event id.
 seed() {
@@ -59,10 +62,10 @@ seed() {
   curl -sf -X POST "$api/api/v1/loadtest/seed" -H "X-LoadTest-Key: $LOADTEST_KEY" -H 'Content-Type: application/json' -d "$2" -o "$dir/raw.json" \
     || { echo "run.sh: seeding $1 failed" >&2; return 1; }
   node -e "
-    const fs = require('fs'); const d = JSON.parse(fs.readFileSync('$dir/raw.json', 'utf8'));
-    fs.writeFileSync('$dir/buyers.json', JSON.stringify(d.buyers));
-    delete d.buyers; fs.writeFileSync('$dir/seed.json', JSON.stringify(d));
-    fs.unlinkSync('$dir/raw.json'); process.stdout.write(d.eventId);"
+    const fs = require('fs'); const dir = process.argv[1]; const d = JSON.parse(fs.readFileSync(dir + '/raw.json', 'utf8'));
+    fs.writeFileSync(dir + '/buyers.json', JSON.stringify(d.buyers));
+    delete d.buyers; fs.writeFileSync(dir + '/seed.json', JSON.stringify(d));
+    fs.unlinkSync(dir + '/raw.json'); process.stdout.write(d.eventId);" "$(native "$dir")"
 }
 
 # check <name> <event id> <phase>: runs the invariant checker and stores its verdict for collect-results.mjs.
@@ -72,16 +75,16 @@ check() {
   code=$?
   echo "$output"
   node -e "
-    const fs = require('fs'); const f = '$results/$1.invariants.json';
+    const fs = require('fs'); const [output, f, phase, code] = process.argv.slice(1);
     const all = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : [];
-    all.push({ phase: '$3', exitCode: $code, output: process.argv[1] });
-    fs.writeFileSync(f, JSON.stringify(all, null, 2));" "$output"
+    all.push({ phase, exitCode: Number(code), output });
+    fs.writeFileSync(f, JSON.stringify(all, null, 2));" "$output" "$nresults/$1.invariants.json" "$3" "$code"
 }
 
 k6run() { # k6run <name> <script> <fixtures name> [k6 -e args...]
   local name="$1" script="$2" fixtures="$3"
   shift 3
-  k6 run --quiet -e FIXTURES_DIR="$results/fixtures/$fixtures" -e RESULTS_DIR="$results" -e BASE_URL="$api" "$@" "$here/scenarios/$script" \
+  k6 run --quiet -e FIXTURES_DIR="$nresults/fixtures/$fixtures" -e RESULTS_DIR="$nresults" -e BASE_URL="$api" "$@" "$(native "$here/scenarios/$script")" \
     2>&1 | tee "$results/$name.log"
   echo "${PIPESTATUS[0]}" >"$results/$name.exit"
 }
@@ -146,7 +149,7 @@ for s in $scenarios; do
 done
 
 echo "==> results"
-node "$here/collect-results.mjs" "$results" "$repo/web/src/features/lab/results.json"
+node "$(native "$here/collect-results.mjs")" "$nresults" "$(native "$repo/web/src/features/lab/results.json")"
 
 if [[ -z "${KEEP_STACK:-}" ]]; then
   "${compose[@]}" stop >/dev/null

@@ -12,7 +12,7 @@
 # - the CAPTCHA is the fake verifier (Turnstile's test token), so no request goes to Cloudflare;
 # - lifts the per-IP global rate limit: every virtual buyer comes from the one load generator's address, where real buyers
 #   come from as many addresses as there are buyers. Every per-user limit (queue, holds, checkout) stays as in production;
-# - access tokens live 4 h, so the pre-issued tokens outlive the 30-minute soak;
+# - access tokens live 60 min (the most the api allows): every scenario seeds fresh tokens and none runs longer;
 # - Postgres takes 300 connections: two .NET pools (api + worker) of up to 100 each overran the default 100 at VUS=100.
 name: ticketrush-loadtest
 
@@ -25,7 +25,7 @@ x-sale-env: &sale-env
   Payments__Mock__DelayedWebhookDelay: "00:01:30"
   Holds__TtlSeconds: "60"
   RateLimits__Global__Permit: "100000000"
-  Jwt__AccessTokenMinutes: "240"
+  Jwt__AccessTokenMinutes: "60"
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
 
 services:

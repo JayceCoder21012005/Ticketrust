@@ -318,7 +318,13 @@ public static class DependencyInjection
         services.AddScoped<EventCatalogReader>();
 
         // Spec 05: after publish / cancel / edit, the worker refreshes the web's ISR pages through the outbox.
-        services.AddHttpClient<IWebCacheRevalidator, WebCacheRevalidator>(client => client.Timeout = TimeSpan.FromSeconds(10));
+        // Called from outbox handlers, which run one message after another: a web host that does not answer must not hold the
+        // whole outbox for a client-side retry budget. One short attempt; the outbox retries the message with its own backoff
+        // (spec 17 load test finding).
+#pragma warning disable EXTEXP0001 // Experimental only in name; it is the supported way to opt a client out of ConfigureHttpClientDefaults.
+        services.AddHttpClient<IWebCacheRevalidator, WebCacheRevalidator>(client => client.Timeout = TimeSpan.FromSeconds(3))
+            .RemoveAllResilienceHandlers();
+#pragma warning restore EXTEXP0001
         services.AddIntegrationEventHandler<EventPublished, CatalogRevalidationHandler>();
         services.AddIntegrationEventHandler<EventCancelled, CatalogRevalidationHandler>();
         services.AddIntegrationEventHandler<EventDetailsChanged, CatalogRevalidationHandler>();
