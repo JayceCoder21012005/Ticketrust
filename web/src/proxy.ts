@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_HINT_COOKIE } from "@/lib/auth/session-hint";
 import { isMockGatewayEnabled } from "@/lib/feature-flags";
 
-const GUARDED_PREFIXES = ["/account", "/my-tickets", "/orders", "/checkout", "/queue", "/organizer", "/admin", "/gate", "/tickets", "/waitlist"];
+const GUARDED_PREFIXES = ["/account", "/my-tickets", "/orders", "/checkout", "/queue", "/organizer", "/admin", "/gate", "/tickets", "/waitlist", "/transfers"];
 
 /** The waiting room, the seat page and the buyer step of one event (specs 06, 07, 08): `/events/<slug>/queue|seats|checkout`. */
 const EVENT_BUY_PATH = /^\/events\/[^/]+\/(queue|seats|checkout)\/?$/;
@@ -48,5 +48,6 @@ export const config = {
     "/gate/:path*",
     "/tickets/:path*",
     "/waitlist/:path*",
+    "/transfers/:path*",
   ],
 };

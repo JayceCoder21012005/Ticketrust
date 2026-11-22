@@ -23,6 +23,7 @@ import { RotatingQr } from "./rotating-qr";
 import { SeatInfo } from "./seat-info";
 import { siblingsOf, SiblingNav, walletHref } from "./sibling-nav";
 import { StatusOverlay, type OverlayKind } from "./status-overlay";
+import { TicketActions } from "@/features/resale/ticket-actions";
 import { useQrKey, type QrKeyState } from "./use-qr-key";
 import { useServerOffset } from "./use-server-offset";
 
@@ -39,7 +40,7 @@ const MAX_TIMEOUT_MS = 2 ** 31 - 1;
  * to come or running.
  */
 function displayOf(ticket: TicketDetail, serverNowMs: number): "qr" | OverlayKind {
-  if (ticket.status === "Listed") return "listed";
+  if (ticket.status === "Listed") return ticket.resale?.transfer ? "transferring" : "listed";
   if (ticket.status === "CheckedIn") return "checkedIn";
   if (ticket.status === "Voided" || ticket.event.status === "Cancelled") return "voided";
   if (ticket.event.status === "Ended" || Date.parse(ticket.event.endsAt) <= serverNowMs) return "ended";
@@ -290,6 +291,7 @@ function Wallet({ ticket, fromNetwork, onStale }: WalletProps) {
         </p>
       ) : null}
       <SeatInfo seat={ticket.seat} tierName={ticket.tierName} holderName={ticket.holderName} />
+      {fromNetwork && ticket.resale ? <TicketActions ticket={ticket} onChanged={onStale} /> : null}
       <AddToCalendar ticket={ticket} />
     </div>
   );

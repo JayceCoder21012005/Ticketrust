@@ -25,6 +25,12 @@ public sealed class OrderPaidLeaveQueueHandler(IAppDbContext db, IWaitingRoom ro
 {
     public async Task HandleAsync(OrderPaid message, IntegrationEventContext context, CancellationToken ct)
     {
+        if (message.Kind == Domain.Orders.OrderKind.Resale)
+        {
+            // Spec 14: buying a resold ticket goes through no waiting room, so it must not end a place in one.
+            return;
+        }
+
         var phases = await db.Events.AsNoTracking()
             .Where(e => e.Id == message.EventId)
             .SelectMany(e => e.Phases)

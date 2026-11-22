@@ -56,6 +56,7 @@ function ticket(extra: Partial<TicketDetail> = {}, event: Partial<TicketDetail["
     status: "Valid",
     holderName: "Nguyễn Văn An",
     orderTicketIds: ids,
+    resale: { faceValue: 1_000_000, currency: "VND", canChange: false, listing: null, transfer: null },
     event: {
       eventId: "e1",
       slug: "dem-nhac-mua-thu",

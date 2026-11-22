@@ -91,7 +91,13 @@ public sealed class Order : AggregateRoot, IAuditable, IRefundable
 
     public Guid EventId { get; private set; }
 
+    /// <summary>The Redis hold the order pays for; for a <see cref="OrderKind.Resale"/> order, the listing id.</summary>
     public Guid HoldId { get; private set; }
+
+    public OrderKind Kind { get; private set; }
+
+    /// <summary>The resale listing bought (spec 14); null for a primary order.</summary>
+    public Guid? ListingId { get; private set; }
 
     /// <summary>Lines copied from the hold; never recomputed from the live catalog.</summary>
     public IReadOnlyList<OrderItem> Items => _items.AsReadOnly();
@@ -149,6 +155,32 @@ public sealed class Order : AggregateRoot, IAuditable, IRefundable
         return new Order(userId, eventId, holdId, items, total, buyer, expiresAt);
     }
 
+    /// <summary>
+    /// Starts a <see cref="OrderStatus.Pending"/> resale order (spec 14) for one listed ticket. <see cref="HoldId"/> is the listing
+    /// id, so the one-open-order-per-hold index also means one open order per listing; pay, expiry and fulfil branch on
+    /// <see cref="Kind"/>.
+    /// </summary>
+    public static Order CreateResale(
+        Guid userId,
+        Guid eventId,
+        Guid listingId,
+        OrderItem item,
+        BuyerInfo buyer,
+        DateTimeOffset expiresAt,
+        DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        if (item.Quantity != 1)
+        {
+            throw new DomainException("order.invalid_items", "A resale order buys exactly one ticket.");
+        }
+
+        var order = Create(userId, eventId, listingId, [item], item.UnitPrice, buyer, expiresAt, now);
+        order.Kind = OrderKind.Resale;
+        order.ListingId = listingId;
+        return order;
+    }
+
     /// <summary>Pending or PaymentFailed → AwaitingPayment. Refused (<c>order.expired</c>) once the hold is gone.</summary>
     public void StartPayment(DateTimeOffset now)
     {
@@ -167,7 +199,7 @@ public sealed class Order : AggregateRoot, IAuditable, IRefundable
     {
         MoveTo(Trigger.MarkPaid);
         PaidAt = now;
-        Raise(new OrderPaid(Id, UserId, EventId, HoldId, Total.Amount, Total.Currency, TicketCount(), now, PaidLines()));
+        Raise(new OrderPaid(Id, UserId, EventId, HoldId, Total.Amount, Total.Currency, TicketCount(), now, PaidLines(), Kind));
     }
 
     /// <summary>AwaitingPayment → PaymentFailed (the buyer may retry via <see cref="StartPayment"/> while the hold lives).</summary>
@@ -238,6 +270,11 @@ public sealed class Order : AggregateRoot, IAuditable, IRefundable
     public IReadOnlyList<Ticket> IssueTickets()
     {
         EnsureAllowed(Trigger.MarkPaid);
+        if (Kind == OrderKind.Resale)
+        {
+            throw new DomainException("order.resale_reissues", "A resale order reissues the listed ticket; it issues none.");
+        }
+
         return _items
             .SelectMany(item => Enumerable.Range(0, item.Quantity).Select(_ => Ticket.Issue(Id, EventId, item.TierId, item.SeatIndex, UserId)))
             .ToList();

@@ -105,6 +105,7 @@ public static class DependencyInjection
 
         services.AddScoped<IHoldCatalog, HoldCatalog>();
         services.AddSingleton<IInventoryStore, RedisInventoryStore>();
+        services.AddSingleton<TicketRush.Application.Abstractions.Resale.IResaleReservations, Resale.RedisResaleReservations>();
         services.AddScoped<ISoldInventorySource, DbSoldInventorySource>();
         services.AddScoped<ITierInventory, TierInventory>();
         services.AddScoped<IInventoryStrategy, GeneralAdmissionInventoryStrategy>();
@@ -125,6 +126,9 @@ public static class DependencyInjection
         services.AddIntegrationEventHandler<EventCancelled, EventCancelledNotificationHandler>();
         // Spec 13: last for EventCancelled, after the holds are released and the people who hold tickets are told.
         services.AddIntegrationEventHandler<EventCancelled, EventCancelledWaitlistHandler>();
+        services.AddIntegrationEventHandler<EventCancelled, Application.Features.Resale.EventCancelledResaleHandler>();
+        services.AddIntegrationEventHandler<Domain.Resale.ListingCreated, Application.Features.Resale.ListingCreatedWaitlistHandler>();
+        services.AddIntegrationEventHandler<Domain.Resale.TransferCreated, TransferNotificationHandler>();
         AddOrderNotificationHandlers(services);
         // Order matters: the outbox runs a message's handlers in this order and stops at the first failure (commit first).
         services.AddIntegrationEventHandler<OrderPaid, OrderPaidInventoryCommitHandler>();

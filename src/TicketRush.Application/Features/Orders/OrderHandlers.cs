@@ -24,7 +24,7 @@ public sealed class GetOrderHandler(IAppDbContext db, TimeProvider time)
 /// cancelled order has never taken money; once payment started the answer is 409 <c>order.not_payable</c>. Cancelling a
 /// cancelled order succeeds and releases the hold again, so a retry after Redis failed finishes the job.
 /// </summary>
-public sealed class CancelOrderHandler(IAppDbContext db, ReleaseMyHoldHandler release, TimeProvider time)
+public sealed class CancelOrderHandler(IAppDbContext db, ReleaseMyHoldHandler release, Resale.ResaleSettlement resale, TimeProvider time)
 {
     public async Task<Result<OrderResponse>> HandleAsync(Guid userId, Guid orderId, CancellationToken ct)
     {
@@ -58,6 +58,13 @@ public sealed class CancelOrderHandler(IAppDbContext db, ReleaseMyHoldHandler re
     /// </summary>
     private async Task<Result> ReleaseHoldAsync(Order order, CancellationToken ct)
     {
+        if (order.Kind == OrderKind.Resale)
+        {
+            await resale.ReleaseAsync(order, ct);
+            await db.SaveChangesAsync(ct);
+            return Result.Success();
+        }
+
         var released = await release.HandleAsync(order.UserId, order.EventId, order.HoldId, ct);
         return released.IsFailure && released.Error.Code != EventErrors.NotFound.Code ? released : Result.Success();
     }

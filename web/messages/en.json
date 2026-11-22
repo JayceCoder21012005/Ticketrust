@@ -156,6 +156,14 @@
       "notScheduled": "Not on sale yet",
       "notScheduledHint": "The organizer hasn't announced the sale dates.",
       "prices": "Tickets"
+    },
+    "resale": {
+      "title": "Resale tickets",
+      "intro": "Tickets resold by fans, never above face value.",
+      "buy": "Buy",
+      "seat": "Seat {seat}",
+      "ga": "Standing",
+      "faceValue": "Face value {price}"
     }
   },
   "notifications": {

@@ -15,7 +15,8 @@ public enum WaitlistStatus
 }
 
 /// <summary>A held ticket was offered to the entry's user (spec 13): sent as an in-app notification and an email.</summary>
-public sealed record WaitlistOfferIssued(Guid EntryId, Guid EventId, Guid UserId, Guid HoldId, DateTimeOffset ExpiresAt) : IDomainEvent;
+/// <remarks><see cref="HoldId"/> is empty for a resale listing offer (spec 14), which names <see cref="ListingId"/> instead.</remarks>
+public sealed record WaitlistOfferIssued(Guid EntryId, Guid EventId, Guid UserId, Guid HoldId, DateTimeOffset ExpiresAt, Guid? ListingId = null) : IDomainEvent;
 
 /// <summary>
 /// A fan waiting for a sold-out event (spec 13): FIFO by <see cref="QueuedAt"/>. Waiting → Offered → Converted when the order is
@@ -68,6 +69,9 @@ public sealed class WaitlistEntry : AggregateRoot
     /// <summary>The hold made for the current offer; null unless <see cref="WaitlistStatus.Offered"/>.</summary>
     public Guid? OfferHoldId { get; private set; }
 
+    /// <summary>The resale listing of the current offer (spec 14); null unless offered a listing.</summary>
+    public Guid? OfferListingId { get; private set; }
+
     public DateTimeOffset? OfferExpiresAt { get; private set; }
 
     public bool IsLive => Status is WaitlistStatus.Waiting or WaitlistStatus.Offered;
@@ -99,6 +103,28 @@ public sealed class WaitlistEntry : AggregateRoot
         Raise(new WaitlistOfferIssued(Id, EventId, UserId, holdId, expiresAt));
     }
 
+    /// <summary>A new resale listing is this entry's alone until <paramref name="expiresAt"/> (spec 14, the waitlist window).</summary>
+    public void OfferListing(Guid listingId, DateTimeOffset expiresAt)
+    {
+        Require(WaitlistStatus.Waiting, nameof(OfferListing));
+        Status = WaitlistStatus.Offered;
+        OfferListingId = listingId;
+        OfferExpiresAt = expiresAt;
+        Raise(new WaitlistOfferIssued(Id, EventId, UserId, Guid.Empty, expiresAt, listingId));
+    }
+
+    /// <summary>
+    /// The offered listing was withdrawn by its seller (spec 14): back to Waiting at the same place in line, without a miss.
+    /// </summary>
+    public void WithdrawOffer()
+    {
+        Require(WaitlistStatus.Offered, nameof(WithdrawOffer));
+        Status = WaitlistStatus.Waiting;
+        OfferHoldId = null;
+        OfferListingId = null;
+        OfferExpiresAt = null;
+    }
+
     /// <summary>The offered hold was paid for.</summary>
     public void Convert()
     {
@@ -112,6 +138,7 @@ public sealed class WaitlistEntry : AggregateRoot
         Require(WaitlistStatus.Offered, nameof(Miss));
         Misses++;
         OfferHoldId = null;
+        OfferListingId = null;
         OfferExpiresAt = null;
         if (Misses >= MissesBeforeExpiry)
         {
@@ -132,6 +159,7 @@ public sealed class WaitlistEntry : AggregateRoot
 
         Status = WaitlistStatus.Left;
         OfferHoldId = null;
+        OfferListingId = null;
         OfferExpiresAt = null;
     }
 
@@ -145,6 +173,7 @@ public sealed class WaitlistEntry : AggregateRoot
 
         Status = WaitlistStatus.Closed;
         OfferHoldId = null;
+        OfferListingId = null;
         OfferExpiresAt = null;
     }
 

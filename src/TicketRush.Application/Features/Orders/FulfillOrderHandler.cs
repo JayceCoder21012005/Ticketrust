@@ -57,6 +57,7 @@ public sealed partial class FulfillOrderHandler(
     IEnumerable<IInventoryStrategy> strategies,
     ITicketPurchaseLimit purchaseLimit,
     IEventSaleLock saleLock,
+    Resale.ResaleSettlement resale,
     IOptions<FulfilmentOptions> options,
     TimeProvider time,
     ILogger<FulfillOrderHandler> logger)
@@ -204,6 +205,11 @@ public sealed partial class FulfillOrderHandler(
     {
         // Locks are always taken in this order: event sale lock (shared advisory), buyer limit (advisory), GA tier rows, seats.
         await EnsureOnSaleAsync(order.EventId, ct);
+        if (order.Kind == OrderKind.Resale)
+        {
+            return await FulfilResaleAsync(order, attempt, now, ct);
+        }
+
         var tickets = order.IssueTickets();
         if (!await purchaseLimit.AllowsAsync(order.EventId, order.UserId, tickets.Count, ct))
         {
@@ -218,6 +224,24 @@ public sealed partial class FulfillOrderHandler(
         order.MarkPaid(now);
         attempt.MarkSucceeded();
         LogPaid(order.Id, attempt.Id, tickets.Count);
+        return PaymentWebhookOutcome.Paid;
+    }
+
+    /// <summary>
+    /// Spec 14: the buyer's cap, then the listing is sold and the seller's ticket handed over (a new ticket, a new QR). Redis
+    /// <c>sold</c> is untouched: the seat stays sold.
+    /// </summary>
+    private async Task<PaymentWebhookOutcome> FulfilResaleAsync(Order order, PaymentAttempt attempt, DateTimeOffset now, CancellationToken ct)
+    {
+        if (!await purchaseLimit.AllowsAsync(order.EventId, order.UserId, 1, ct))
+        {
+            throw new InventoryConflictException(InventoryConflictReason.PurchaseLimitExceeded, "The buyer would exceed the event's ticket limit.");
+        }
+
+        await resale.CompleteAsync(order, ct);
+        order.MarkPaid(now);
+        attempt.MarkSucceeded();
+        LogPaid(order.Id, attempt.Id, 1);
         return PaymentWebhookOutcome.Paid;
     }
 

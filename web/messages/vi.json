@@ -156,6 +156,14 @@
       "notScheduled": "Chưa mở bán",
       "notScheduledHint": "Ban tổ chức chưa công bố lịch mở bán.",
       "prices": "Giá vé"
+    },
+    "resale": {
+      "title": "Vé bán lại",
+      "intro": "Vé do người mua trước bán lại, giá không cao hơn mệnh giá.",
+      "buy": "Mua",
+      "seat": "Ghế {seat}",
+      "ga": "Vé đứng",
+      "faceValue": "Mệnh giá {price}"
     }
   },
   "notifications": {

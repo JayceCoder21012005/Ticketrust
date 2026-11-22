@@ -1,6 +1,9 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EventDetail } from "@/lib/catalog/types";
+// The resale list (spec 14) has its own tests; here it would need the app router.
+vi.mock("@/features/resale/resale-listings", () => ({ default: () => null }));
+
 import { EventCta, resetAvailabilityCache } from "./event-cta";
 
 const MIN = 60_000;

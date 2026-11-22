@@ -1,5 +1,6 @@
 <p style="margin:0 0 16px 0;">Xin chào {{ name }},</p>
-<p style="margin:0 0 16px 0;">Có vé cho bạn! Một vé của sự kiện <strong>{{ eventTitle }}</strong> vừa được trả lại và đang được giữ riêng cho bạn trong danh sách chờ.</p>
-<p style="margin:0 0 16px 0;">Vé được giữ đến <strong>{{ expiresAtText }}</strong>. Sau thời điểm đó, vé sẽ được chuyển cho người tiếp theo trong danh sách chờ.</p>
+{{ if offerKind == "resale" }}<p style="margin:0 0 16px 0;">Có vé cho bạn! Một vé bán lại của sự kiện <strong>{{ eventTitle }}</strong> vừa được đăng, và bạn được ưu tiên mua trước trong danh sách chờ.</p>
+<p style="margin:0 0 16px 0;">Bạn được mua trước đến <strong>{{ expiresAtText }}</strong>. Sau thời điểm đó, vé sẽ được mở bán cho mọi người.</p>{{ else }}<p style="margin:0 0 16px 0;">Có vé cho bạn! Một vé của sự kiện <strong>{{ eventTitle }}</strong> vừa được trả lại và đang được giữ riêng cho bạn trong danh sách chờ.</p>
+<p style="margin:0 0 16px 0;">Vé được giữ đến <strong>{{ expiresAtText }}</strong>. Sau thời điểm đó, vé sẽ được chuyển cho người tiếp theo trong danh sách chờ.</p>{{ end }}
 <p style="margin:24px 0;"><a href="{{ link }}" style="display:inline-block;padding:12px 24px;background-color:#6a3fd6;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Mua ngay</a></p>
 <p style="margin:24px 0 0 0;font-size:13px;color:#6b7280;">Bạn nhận email này vì đã vào danh sách chờ của sự kiện này. Bạn có thể rời danh sách chờ trên trang sự kiện.</p>

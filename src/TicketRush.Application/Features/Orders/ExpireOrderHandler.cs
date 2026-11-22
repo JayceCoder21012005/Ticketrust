@@ -75,6 +75,7 @@ public sealed partial class ExpireOrderHandler(
     IAppDbContext db,
     IPaymentGatewayResolver gateways,
     FulfillOrderHandler fulfil,
+    Resale.ResaleSettlement resale,
     IOptions<OrderExpiryOptions> options,
     TimeProvider time,
     ILogger<ExpireOrderHandler> logger)
@@ -286,6 +287,12 @@ public sealed partial class ExpireOrderHandler(
         // Only the order: a session left Pending is asked again by the session reconcile once the grace is over, so money
         // that reaches it after this read is still found.
         order.Expire();
+        if (order.Kind == OrderKind.Resale)
+        {
+            // Spec 14: the reservation ends with the order; the listing is back on sale.
+            await resale.ReleaseAsync(order, ct);
+        }
+
         await db.SaveChangesAsync(ct);
         LogExpired(order.Id);
         return OrderExpiryOutcome.Expired;

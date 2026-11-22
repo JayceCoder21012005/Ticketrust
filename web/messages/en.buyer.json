@@ -96,6 +96,10 @@
         "notDisplayable": {
           "title": "The QR code cannot be shown",
           "description": "The ticket's status just changed. Updating…"
+        },
+        "transferring": {
+          "title": "Being transferred",
+          "description": "The ticket is waiting for its recipient, so the QR is hidden. Cancel the transfer to use it again."
         }
       },
       "seat": {
@@ -505,6 +509,53 @@
       "notFound": "Offer not found",
       "toWaitlist": "Back to my waitlists",
       "loadFailed": "Could not load the offer."
+    }
+  },
+  "resale": {
+    "menu": "Ticket options",
+    "resell": "Resell",
+    "transfer": "Send to a friend",
+    "cancelListing": "Stop reselling",
+    "cancelTransfer": "Cancel transfer",
+    "listed": "Listed for resale at {price}.",
+    "listedReserved": "Someone is paying for this ticket.",
+    "transferring": "Waiting for {email} to accept (expires {expires}).",
+    "sheet": {
+      "title": "Resell ticket",
+      "description": "The price can be at most the face value. The buyer pays through TicketRush; your ticket stops working once it is sold.",
+      "price": "Price",
+      "priceHint": "At most {max}",
+      "youGet": "You get: {amount}",
+      "ruleWaitlist": "For the first 10 minutes the waitlist gets it first.",
+      "rulePayout": "You are paid after the event ends.",
+      "ruleCancel": "You can stop reselling any time before someone pays.",
+      "submit": "List it"
+    },
+    "dialog": {
+      "title": "Send to a friend",
+      "description": "The recipient signs in with this email to accept within 48 hours.",
+      "email": "Recipient email",
+      "warning": "Your current ticket stops working once the recipient accepts",
+      "submit": "Send ticket"
+    },
+    "accept": {
+      "title": "You were sent a ticket",
+      "from": "{name} is sending you this ticket.",
+      "seat": "Seat {seat}",
+      "expires": "Accept before {expires}",
+      "submit": "Accept ticket",
+      "accepted": "The ticket is yours",
+      "openTicket": "Open ticket",
+      "notFound": "Transfer not found",
+      "notFoundHint": "Sign in with the email the transfer was sent to, and confirm that email.",
+      "closed": "This transfer is no longer open",
+      "closedHint": "The sender cancelled it, or it expired.",
+      "loadFailed": "Could not load the transfer."
+    },
+    "offer": {
+      "intro": "This resale ticket is yours first, from the waitlist.",
+      "timeLeft": "Your head start",
+      "expiredHint": "The ticket is now on sale to everyone."
     }
   }
 }
