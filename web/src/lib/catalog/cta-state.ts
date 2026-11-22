@@ -29,6 +29,11 @@ export function computeCtaState(event: CtaInput, nowMs: number, tiers?: TierRema
     return { kind: "Ended" };
   }
 
+  // Taken down by an admin (spec 16): no sales until it is restored.
+  if (event.status === "Suspended") {
+    return { kind: "SalesClosed" };
+  }
+
   if (event.isSoldOut || (tiers !== undefined && tiers.length > 0 && tiers.every((tier) => tier.remaining <= 0))) {
     return { kind: "SoldOut" };
   }

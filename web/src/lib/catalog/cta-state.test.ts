@@ -77,6 +77,10 @@ describe("computeCtaState", () => {
     expect(computeCtaState(input(), Date.parse("2026-12-21T16:00:00Z"))).toMatchObject({ kind: "Ended" });
   });
 
+  it("closes sales for an event an admin suspended, even inside an open phase", () => {
+    expect(computeCtaState(input({ status: "Suspended" }), opensAt)).toEqual({ kind: "SalesClosed" });
+  });
+
   it("is SalesClosed after the last phase and NotScheduled without phases", () => {
     expect(computeCtaState(input(), Date.parse("2026-12-20T13:00:00Z"))).toMatchObject({ kind: "SalesClosed" });
     expect(computeCtaState(input({ phases: [] }), opensAt)).toMatchObject({ kind: "NotScheduled" });
