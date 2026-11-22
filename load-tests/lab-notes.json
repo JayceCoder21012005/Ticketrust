@@ -13,7 +13,7 @@
     },
     {
       "title": "Latency budgets missed on the laptop",
-      "what": "With 100 concurrent buyers in the buy flow, hold p99 was about 620 ms and checkout p99 about 920 ms against budgets of 150 and 300 ms; at the soak's steady 2 buyers per second they were 61 and 57 ms. The stack, Postgres, Redis, the observability stack and k6 share one laptop's CPU.",
+      "what": "With 100 concurrent buyers in the buy flow, hold p99 was about 620 ms and checkout p99 about 920 ms against budgets of 150 and 300 ms; at the soak's steady 2 buyers per second they were 51 and 35 ms. The stack, Postgres, Redis, the observability stack and k6 share one laptop's CPU.",
       "fix": "Not fixed, and not hidden: the budgets are the spec's for a dedicated machine and are shown as missed. Correctness did not depend on it: every invariant held in every scenario."
     }
   ]

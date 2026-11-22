@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-22T10:46:36.312Z",
-  "commit": "a0bfa02",
+  "generatedAt": "2026-11-22T12:47:13.994Z",
+  "commit": "200f338",
   "machine": {
     "cpu": "11th Gen Intel(R) Core(TM) i5-11400H @ 2.70GHz",
     "threads": 12,
@@ -14,7 +14,7 @@
     "k6": "k6.exe v2.2.0",
     "note": "One laptop runs everything: the compose stack in Docker Desktop and k6 on the host, so they share the CPU."
   },
-  "scaleNote": null,
+  "scaleNote": "Laptop scale: scenario 01 ran 2,000 virtual buyers instead of the spec's 20,000; the others ran at the shape the spec gives. All virtual buyers come from one address, so the per-IP global limit is lifted for the run; every per-user limit (waiting room, holds, checkout) stays as in production.",
   "scenarios": [
     {
       "id": "01",
@@ -23,18 +23,18 @@
       "budget": "Queue status p99 < 50 ms, no error other than 429",
       "ran": true,
       "scale": {
-        "vusMax": 200,
-        "iterations": 200,
-        "seconds": 42
+        "vusMax": 2000,
+        "iterations": 2000,
+        "seconds": 668
       },
-      "requests": 567,
-      "rps": 13.3,
+      "requests": 195254,
+      "rps": 292.4,
       "latency": [
         {
           "label": "Queue status",
-          "p50": 3.7,
-          "p95": 5.8,
-          "p99": 8
+          "p50": 3.2,
+          "p95": 5.3,
+          "p99": 9.6
         }
       ],
       "errors": {
@@ -55,10 +55,14 @@
       ],
       "invariants": [
         {
-          "phase": "after",
+          "phase": "settled",
           "ok": true,
           "violations": [],
-          "note": null
+          "note": null,
+          "redis": {
+            "ok": true,
+            "detail": "redis sold: OK (seats and GA counts match the database)"
+          }
         }
       ]
     },
@@ -70,23 +74,23 @@
       "ran": true,
       "scale": {
         "vusMax": 100,
-        "iterations": 200,
-        "seconds": 41
+        "iterations": 2000,
+        "seconds": 506
       },
-      "requests": 3419,
-      "rps": 82.7,
+      "requests": 39850,
+      "rps": 78.8,
       "latency": [
         {
           "label": "Hold",
-          "p50": 53.2,
-          "p95": 496.9,
-          "p99": 671
+          "p50": 19.1,
+          "p95": 318.3,
+          "p99": 619.9
         },
         {
           "label": "Checkout",
-          "p50": 30.8,
-          "p95": 805.6,
-          "p99": 1060.3
+          "p50": 14.1,
+          "p95": 203.2,
+          "p99": 922.8
         }
       ],
       "errors": {
@@ -95,12 +99,12 @@
       },
       "thresholds": [
         {
-          "metric": "double_click_disagreements",
+          "metric": "unexpected_responses",
           "rule": "count==0",
           "ok": true
         },
         {
-          "metric": "unexpected_responses",
+          "metric": "double_click_disagreements",
           "rule": "count==0",
           "ok": true
         },
@@ -118,15 +122,20 @@
       "invariants": [
         {
           "phase": "after",
-          "ok": false,
+          "ok": true,
           "violations": [],
-          "note": null
+          "note": null,
+          "redis": null
         },
         {
           "phase": "settled",
           "ok": true,
           "violations": [],
-          "note": null
+          "note": null,
+          "redis": {
+            "ok": true,
+            "detail": "redis sold: OK (seats and GA counts match the database)"
+          }
         }
       ]
     },
@@ -137,18 +146,18 @@
       "budget": "Tickets issued once per order",
       "ran": true,
       "scale": {
-        "vusMax": 40,
-        "iterations": 40,
-        "seconds": 22
+        "vusMax": 100,
+        "iterations": 300,
+        "seconds": 638
       },
-      "requests": 602,
-      "rps": 26.9,
+      "requests": 4557,
+      "rps": 7.1,
       "latency": [
         {
           "label": "All requests",
-          "p50": 17.2,
-          "p95": 73.8,
-          "p99": 111.4
+          "p50": 10.6,
+          "p95": 257.8,
+          "p99": 424.9
         }
       ],
       "errors": {
@@ -170,15 +179,20 @@
       "invariants": [
         {
           "phase": "after",
-          "ok": false,
+          "ok": true,
           "violations": [],
-          "note": null
+          "note": null,
+          "redis": null
         },
         {
           "phase": "settled",
           "ok": true,
           "violations": [],
-          "note": null
+          "note": null,
+          "redis": {
+            "ok": true,
+            "detail": "redis sold: OK (seats and GA counts match the database)"
+          }
         }
       ]
     },
@@ -189,24 +203,24 @@
       "budget": "Memory and GC stable, no growth in Redis hold keys",
       "ran": true,
       "scale": {
-        "vusMax": 100,
-        "iterations": 241,
-        "seconds": 132
+        "vusMax": 246,
+        "iterations": 3298,
+        "seconds": 1830
       },
-      "requests": 1786,
-      "rps": 13.5,
+      "requests": 115429,
+      "rps": 63.1,
       "latency": [
         {
           "label": "Hold",
-          "p50": 17.1,
-          "p95": 77.1,
-          "p99": 138
+          "p50": 9.6,
+          "p95": 15.3,
+          "p99": 50.6
         },
         {
           "label": "Checkout",
-          "p50": 14.2,
-          "p95": 59.6,
-          "p99": 96.4
+          "p50": 8.2,
+          "p95": 16.7,
+          "p99": 35.4
         }
       ],
       "errors": {
@@ -225,7 +239,11 @@
           "phase": "settled",
           "ok": true,
           "violations": [],
-          "note": null
+          "note": null,
+          "redis": {
+            "ok": true,
+            "detail": "redis sold: OK (seats and GA counts match the database)"
+          }
         }
       ]
     },
@@ -237,23 +255,23 @@
       "ran": true,
       "scale": {
         "vusMax": 60,
-        "iterations": 230,
-        "seconds": 301
+        "iterations": 1298,
+        "seconds": 347
       },
-      "requests": 3500,
-      "rps": 11.6,
+      "requests": 20069,
+      "rps": 57.9,
       "latency": [
         {
           "label": "Hold",
-          "p50": 12.1,
-          "p95": 33.8,
-          "p99": 60
+          "p50": 10.2,
+          "p95": 29.8,
+          "p99": 55.7
         },
         {
           "label": "Checkout",
-          "p50": 9.4,
-          "p95": 34.8,
-          "p99": 64.4
+          "p50": 8.1,
+          "p95": 24.2,
+          "p99": 62.9
         }
       ],
       "errors": {
@@ -267,12 +285,12 @@
           "ok": true
         },
         {
-          "metric": "rate_limited_responses{scenario:after}",
+          "metric": "double_click_disagreements",
           "rule": "count==0",
           "ok": true
         },
         {
-          "metric": "double_click_disagreements",
+          "metric": "rate_limited_responses{scenario:after}",
           "rule": "count==0",
           "ok": true
         }
@@ -282,13 +300,18 @@
           "phase": "after",
           "ok": true,
           "violations": [],
-          "note": null
+          "note": null,
+          "redis": null
         },
         {
           "phase": "settled",
           "ok": true,
           "violations": [],
-          "note": null
+          "note": null,
+          "redis": {
+            "ok": true,
+            "detail": "redis sold: OK (seats and GA counts match the database)"
+          }
         }
       ]
     }
@@ -296,25 +319,399 @@
   "soak": {
     "samples": [
       {
-        "t": 5,
-        "apiMiB": 505.1,
-        "workerMiB": 146.3,
+        "t": 7,
+        "apiMiB": 265.1,
+        "workerMiB": 252.1,
+        "holdKeys": 8,
+        "gcHeapMiB": 137.6
+      },
+      {
+        "t": 46,
+        "apiMiB": 312.2,
+        "workerMiB": 280.1,
+        "holdKeys": 66,
+        "gcHeapMiB": 137.6
+      },
+      {
+        "t": 84,
+        "apiMiB": 400.6,
+        "workerMiB": 293.6,
+        "holdKeys": 81,
+        "gcHeapMiB": 145.8
+      },
+      {
+        "t": 121,
+        "apiMiB": 401.5,
+        "workerMiB": 302.6,
+        "holdKeys": 90,
+        "gcHeapMiB": 131.8
+      },
+      {
+        "t": 159,
+        "apiMiB": 413.1,
+        "workerMiB": 305.4,
+        "holdKeys": 83,
+        "gcHeapMiB": 131.8
+      },
+      {
+        "t": 197,
+        "apiMiB": 430.1,
+        "workerMiB": 313,
+        "holdKeys": 77,
+        "gcHeapMiB": 123.3
+      },
+      {
+        "t": 235,
+        "apiMiB": 434.3,
+        "workerMiB": 313.2,
+        "holdKeys": 84,
+        "gcHeapMiB": 112.8
+      },
+      {
+        "t": 272,
+        "apiMiB": 401.4,
+        "workerMiB": 317.3,
+        "holdKeys": 86,
+        "gcHeapMiB": 112.8
+      },
+      {
+        "t": 310,
+        "apiMiB": 403.3,
+        "workerMiB": 318.8,
+        "holdKeys": 82,
+        "gcHeapMiB": 132.4
+      },
+      {
+        "t": 348,
+        "apiMiB": 411.3,
+        "workerMiB": 323.9,
+        "holdKeys": 83,
+        "gcHeapMiB": 132.4
+      },
+      {
+        "t": 386,
+        "apiMiB": 432.1,
+        "workerMiB": 320.9,
+        "holdKeys": 79,
+        "gcHeapMiB": 154.4
+      },
+      {
+        "t": 424,
+        "apiMiB": 422.8,
+        "workerMiB": 320.9,
+        "holdKeys": 49,
+        "gcHeapMiB": 154.3
+      },
+      {
+        "t": 462,
+        "apiMiB": 433,
+        "workerMiB": 322.5,
+        "holdKeys": 11,
+        "gcHeapMiB": 154.3
+      },
+      {
+        "t": 499,
+        "apiMiB": 424.7,
+        "workerMiB": 325.9,
         "holdKeys": 6,
-        "gcHeapMiB": null
+        "gcHeapMiB": 125.4
+      },
+      {
+        "t": 538,
+        "apiMiB": 424.6,
+        "workerMiB": 329.1,
+        "holdKeys": 2,
+        "gcHeapMiB": 93.8
+      },
+      {
+        "t": 576,
+        "apiMiB": 424.7,
+        "workerMiB": 329.2,
+        "holdKeys": 1,
+        "gcHeapMiB": 93.8
+      },
+      {
+        "t": 614,
+        "apiMiB": 425.9,
+        "workerMiB": 338.2,
+        "holdKeys": 4,
+        "gcHeapMiB": 90.5
+      },
+      {
+        "t": 652,
+        "apiMiB": 409.1,
+        "workerMiB": 341,
+        "holdKeys": 65,
+        "gcHeapMiB": 90.5
+      },
+      {
+        "t": 690,
+        "apiMiB": 417.2,
+        "workerMiB": 342.1,
+        "holdKeys": 70,
+        "gcHeapMiB": 129.2
+      },
+      {
+        "t": 727,
+        "apiMiB": 433.1,
+        "workerMiB": 340,
+        "holdKeys": 85,
+        "gcHeapMiB": 139.5
+      },
+      {
+        "t": 765,
+        "apiMiB": 432.9,
+        "workerMiB": 340,
+        "holdKeys": 79,
+        "gcHeapMiB": 139.5
+      },
+      {
+        "t": 803,
+        "apiMiB": 435,
+        "workerMiB": 340.4,
+        "holdKeys": 76,
+        "gcHeapMiB": 150.7
+      },
+      {
+        "t": 841,
+        "apiMiB": 437.8,
+        "workerMiB": 340,
+        "holdKeys": 84,
+        "gcHeapMiB": 181.8
+      },
+      {
+        "t": 879,
+        "apiMiB": 392.7,
+        "workerMiB": 339.3,
+        "holdKeys": 87,
+        "gcHeapMiB": 181.8
+      },
+      {
+        "t": 916,
+        "apiMiB": 426.3,
+        "workerMiB": 341.8,
+        "holdKeys": 81,
+        "gcHeapMiB": 132.4
+      },
+      {
+        "t": 954,
+        "apiMiB": 428.6,
+        "workerMiB": 341.8,
+        "holdKeys": 82,
+        "gcHeapMiB": 110.8
+      },
+      {
+        "t": 992,
+        "apiMiB": 429.1,
+        "workerMiB": 339.5,
+        "holdKeys": 77,
+        "gcHeapMiB": 110.8
+      },
+      {
+        "t": 1030,
+        "apiMiB": 432.7,
+        "workerMiB": 339.5,
+        "holdKeys": 46,
+        "gcHeapMiB": 139.5
+      },
+      {
+        "t": 1068,
+        "apiMiB": 432.8,
+        "workerMiB": 343,
+        "holdKeys": 16,
+        "gcHeapMiB": 139.5
+      },
+      {
+        "t": 1106,
+        "apiMiB": 432.7,
+        "workerMiB": 342.6,
+        "holdKeys": 5,
+        "gcHeapMiB": 95.7
+      },
+      {
+        "t": 1143,
+        "apiMiB": 427.6,
+        "workerMiB": 342.9,
+        "holdKeys": 0,
+        "gcHeapMiB": 84.2
+      },
+      {
+        "t": 1181,
+        "apiMiB": 427.9,
+        "workerMiB": 343,
+        "holdKeys": 4,
+        "gcHeapMiB": 84.2
+      },
+      {
+        "t": 1219,
+        "apiMiB": 428.7,
+        "workerMiB": 347.2,
+        "holdKeys": 0,
+        "gcHeapMiB": 85.2
+      },
+      {
+        "t": 1257,
+        "apiMiB": 411.9,
+        "workerMiB": 349.9,
+        "holdKeys": 58,
+        "gcHeapMiB": 123.4
+      },
+      {
+        "t": 1295,
+        "apiMiB": 411.5,
+        "workerMiB": 350.2,
+        "holdKeys": 66,
+        "gcHeapMiB": 123.4
+      },
+      {
+        "t": 1333,
+        "apiMiB": 414.8,
+        "workerMiB": 350.2,
+        "holdKeys": 80,
+        "gcHeapMiB": 142.2
+      },
+      {
+        "t": 1370,
+        "apiMiB": 382.3,
+        "workerMiB": 348,
+        "holdKeys": 80,
+        "gcHeapMiB": 142.2
+      },
+      {
+        "t": 1408,
+        "apiMiB": 415.8,
+        "workerMiB": 350.2,
+        "holdKeys": 70,
+        "gcHeapMiB": 107.7
+      },
+      {
+        "t": 1446,
+        "apiMiB": 396.6,
+        "workerMiB": 350.3,
+        "holdKeys": 80,
+        "gcHeapMiB": 123.5
+      },
+      {
+        "t": 1484,
+        "apiMiB": 415.6,
+        "workerMiB": 350.4,
+        "holdKeys": 87,
+        "gcHeapMiB": 123.5
+      },
+      {
+        "t": 1521,
+        "apiMiB": 420.9,
+        "workerMiB": 350.6,
+        "holdKeys": 86,
+        "gcHeapMiB": 138.2
+      },
+      {
+        "t": 1559,
+        "apiMiB": 420.4,
+        "workerMiB": 350.7,
+        "holdKeys": 84,
+        "gcHeapMiB": 142.1
+      },
+      {
+        "t": 1597,
+        "apiMiB": 419.3,
+        "workerMiB": 348.8,
+        "holdKeys": 74,
+        "gcHeapMiB": 142.1
+      },
+      {
+        "t": 1635,
+        "apiMiB": 421.2,
+        "workerMiB": 352.9,
+        "holdKeys": 42,
+        "gcHeapMiB": 143.4
+      },
+      {
+        "t": 1673,
+        "apiMiB": 415.4,
+        "workerMiB": 350.9,
+        "holdKeys": 20,
+        "gcHeapMiB": 143.4
+      },
+      {
+        "t": 1710,
+        "apiMiB": 415.3,
+        "workerMiB": 348.9,
+        "holdKeys": 10,
+        "gcHeapMiB": 121.9
+      },
+      {
+        "t": 1748,
+        "apiMiB": 416.8,
+        "workerMiB": 350.8,
+        "holdKeys": 0,
+        "gcHeapMiB": 92.2
+      },
+      {
+        "t": 1786,
+        "apiMiB": 418.8,
+        "workerMiB": 351.4,
+        "holdKeys": 6,
+        "gcHeapMiB": 92.2
+      },
+      {
+        "t": 1824,
+        "apiMiB": 418.5,
+        "workerMiB": 359.3,
+        "holdKeys": 6,
+        "gcHeapMiB": 114.2
+      },
+      {
+        "t": 1861,
+        "apiMiB": 410.8,
+        "workerMiB": 360.5,
+        "holdKeys": 29,
+        "gcHeapMiB": 130.9
+      },
+      {
+        "t": 1899,
+        "apiMiB": 410.7,
+        "workerMiB": 360.5,
+        "holdKeys": 0,
+        "gcHeapMiB": 130.9
+      },
+      {
+        "t": 1937,
+        "apiMiB": 410.8,
+        "workerMiB": 360.8,
+        "holdKeys": 0,
+        "gcHeapMiB": 130.9
+      },
+      {
+        "t": 1975,
+        "apiMiB": 410.7,
+        "workerMiB": 360.8,
+        "holdKeys": 0,
+        "gcHeapMiB": 130.9
+      },
+      {
+        "t": 2013,
+        "apiMiB": 411,
+        "workerMiB": 360.8,
+        "holdKeys": 0,
+        "gcHeapMiB": 130.9
       }
     ],
-    "apiMiBPer10Min": 0,
-    "workerMiBPer10Min": 0,
-    "holdKeysPeak": 6,
-    "holdKeysEnd": 6,
+    "loadSeconds": 1830,
+    "apiMiBPer10Min": -6.6,
+    "workerMiBPer10Min": 8,
+    "gcHeapMiBPer10Min": -7.9,
+    "workerGcHeapMiBPer10Min": -0.2,
+    "holdKeysPeak": 90,
+    "holdKeysEnd": 0,
     "memoryStable": true,
-    "holdKeysBackToBaseline": false
+    "holdKeysBackToBaseline": true
   },
   "chaos": [
     {
-      "at": 49,
+      "at": 47,
       "fault": "worker_leader_killed",
-      "detail": "d8907912cfa4"
+      "detail": "64c69c30fdd3"
     },
     {
       "at": 101,
@@ -322,7 +719,7 @@
       "detail": "compose restart redis"
     },
     {
-      "at": 161,
+      "at": 160,
       "fault": "postgres_paused",
       "detail": "10s"
     },
@@ -332,5 +729,80 @@
       "detail": "after 10s"
     }
   ],
-  "brokeAndFixed": []
+  "trace": {
+    "complete": true,
+    "spanCount": 119,
+    "services": [
+      "api",
+      "worker"
+    ],
+    "steps": [
+      {
+        "step": "hold",
+        "service": "api",
+        "name": "POST /api/v1/events/{eventId:guid}/holds/",
+        "atMs": 0,
+        "durationMs": 8.472
+      },
+      {
+        "step": "order",
+        "service": "api",
+        "name": "POST /api/v1/orders/",
+        "atMs": 9.394,
+        "durationMs": 12.133
+      },
+      {
+        "step": "payment",
+        "service": "api",
+        "name": "POST /api/v1/orders/{id:guid}/pay",
+        "atMs": 22.65,
+        "durationMs": 7.283
+      },
+      {
+        "step": "gateway delivery",
+        "service": "worker",
+        "name": "mock-gateway deliver",
+        "atMs": 871.557,
+        "durationMs": 8.59
+      },
+      {
+        "step": "webhook",
+        "service": "api",
+        "name": "POST /api/v1/webhooks/payments/{provider}",
+        "atMs": 871.897,
+        "durationMs": 7.929
+      },
+      {
+        "step": "outbox",
+        "service": "worker",
+        "name": "outbox OrderPaid",
+        "atMs": 1100.139,
+        "durationMs": 13.702
+      },
+      {
+        "step": "email",
+        "service": "worker",
+        "name": "email send order-paid",
+        "atMs": 1451.352,
+        "durationMs": 1.549
+      }
+    ]
+  },
+  "brokeAndFixed": [
+    {
+      "title": "An unreachable web host stalled the whole outbox",
+      "what": "In the first webhook-storm run, 59 outbox messages were still waiting a minute after the load, and Redis had not yet counted a single seat sold. The page-revalidation call (after an event is published) went to a web host that did not answer; its HTTP client retried within a 30 s budget, and the outbox handles messages one after another, so inventory commits, emails and refunds queued behind it.",
+      "fix": "The revalidation call gets one 3 s attempt with no client-side retries; the outbox already retries a failed message with its own backoff. Pinned by an integration test against a host that accepts connections and never answers. The outbox lag gauge and its Grafana alert (> 30 s) now make this visible during a sale."
+    },
+    {
+      "title": "Postgres ran out of connections at 100 buyers",
+      "what": "The first sale run (spec 08, 2026-11-10) at 100 concurrent buyers answered 6 logins with 500 (53300 too many clients): two .NET connection pools of up to 100 each, against Postgres' default of 100. The invariants still held.",
+      "fix": "The load-test stack runs Postgres with max_connections = 300. In production the same sizing rule applies: pool size × services must stay under max_connections."
+    },
+    {
+      "title": "Latency budgets missed on the laptop",
+      "what": "With 100 concurrent buyers in the buy flow, hold p99 was about 620 ms and checkout p99 about 920 ms against budgets of 150 and 300 ms; at the soak's steady 2 buyers per second they were 51 and 35 ms. The stack, Postgres, Redis, the observability stack and k6 share one laptop's CPU.",
+      "fix": "Not fixed, and not hidden: the budgets are the spec's for a dedicated machine and are shown as missed. Correctness did not depend on it: every invariant held in every scenario."
+    }
+  ]
 }

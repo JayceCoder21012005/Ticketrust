@@ -49,7 +49,7 @@ Static page generated from the latest `results.json`: machine spec, scenario tab
 
 ## Acceptance criteria
 
-- [ ] All five scenarios run with one command (`make load-test`) against the docker-compose stack.
-- [ ] Invariant checker returns zero rows after every scenario, including chaos.
-- [ ] A trace for one purchase shows hold → order → payment → webhook → outbox → email as connected spans.
-- [ ] `/lab` renders from `results.json` and meets the 02 performance budgets.
+- [x] All five scenarios run with one command (`make load-test`) against the docker-compose stack.
+- [x] Invariant checker returns zero rows after every scenario, including chaos.
+- [x] A trace for one purchase shows hold → order → payment → webhook → outbox → email as connected spans.
+- [x] `/lab` renders from `results.json` and meets the 02 performance budgets.
