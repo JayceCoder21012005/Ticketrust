@@ -45,7 +45,7 @@ describe("LabView", () => {
     expect(within(buy).getByText("Hold: 20 ms / 120 ms / 240,5 ms")).toBeInTheDocument();
     expect(within(buy).getByText("Không đạt")).toBeInTheDocument();
     expect(within(buy).getByText("hold_duration: p(99)<150")).toBeInTheDocument();
-    expect(screen.getAllByLabelText("Đúng hết")).toHaveLength(2);
+    expect(screen.getAllByText("Đúng hết")).toHaveLength(2);
     expect(screen.getByText("Postgres ran out of connections")).toBeInTheDocument();
     expect(screen.getByText(/Tắt cưỡng bức worker đang làm leader/)).toBeInTheDocument();
   });

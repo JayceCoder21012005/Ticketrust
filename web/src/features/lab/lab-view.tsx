@@ -12,9 +12,20 @@ const num = (n: number | null | undefined) => (n === null || n === undefined ? D
 function Verdict({ ok }: { ok: boolean }) {
   const Icon = ok ? CheckCircle2 : XCircle;
   return (
-    <span className={`inline-flex items-center gap-1 font-medium ${ok ? "text-success" : "text-danger"}`}>
-      <Icon className="size-4" aria-hidden />
+    // Colour on the icon only: the success green is too light for small text on the light theme.
+    <span className="inline-flex items-center gap-1 font-medium">
+      <Icon className={`size-4 shrink-0 ${ok ? "text-success" : "text-danger"}`} aria-hidden />
       {ok ? t("lab.met") : t("lab.missed")}
+    </span>
+  );
+}
+
+function Mark({ ok, label }: { ok: boolean; label: string }) {
+  const Icon = ok ? CheckCircle2 : XCircle;
+  return (
+    <span className="inline-flex items-center gap-1">
+      <Icon className={`size-4 shrink-0 ${ok ? "text-success" : "text-danger"}`} aria-hidden />
+      {label}
     </span>
   );
 }
@@ -37,11 +48,11 @@ function ScenarioRow({ scenario }: { scenario: LabScenario }) {
   if (!scenario.ran) {
     return (
       <TableRow>
-        <TableCell className="font-medium">{`${scenario.id} · ${scenario.title}`}</TableCell>
+        <TableCell className="whitespace-normal font-medium">{`${scenario.id} · ${scenario.title}`}</TableCell>
         <TableCell colSpan={4} className="text-muted-foreground">
           {t("lab.notRun")}
         </TableCell>
-        <TableCell className="text-muted-foreground">{scenario.budget}</TableCell>
+        <TableCell className="whitespace-normal text-muted-foreground">{scenario.budget}</TableCell>
       </TableRow>
     );
   }
@@ -49,31 +60,31 @@ function ScenarioRow({ scenario }: { scenario: LabScenario }) {
   const met = scenario.thresholds.every((x) => x.ok);
   return (
     <TableRow>
-      <TableCell className="align-top">
+      <TableCell className="whitespace-normal align-top">
         <div className="font-medium">{`${scenario.id} · ${scenario.title}`}</div>
         <div className="text-xs text-muted-foreground">{scenario.shape}</div>
       </TableCell>
-      <TableCell className="align-top tabular-nums">
+      <TableCell className="whitespace-normal align-top tabular-nums">
         {t("lab.scale", "vi", { vus: num(scenario.scale.vusMax), iterations: num(scenario.scale.iterations), seconds: num(scenario.scale.seconds) })}
       </TableCell>
-      <TableCell className="align-top tabular-nums">{num(scenario.rps)}</TableCell>
-      <TableCell className="align-top tabular-nums">
+      <TableCell className="whitespace-normal align-top tabular-nums">{num(scenario.rps)}</TableCell>
+      <TableCell className="whitespace-normal align-top tabular-nums">
         {scenario.latency.length === 0
           ? DASH
           : scenario.latency.map((l) => (
               <div key={l.label}>{`${l.label}: ${ms(l.p50)} / ${ms(l.p95)} / ${ms(l.p99)}`}</div>
             ))}
       </TableCell>
-      <TableCell className="align-top tabular-nums">
+      <TableCell className="whitespace-normal align-top tabular-nums">
         {t("lab.errorCounts", "vi", { unexpected: num(scenario.errors.unexpected), limited: num(scenario.errors.rateLimited) })}
       </TableCell>
-      <TableCell className="align-top">
+      <TableCell className="whitespace-normal align-top">
         <div className="text-xs text-muted-foreground">{scenario.budget}</div>
         <Verdict ok={met} />
         {scenario.thresholds
           .filter((x) => !x.ok)
           .map((x) => (
-            <div key={`${x.metric}${x.rule}`} className="text-xs text-danger">{`${x.metric}: ${x.rule}`}</div>
+            <div key={`${x.metric}${x.rule}`} className="text-xs text-muted-foreground">{`${x.metric}: ${x.rule}`}</div>
           ))}
       </TableCell>
     </TableRow>
@@ -124,12 +135,12 @@ export function LabView({ results }: { results: LabResults }) {
             <caption className="sr-only">{t("lab.scenarios")}</caption>
             <TableHeader>
               <TableRow>
-                <TableHead>{t("lab.columns.scenario")}</TableHead>
-                <TableHead>{t("lab.columns.scale")}</TableHead>
-                <TableHead>RPS</TableHead>
-                <TableHead>{t("lab.columns.latency")}</TableHead>
-                <TableHead>{t("lab.columns.errors")}</TableHead>
-                <TableHead>{t("lab.columns.budget")}</TableHead>
+                <TableHead className="whitespace-normal">{t("lab.columns.scenario")}</TableHead>
+                <TableHead className="whitespace-normal">{t("lab.columns.scale")}</TableHead>
+                <TableHead className="whitespace-normal">RPS</TableHead>
+                <TableHead className="whitespace-normal">{t("lab.columns.latency")}</TableHead>
+                <TableHead className="whitespace-normal">{t("lab.columns.errors")}</TableHead>
+                <TableHead className="whitespace-normal">{t("lab.columns.budget")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -155,11 +166,8 @@ export function LabView({ results }: { results: LabResults }) {
                   s.invariants.map((v) => (
                     <span key={v.phase} className="flex flex-wrap items-center gap-2 text-sm">
                       <Badge variant="outline">{t(`lab.phase.${v.phase === "settled" ? "settled" : "after"}`)}</Badge>
-                      <span className={v.ok ? "text-success" : "text-danger"} aria-label={v.ok ? t("lab.holds") : t("lab.violated")}>
-                        {v.ok ? "✓" : "✗"}
-                      </span>
-                      <span>{v.ok ? t("lab.holds") : v.note ?? t("lab.violations", "vi", { count: String(v.violations.length) })}</span>
-                      {v.redis ? <span className={v.redis.ok ? "text-success" : "text-danger"}>{v.redis.ok ? t("lab.redisOk") : t("lab.redisDiffers")}</span> : null}
+                      <Mark ok={v.ok} label={v.ok ? t("lab.holds") : v.note ?? t("lab.violations", "vi", { count: String(v.violations.length) })} />
+                      {v.redis ? <Mark ok={v.redis.ok} label={v.redis.ok ? t("lab.redisOk") : t("lab.redisDiffers")} /> : null}
                     </span>
                   ))
                 )}
