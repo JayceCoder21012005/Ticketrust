@@ -31,6 +31,7 @@ nhanh và **không bao giờ bán trùng một ghế**. Toàn bộ đặc tả n
 | [09](specs/09-notifications-and-email.md) | Thông báo và email: chuông thông báo, trang `/account/notifications`, toast thời gian thực qua SignalR, email giao qua bảng `email_deliveries` và worker (thử lại, dead-letter), 8 mẫu email tiếng Việt kiểm tra bằng Mailpit, nút "Nhắc tôi" và nhắc lịch (mở bán trước 30 phút, sự kiện trước 24 giờ). Xem [runbook email](docs/runbooks/email-delivery.md). Còn lại cho spec 13 và 14: thông báo waitlist và chuyển vé | ✅ Hoàn thành |
 | [10](specs/10-e-tickets-and-rotating-qr.md) | Vé điện tử: trang `/account/tickets`, ví vé `/tickets/[id]` với mã QR đổi mỗi 15 giây (tính phía trình duyệt bằng Web Crypto, bộ mã hoá QR viết trong repo, kiểm tra bằng zxing-cpp 1049/1049), `GET /me/tickets`, `/tickets/{id}`, `/tickets/{id}/qr-key` (chỉ chủ vé, giới hạn 10 lần/phút), dùng được khi mất mạng nhờ kho khoá IndexedDB và service worker (chỉ vé đã mở khi có mạng trên thiết bị đó). Xem [runbook khoá QR](docs/runbooks/ticket-qr-keys.md). Còn lại cho spec 11 (quét tại cổng, giờ check-in), 12 (giới hạn tốc độ `qr-key` thay bản Redis tạm) và 14 (đổi bí mật khi chuyển vé) | ✅ Hoàn thành |
 | [11](specs/11-gate-check-in.md) – [17](specs/17-load-testing-and-observability.md) | Quét vé tại cổng… (spec 17 mới có kịch bản bán vé và bộ kiểm tra bất biến trong `load-tests/`) | ⏳ Chưa làm |
+| [18](docs/superpowers/specs/2026-11-22-momo-payment-design.md) | Thanh toán MoMo ở môi trường sandbox: chuyển sang trang của MoMo, IPN có ký (trả 204), xác nhận khi người mua quay về, hoàn tiền qua MoMo. Xem [Thanh toán MoMo](#thanh-toán-momo-sandbox) | ✅ Hoàn thành |
 
 ## Yêu cầu
 
@@ -278,11 +279,49 @@ Cần Docker: `dotnet test --project tests/TicketRush.Api.IntegrationTests --fil
 
 ### Thanh toán ở production
 
-- ⚠️ **Production chưa nhận được tiền thật.** Cổng thanh toán duy nhất hiện có là cổng giả lập, và nó **tắt mặc định** ở production (`Payments:Mock:Enabled` bị từ chối khi chạy ngoài Development, trừ khi đặt thêm `Payments:Mock:AllowInProduction=true` cho một bản demo công khai). Muốn bán vé thật cần viết adapter cho một cổng thật (spec 08, `IPaymentGateway`) và đăng ký nó.
+- ⚠️ **Production chưa nhận được tiền thật.** Có hai cổng:
+  - **Cổng giả lập.** Nó **tắt mặc định** ở production: `Payments:Mock:Enabled` bị từ chối khi chạy ngoài Development, trừ khi đặt thêm `Payments:Mock:AllowInProduction=true` cho một bản demo công khai.
+  - **MoMo ở môi trường sandbox** (spec 18, xem mục dưới).
+
+  Muốn bán vé thật thì cần ký hợp đồng merchant với MoMo và đổi sang key thật.
 - `docker-compose.prod.yml` đặt `Payments__Mock__WebBaseUrl` thành `https://${PUBLIC_HOST}`, để khi bật cổng giả lập cho demo, `redirectUrl` trỏ đúng tên miền công khai thay vì `http://localhost:3000`.
 - Webhook của cổng thanh toán (`POST /api/v1/webhooks/payments/{provider}`) đi **`Caddy → api:8080` trực tiếp**: `deploy/Caddyfile` có khối `handle /api/v1/webhooks/*` cạnh `handle /hubs/*`, mọi đường dẫn khác vẫn tới `web:3000`. Chữ ký HMAC phủ đúng từng byte của thân request nên không để Next đứng giữa. Đã kiểm chứng trên stack compose (xem spec 08): qua rewrite `/api/:path*` của Next, thân request, header `X-Signature` và mã trạng thái (200, 401, 413, 404) giống hệt khi gọi thẳng api, **trừ** một thân hơi vượt giới hạn 64 KB (ví dụ 100 KB) đôi khi trả 502 thay vì 413 (api trả 413 rồi đóng kết nối khi Next còn đang ghi, `EPIPE`); vì vậy tuyến webhook được chuyển thẳng tới api. Cổng giả lập vẫn gọi thẳng `api:8080`, nên chỉ một provider thật mới đi qua tuyến Caddy này.
 - Huỷ sự kiện hoàn tiền cho người mua **không cần** key ring Data Protection: việc xử lý đơn của sự kiện bị huỷ không đọc bí mật QR của vé.
 - Giới hạn đã biết của việc hết hạn đơn và hoàn tiền: xem [docs/runbooks/parked-refunds.md](docs/runbooks/parked-refunds.md#known-limits-accepted).
+
+### Thanh toán MoMo (sandbox)
+
+Spec 18 thêm MoMo (AIO v2, `requestType=payWithMethod`) làm cổng thanh toán thứ hai, chạy cạnh cổng giả lập. Bản demo dùng **sandbox của MoMo**, nên không có tiền thật nào bị trừ. Cổng giả lập vẫn là mặc định, cho dev, CI, E2E và load test.
+
+**Bật MoMo trên VPS.** Trong `.env`:
+
+```bash
+PAYMENT_PROVIDER=MoMo
+WEB_PAYMENT_PROVIDER=momo        # trang thanh toán hiện ghi chú "môi trường thử nghiệm"
+MOMO_PARTNER_CODE=MOMO           # key sandbox công khai, MoMo đăng trong code mẫu của họ
+MOMO_ACCESS_KEY=F8BBA842ECF85
+MOMO_SECRET_KEY=K951B6PE1waDMi640xX08PD3vg6EkVlz
+# MOMO_IPN_URL mặc định là https://$PUBLIC_HOST/api/v1/webhooks/payments/momo (Caddy chuyển thẳng tới api)
+```
+
+Sau đó build lại (`--build`), vì `WEB_PAYMENT_PROVIDER` được nhúng vào bundle của web lúc build.
+
+**Bật MoMo khi chạy Aspire ở máy.** Đặt các biến sau cho AppHost (biến môi trường hoặc user secrets): `Payment__Provider=MoMo` cùng ba key ở trên, ví dụ `Payments__MoMo__SecretKey=…`.
+- MoMo không gọi được IPN vào laptop. Có hai cách:
+  - Mở tunnel bằng `cloudflared tunnel --url http://localhost:<cổng api>`, rồi đặt `Payments__MoMo__IpnUrl=https://<tên-tunnel>/api/v1/webhooks/payments/momo`.
+  - Không cần tunnel: khi người mua quay về `/checkout/{id}/result`, trang này gọi `POST /api/v1/orders/{id}/payment/confirm`, và server tự hỏi MoMo (`/v2/gateway/api/query`).
+
+**Cách trả tiền thử.** Trên trang của MoMo, chọn thẻ ATM hoặc thẻ quốc tế rồi dùng thẻ test MoMo công bố ở [hướng dẫn test](https://developers.momo.vn/v3/docs/payment/onboarding/test-instructions/).
+
+**Cách hệ thống xử lý:**
+- **Chữ ký.** HMAC-SHA256 với secret key, trên các cặp `key=value` xếp theo alphabet. Chữ ký này được kiểm chứng với sandbox thật bằng `MOMO_SANDBOX_LIVE=1 dotnet test --project tests/TicketRush.Api.IntegrationTests --filter-class "*MoMoSandboxTests"`.
+- **IPN.** Được trả **204** không có body, đúng như MoMo yêu cầu. Khoá chống trùng là `transId:resultCode`. Một IPN và lần "xác nhận khi quay về" cho cùng một giao dịch không bao giờ xuất vé hai lần.
+- **Bấm đúp "Thanh toán".** Chỉ tạo một giao dịch MoMo: `orderId` của MoMo sinh từ Idempotency-Key, và `payUrl` được cache trong Redis.
+- **Hoàn tiền.** Đi qua `/v2/gateway/api/refund`, dùng `transId` lấy từ `/query`. Lần thử lại sau khi bị từ chối dùng một `orderId` hoàn tiền mới; lần thử lại sau khi đã thành công chỉ trả lại kết quả cũ.
+
+**Giới hạn đã biết:**
+- Nếu câu trả lời của lệnh tạo giao dịch bị mất (timeout) mà MoMo đã tạo xong, lần thử lại nhận mã 41 ("trùng orderId") và báo lỗi. Người mua chỉ cần bấm "Thanh toán" lần nữa: lần đó là attempt mới với key mới.
+- Chưa kiểm thử với key merchant thật.
 
 ### Độ bền của Redis
 

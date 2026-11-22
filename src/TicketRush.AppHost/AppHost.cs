@@ -93,4 +93,34 @@ worker
     .WithEnvironment("Frontend__RevalidateUrl", ReferenceExpression.Create($"{web.GetEndpoint("http")}/api/revalidate"))
     .WithEnvironment("Frontend__RevalidateSecret", revalidateSecret);
 
+// Spec 18: MoMo's sandbox instead of the mock when the AppHost is told so (e.g. environment Payment__Provider=MoMo and
+// Payments__MoMo__PartnerCode/AccessKey/SecretKey, or user secrets). MoMo cannot reach a laptop's IPN URL unless it is
+// tunnelled (Payments__MoMo__IpnUrl); without one, the result page confirms the payment by asking MoMo.
+if (string.Equals(builder.Configuration["Payment:Provider"], "MoMo", StringComparison.OrdinalIgnoreCase))
+{
+    var ipnUrl = builder.Configuration["Payments:MoMo:IpnUrl"];
+    foreach (var service in new[] { api, worker })
+    {
+        service.WithEnvironment("Payment__Provider", "MoMo");
+        foreach (var name in new[] { "Endpoint", "PartnerCode", "AccessKey", "SecretKey" })
+        {
+            if (builder.Configuration[$"Payments:MoMo:{name}"] is { Length: > 0 } value)
+            {
+                service.WithEnvironment($"Payments__MoMo__{name}", value);
+            }
+        }
+
+        if (string.IsNullOrEmpty(ipnUrl))
+        {
+            service.WithEnvironment("Payments__MoMo__IpnUrl", ReferenceExpression.Create($"{api.GetEndpoint("http")}/api/v1/webhooks/payments/momo"));
+        }
+        else
+        {
+            service.WithEnvironment("Payments__MoMo__IpnUrl", ipnUrl);
+        }
+    }
+
+    web.WithEnvironment("NEXT_PUBLIC_PAYMENT_PROVIDER", "momo");
+}
+
 builder.Build().Run();

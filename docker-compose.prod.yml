@@ -14,6 +14,14 @@ x-dotnet-env: &dotnet-env
   # Where the mock gateway sends the buyer after /pay. The mock is off by default in production; until a real gateway adapter
   # lands, production cannot take real payments (README, spec 08).
   Payments__Mock__WebBaseUrl: https://${PUBLIC_HOST}
+  # Spec 18: MoMo (sandbox by default) when PAYMENT_PROVIDER=MoMo; keys from .env only. MoMo POSTs its IPN to the public host,
+  # which Caddy routes straight to the api (/api/v1/webhooks/*).
+  Payment__Provider: ${PAYMENT_PROVIDER:-Mock}
+  Payments__MoMo__Endpoint: ${MOMO_ENDPOINT:-https://test-payment.momo.vn}
+  Payments__MoMo__PartnerCode: ${MOMO_PARTNER_CODE:-}
+  Payments__MoMo__AccessKey: ${MOMO_ACCESS_KEY:-}
+  Payments__MoMo__SecretKey: ${MOMO_SECRET_KEY:-}
+  Payments__MoMo__IpnUrl: ${MOMO_IPN_URL:-https://${PUBLIC_HOST}/api/v1/webhooks/payments/momo}
   Email__FromAddress: ${EMAIL_FROM_ADDRESS}
   Storage__PublicBaseUrl: https://${PUBLIC_HOST}/media
   Frontend__BaseUrl: https://${PUBLIC_HOST}
@@ -86,7 +94,13 @@ services:
 
   web:
     image: ${REGISTRY:-ghcr.io/ticketrush}/web:${TAG:-latest}
-    build: { context: web, args: { API_URL: "http://api:8080", NEXT_PUBLIC_TURNSTILE_SITE_KEY: "${TURNSTILE_SITE_KEY:?set TURNSTILE_SITE_KEY}" } }
+    build:
+      context: web
+      args:
+        API_URL: "http://api:8080"
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: "${TURNSTILE_SITE_KEY:?set TURNSTILE_SITE_KEY}"
+        # Spec 18: "momo" shows the MoMo sandbox note on the pay panel.
+        NEXT_PUBLIC_PAYMENT_PROVIDER: ${WEB_PAYMENT_PROVIDER:-mock}
     restart: unless-stopped
     environment:
       API_URL: http://api:8080
