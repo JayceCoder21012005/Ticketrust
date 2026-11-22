@@ -42,6 +42,8 @@ builder.Services.AddHostedService<ReminderSchedulerService>();
 // Spec 13: expires unused waitlist offers and passes their holds on (leader-elected, once a second).
 builder.Services.AddHostedService<WaitlistOfferService>();
 builder.Services.AddHostedService<TicketRush.Worker.Resale.ResaleSweepService>();
+builder.Services.AddHostedService<TicketRush.Worker.Dashboard.DashboardBroadcaster>();
+builder.Services.AddHostedService<TicketRush.Worker.Dashboard.DashboardReconciler>();
 
 // Dev/demo only: delivers the mock payment gateway's signed webhooks (spec 08). Off unless Payments:Mock:Enabled.
 if (builder.Configuration.GetValue<bool>($"{MockGatewayOptions.SectionName}:Enabled"))

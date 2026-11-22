@@ -106,6 +106,9 @@ public static class DependencyInjection
         services.AddScoped<IHoldCatalog, HoldCatalog>();
         services.AddSingleton<IInventoryStore, RedisInventoryStore>();
         services.AddSingleton<TicketRush.Application.Abstractions.Resale.IResaleReservations, Resale.RedisResaleReservations>();
+        services.AddSingleton<TicketRush.Application.Abstractions.Dashboard.IDashboardStore, Dashboard.RedisDashboardStore>();
+        services.AddScoped<Application.Features.Dashboard.IAttendeeExport, Dashboard.AttendeeExport>();
+        services.AddSingleton<Application.Features.Dashboard.IDashboardPublisher, Realtime.DashboardPublisher>();
         services.AddScoped<ISoldInventorySource, DbSoldInventorySource>();
         services.AddScoped<ITierInventory, TierInventory>();
         services.AddScoped<IInventoryStrategy, GeneralAdmissionInventoryStrategy>();
@@ -135,6 +138,8 @@ public static class DependencyInjection
         services.AddIntegrationEventHandler<OrderPaid, OrderPaidLeaveQueueHandler>();
         // Spec 13: last, so a waitlist failure never holds back the inventory commit or the queue leave.
         services.AddIntegrationEventHandler<OrderPaid, OrderPaidWaitlistHandler>();
+        // Spec 15: after everything that changes a ticket or a seat; the dashboard is only a view of what already happened.
+        services.AddIntegrationEventHandler<OrderPaid, Dashboard.DashboardOrderPaidHandler>();
 
         PersistDataProtectionKeysToRedis(services);
         AddAccounts(services);

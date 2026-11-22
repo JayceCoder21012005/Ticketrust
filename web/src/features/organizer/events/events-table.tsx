@@ -92,7 +92,14 @@ export function EventsTable() {
                   <TableCell className="whitespace-nowrap text-muted-foreground">{formatVietnam(event.startsAt)}</TableCell>
                   <TableCell className="hidden text-muted-foreground md:table-cell">{event.venueName}</TableCell>
                   <TableCell>
-                    <StatusBadge status={event.status} />
+                    <span className="flex flex-wrap items-center gap-2">
+                      <StatusBadge status={event.status} />
+                      {event.status === "Published" || event.status === "Ended" ? (
+                        <Link href={`/organizer/events/${event.id}/dashboard`} prefetch={false} className="text-xs text-primary hover:underline">
+                          Bảng điều khiển
+                        </Link>
+                      ) : null}
+                    </span>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{event.seatCount}</TableCell>
                 </TableRow>
