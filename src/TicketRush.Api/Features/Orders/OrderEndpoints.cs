@@ -53,6 +53,12 @@ public static class OrderEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+        // Spec 18: the result page asks this on arrival; the server asks the gateway (never trusts the redirect's query string).
+        orders.MapPost("/{id:guid}/payment/confirm", ConfirmPaymentAsync)
+            .RequireRateLimit(RateLimitPolicies.Checkout)
+            .WithName("ConfirmOrderPayment")
+            .Produces<OrderResponse>()
+            .ProducesProblem(StatusCodes.Status404NotFound);
         orders.MapPost("/{id:guid}/cancel", CancelAsync)
             .RequireIdempotencyKey()
             .WithName("CancelOrder")
@@ -93,6 +99,9 @@ public static class OrderEndpoints
 
     /// <remarks>No request body is read: where the gateway sends the buyer back to is decided by the server, never by the client.</remarks>
     private static async Task<IResult> PayAsync(Guid id, ClaimsPrincipal user, PayOrderHandler handler, CancellationToken ct) =>
+        (await handler.HandleAsync(user.UserId(), id, ct)).ToHttpResult();
+
+    private static async Task<IResult> ConfirmPaymentAsync(Guid id, ClaimsPrincipal user, ConfirmPaymentHandler handler, CancellationToken ct) =>
         (await handler.HandleAsync(user.UserId(), id, ct)).ToHttpResult();
 
     private static async Task<IResult> CancelAsync(Guid id, ClaimsPrincipal user, CancelOrderHandler handler, CancellationToken ct) =>
