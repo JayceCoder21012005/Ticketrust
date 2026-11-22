@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
@@ -37,6 +38,9 @@ public static class ApiServiceCollectionExtensions
     public static IServiceCollection AddApi(this IServiceCollection services)
     {
         services.AddProblemDetails(options => options.CustomizeProblemDetails = ProblemDetailsCustomizer.Customize);
+        services.AddHttpContextAccessor();
+        // Spec 16: audit entries written during a request carry its user, IP and correlation id.
+        services.Replace(ServiceDescriptor.Singleton<TicketRush.Application.Abstractions.Audit.IAuditContext, Common.Audit.HttpAuditContext>());
         services.AddExceptionHandler<GlobalExceptionHandler>();
         services.AddOpenApi();
         services.ConfigureHttpJsonOptions(options =>

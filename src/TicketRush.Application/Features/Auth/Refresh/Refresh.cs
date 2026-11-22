@@ -15,6 +15,7 @@ public sealed partial class RefreshHandler(
     IAppDbContext db,
     IIdentityService identity,
     IAccessTokenIssuer issuer,
+    Abstractions.Audit.IAuditLogger audit,
     TimeProvider clock,
     ILogger<RefreshHandler> logger)
 {
@@ -67,6 +68,7 @@ public sealed partial class RefreshHandler(
     private async Task RevokeStolenFamilyAsync(RefreshToken reused, DateTimeOffset now, ClientInfo client, CancellationToken ct)
     {
         await db.RevokeFamilyAsync(reused.FamilyId, now, ct);
+        audit.Record("auth.refresh_reuse", "user", reused.UserId.ToString(), new { familyId = reused.FamilyId, ip = client.IpAddress });
         await db.SaveChangesAsync(ct);
         LogTokenReuse(reused.UserId, reused.FamilyId, client.IpAddress);
     }

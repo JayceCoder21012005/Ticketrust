@@ -62,6 +62,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataPr
 
     public DbSet<TicketRush.Domain.Dashboard.SalesMinute> SalesPerMinute => Set<TicketRush.Domain.Dashboard.SalesMinute>();
 
+    public DbSet<TicketRush.Domain.Audit.AuditEntry> AuditEntries => Set<TicketRush.Domain.Audit.AuditEntry>();
+
     public DbSet<GateAssignment> GateAssignments => Set<GateAssignment>();
 
     public DbSet<CheckIn> CheckIns => Set<CheckIn>();

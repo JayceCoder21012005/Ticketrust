@@ -8,6 +8,7 @@ namespace TicketRush.Infrastructure.Identity;
 /// Identity user. Lives in Infrastructure because Identity types must not leak into Domain.
 /// Raises domain events so account emails go through the outbox in the same transaction (C8).
 /// </summary>
+[TicketRush.Domain.Audit.Audited(nameof(LockoutEnd), Creates = false)]
 public sealed class AppUser : IdentityUser<Guid>, IAuditable, IHasDomainEvents
 {
     private readonly List<IDomainEvent> _domainEvents = [];

@@ -3,6 +3,7 @@ using TicketRush.Domain.Primitives;
 namespace TicketRush.Domain.Events;
 
 /// <summary>A price category of an event. Owned by <see cref="Event"/>; only created through it.</summary>
+[TicketRush.Domain.Audit.Audited]
 public sealed class TicketTier : Entity
 {
     internal TicketTier(Guid eventId, string name, Money price, TicketKind kind, int? capacity, string color)

@@ -9,6 +9,7 @@ namespace TicketRush.Domain.Events;
 /// <c>Draft → Published → Ended</c> and <c>Draft/Published → Cancelled</c>.
 /// Illegal transitions throw <see cref="DomainException"/>.
 /// </summary>
+[TicketRush.Domain.Audit.Audited]
 public sealed class Event : AggregateRoot, IAuditable
 {
     private readonly List<SalePhase> _phases = [];

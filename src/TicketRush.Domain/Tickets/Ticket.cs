@@ -9,6 +9,7 @@ namespace TicketRush.Domain.Tickets;
 /// <c>Valid/Listed/CheckedIn → Voided</c> when the event is cancelled (<see cref="VoidForCancelledEvent"/>).
 /// The DB's partial unique index on <c>(event_id, seat_index)</c> is the final guard against double-selling a seat.
 /// </summary>
+[TicketRush.Domain.Audit.Audited(nameof(Status), Creates = false)]
 public sealed class Ticket : AggregateRoot, IAuditable
 {
     public const int QrSecretLength = 32;
@@ -57,6 +58,7 @@ public sealed class Ticket : AggregateRoot, IAuditable
     /// (ASP.NET Data Protection, spec 08) is the persistence layer's concern, e.g. a value converter in the EF mapping.
     /// </summary>
 #pragma warning disable CA1819 // Raw secret bytes are exactly what EF maps and the QR signer consumes.
+    [TicketRush.Domain.Audit.Sensitive]
     public byte[] QrSecret { get; private set; }
 #pragma warning restore CA1819
 

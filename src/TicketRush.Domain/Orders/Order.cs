@@ -25,6 +25,7 @@ namespace TicketRush.Domain.Orders;
 /// <see cref="IsTerminalForPayment"/> tells the handler when to skip.
 /// </para>
 /// </summary>
+[TicketRush.Domain.Audit.Audited(nameof(Status), nameof(RefundReason), Creates = false)]
 public sealed class Order : AggregateRoot, IAuditable, IRefundable
 {
     /// <summary>

@@ -160,6 +160,9 @@ public static class DependencyInjection
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<AuditableEntitiesInterceptor>();
         services.AddSingleton<DomainEventsToOutboxInterceptor>();
+        services.TryAddSingleton<TicketRush.Application.Abstractions.Audit.IAuditContext, Audit.SystemAuditContext>();
+        services.AddSingleton<Audit.AuditTrailInterceptor>();
+        services.AddScoped<TicketRush.Application.Abstractions.Audit.IAuditLogger, Audit.AuditLogger>();
 
         services.AddDbContext<AppDbContext>((provider, options) => options
             .UseNpgsql(connectionString, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history"))
@@ -167,7 +170,8 @@ public static class DependencyInjection
             .ReplaceService<IModelCacheKeyFactory, AppModelCacheKeyFactory>()
             .AddInterceptors(
                 provider.GetRequiredService<AuditableEntitiesInterceptor>(),
-                provider.GetRequiredService<DomainEventsToOutboxInterceptor>()));
+                provider.GetRequiredService<DomainEventsToOutboxInterceptor>(),
+                provider.GetRequiredService<Audit.AuditTrailInterceptor>()));
 
         // Adds health check + OTel. Retries are off: use cases own explicit transactions and must not be replayed blindly.
         builder.EnrichNpgsqlDbContext<AppDbContext>(settings => settings.DisableRetry = true);
