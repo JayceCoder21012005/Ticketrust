@@ -33,7 +33,7 @@ describe("holds api", () => {
 
     expect(post).toHaveBeenCalledWith("/api/v1/events/{eventId}/holds", {
       params: { path: { eventId: "e1" } },
-      headers: { "X-Admission-Token": "adm", "Idempotency-Key": "key-1" },
+      headers: { "X-Admission-Token": "adm", "Idempotency-Key": "key-1", traceparent: expect.stringMatching(/^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/) },
       body: { seatIndexes: [3], ga: null, bestAvailable: null, replaceExisting: false },
     });
     expect(result.total).toBe(1_500_000);

@@ -1,4 +1,5 @@
 import { api } from "@/lib/api/client";
+import { beginPurchaseTrace, traceHeader } from "@/lib/checkout/purchase-trace";
 import { ApiError, type ProblemDetails } from "@/lib/errors";
 import type { CreateHoldBody, Hold } from "./types";
 
@@ -25,7 +26,8 @@ export async function createHold(eventId: string, body: CreateHoldBody, admissio
   const result = await api.POST("/api/v1/events/{eventId}/holds", {
     params: { path: { eventId } },
     // Checked by endpoint filters, so they are not in the OpenAPI parameters.
-    headers: { "X-Admission-Token": admissionToken, "Idempotency-Key": idempotencyKey },
+    // The hold starts the purchase's trace (spec 17); the order and the payment join it.
+    headers: { "X-Admission-Token": admissionToken, "Idempotency-Key": idempotencyKey, ...traceHeader(beginPurchaseTrace(idempotencyKey)) },
     body: {
       seatIndexes: body.seatIndexes ?? null,
       ga: body.ga ?? null,
