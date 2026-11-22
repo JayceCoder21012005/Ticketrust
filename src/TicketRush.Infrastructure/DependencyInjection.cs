@@ -160,6 +160,11 @@ public static class DependencyInjection
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<AuditableEntitiesInterceptor>();
         services.AddSingleton<DomainEventsToOutboxInterceptor>();
+        services.TryAddSingleton<TicketRush.Application.Abstractions.Audit.IAuditContext, Audit.SystemAuditContext>();
+        services.AddSingleton<Audit.AuditTrailInterceptor>();
+        services.AddScoped<TicketRush.Application.Abstractions.Audit.IAuditLogger, Audit.AuditLogger>();
+        services.AddScoped<TicketRush.Application.Abstractions.Admin.IAdminUsers, Admin.AdminUsers>();
+        services.AddScoped<TicketRush.Application.Abstractions.Admin.IAdminOutbox, Admin.AdminOutbox>();
 
         services.AddDbContext<AppDbContext>((provider, options) => options
             .UseNpgsql(connectionString, npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history"))
@@ -167,7 +172,8 @@ public static class DependencyInjection
             .ReplaceService<IModelCacheKeyFactory, AppModelCacheKeyFactory>()
             .AddInterceptors(
                 provider.GetRequiredService<AuditableEntitiesInterceptor>(),
-                provider.GetRequiredService<DomainEventsToOutboxInterceptor>()));
+                provider.GetRequiredService<DomainEventsToOutboxInterceptor>(),
+                provider.GetRequiredService<Audit.AuditTrailInterceptor>()));
 
         // Adds health check + OTel. Retries are off: use cases own explicit transactions and must not be replayed blindly.
         builder.EnrichNpgsqlDbContext<AppDbContext>(settings => settings.DisableRetry = true);
@@ -308,6 +314,12 @@ public static class DependencyInjection
         services.AddIntegrationEventHandler<EventPublished, CatalogRevalidationHandler>();
         services.AddIntegrationEventHandler<EventCancelled, CatalogRevalidationHandler>();
         services.AddIntegrationEventHandler<EventDetailsChanged, CatalogRevalidationHandler>();
+        // Spec 16 moderation: the public pages drop (or show again) the event, and the organizer is told why.
+        services.AddIntegrationEventHandler<EventSuspended, CatalogRevalidationHandler>();
+        services.AddIntegrationEventHandler<EventRestored, CatalogRevalidationHandler>();
+        services.AddIntegrationEventHandler<EventSuspended, EventModerationNotificationHandler>();
+        services.AddIntegrationEventHandler<EventRestored, EventModerationNotificationHandler>();
+        services.AddIntegrationEventHandler<Domain.Users.OrganizerApplicationDecided, OrganizerApplicationNotificationHandler>();
         services.AddScoped<CachedEventCatalogReader>();
         services.AddScoped<IEventCatalogReader>(sp => sp.GetRequiredService<CachedEventCatalogReader>());
         services.AddScoped<ICatalogCacheInvalidator>(sp => sp.GetRequiredService<CachedEventCatalogReader>());

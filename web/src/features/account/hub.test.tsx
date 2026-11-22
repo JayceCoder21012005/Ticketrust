@@ -68,7 +68,7 @@ describe("AccountNav", () => {
     render(<AccountNav />);
 
     const links = within(screen.getByRole("navigation", { name: "Tài khoản" })).getAllByRole("link");
-    expect(links.map((l) => l.textContent)).toEqual(["Tổng quan", "Vé của tôi", "Đơn hàng", "Danh sách chờ", "Thông báo", "Hồ sơ"]);
+    expect(links.map((l) => l.textContent)).toEqual(["Tổng quan", "Vé của tôi", "Đơn hàng", "Danh sách chờ", "Thông báo", "Hồ sơ", "Trở thành nhà tổ chức"]);
     expect(screen.getByRole("link", { name: label })).toHaveAttribute("aria-current", "page");
     expect(links.filter((l) => l.getAttribute("aria-current") === "page")).toHaveLength(1);
   });

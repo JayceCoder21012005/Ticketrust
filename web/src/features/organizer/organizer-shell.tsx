@@ -4,7 +4,6 @@ import { CalendarDays, LayoutDashboard, MapPin, Settings, Ticket } from "lucide-
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment, type ReactNode } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   Sidebar,
@@ -25,10 +24,19 @@ export type Crumb = { label: string; href?: string };
 const NAV = [
   { label: "Sự kiện", href: "/organizer/events", icon: CalendarDays },
   { label: "Địa điểm", href: "/organizer/venues", icon: MapPin },
-  // Spec 15 (dashboard) and later settings: shown so the area's shape is clear, not clickable yet.
-  { label: "Dashboard", icon: LayoutDashboard },
-  { label: "Cài đặt", icon: Settings },
+  // Spec 15: the picker of events to watch, and every event's own dashboard.
+  { label: "Dashboard", href: "/organizer/dashboard", icon: LayoutDashboard },
+  // No organizer settings yet (no spec): the account's own profile.
+  { label: "Cài đặt", href: "/account/profile", icon: Settings },
 ] as const;
+
+/** An event's dashboard (/organizer/events/{id}/dashboard) belongs to "Dashboard", not to "Sự kiện". */
+export function isNavActive(pathname: string, href: string): boolean {
+  const eventDashboard = /^\/organizer\/events\/[^/]+\/dashboard$/.test(pathname);
+  if (href === "/organizer/dashboard") return pathname.startsWith(href) || eventDashboard;
+  if (href === "/organizer/events") return pathname.startsWith(href) && !eventDashboard;
+  return pathname.startsWith(href);
+}
 
 /** Spec 05 organizer chrome: shadcn Sidebar + breadcrumb header. */
 export function OrganizerShell({ breadcrumbs, actions, children }: { breadcrumbs: Crumb[]; actions?: ReactNode; children: ReactNode }) {
@@ -49,22 +57,12 @@ export function OrganizerShell({ breadcrumbs, actions, children }: { breadcrumbs
               <SidebarMenu>
                 {NAV.map((item) => (
                   <SidebarMenuItem key={item.label}>
-                    {"href" in item ? (
-                      <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
-                        <Link href={item.href} prefetch={false}>
-                          <item.icon aria-hidden />
-                          <span>{item.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    ) : (
-                      <SidebarMenuButton disabled aria-disabled tooltip={`${item.label} (sắp có)`}>
+                    <SidebarMenuButton asChild isActive={isNavActive(pathname, item.href)} tooltip={item.label}>
+                      <Link href={item.href} prefetch={false}>
                         <item.icon aria-hidden />
                         <span>{item.label}</span>
-                        <Badge variant="outline" className="ml-auto">
-                          Sắp có
-                        </Badge>
-                      </SidebarMenuButton>
-                    )}
+                      </Link>
+                    </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>

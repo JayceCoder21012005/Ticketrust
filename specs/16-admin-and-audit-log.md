@@ -35,9 +35,21 @@ API routes live under `/admin/*`, keyset pagination everywhere. Each mutation re
 
 ## Acceptance criteria
 
-- [ ] An `UPDATE` on `audit_entries` fails at the database level.
-- [ ] Changing a user's role creates exactly one audit entry with actor, IP and correlation id.
-- [ ] Audit entries never contain password hashes, tokens or QR secrets (test scans `changes`).
-- [ ] A manual refund releases the seat to the waitlist (13) and notifies the buyer.
-- [ ] Non-admins get 404 for every `/admin` route (API and pages).
-- [ ] Retrying a dead-letter message processes it once.
+- [x] An `UPDATE` on `audit_entries` fails at the database level.
+- [x] Changing a user's role creates exactly one audit entry with actor, IP and correlation id.
+- [x] Audit entries never contain password hashes, tokens or QR secrets (test scans `changes`).
+- [x] A manual refund releases the seat to the waitlist (13) and notifies the buyer.
+- [x] Non-admins get 404 for every `/admin` route (API and pages).
+- [x] Retrying a dead-letter message processes it once.
+
+## Implementation notes (what differs from the text above)
+
+- **Unpublish = suspend.** `EventStatus.Suspended`: hidden from the catalog and closed to holds, orders, resale and transfers (everything that requires `Published`), while sold tickets stay valid, show their QR and pass the gate. The admin restores it to Published; tiers stay frozen. The organizer gets an in-app notice and an email with the reason both ways. Suspending takes the event sale lock exclusively, like a cancellation.
+- **Append-only.** A trigger rejects UPDATE, DELETE and TRUNCATE on `audit_entries` for every role (the owner included), and those privileges are revoked from `PUBLIC`. A separate INSERT/SELECT-only app role is a deployment step.
+- **Automatic entries** are written in the same save as the change, field by field. Order and Ticket record status changes only (not their bulk creation); `AppUser` records lockout only. Set-based updates (the cancelled-event settlement, the gate's conditional check-in) bypass the interceptor and are not in the log.
+- **Roles** are recorded explicitly (`role.granted` / `role.revoked`, with the reason), never automatically, so one change is exactly one entry.
+- **Manual refund** works on paid primary orders whose tickets were not used; it is refused while one of the tickets is being bought on resale. Double confirmation = typing the order id. The buyer is told by 08's `RefundRequested` notice (reason `admin_refund`).
+- **Dead letters.** Retry puts the message back with fresh attempts; consumer receipts keep every handler at most once. Discard keeps it with the reason and drops it from the list.
+- **Locking** an account also revokes all of its refresh tokens.
+- **Users apply** at `/account/organizer`. One pending application per user.
+- **Sorting.** Admin lists are newest first with keyset pages; filters are server-side and synced to the URL. There are no per-column sort controls.

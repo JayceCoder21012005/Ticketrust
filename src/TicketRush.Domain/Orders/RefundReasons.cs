@@ -9,6 +9,9 @@ public static class RefundReasons
     /// <summary>The organizer cancelled the event (after the order was paid, or before a late payment arrived).</summary>
     public const string EventCancelled = "event_cancelled";
 
+    /// <summary>An admin refunded the order by hand (spec 16); the admin's own words are in the audit log.</summary>
+    public const string AdminRefund = "admin_refund";
+
     /// <summary>The payment arrived after the event had ended.</summary>
     public const string EventEnded = "event_ended";
 

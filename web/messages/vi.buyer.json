@@ -227,7 +227,8 @@
           "order_closed": "Thanh toán đến sau khi đơn hàng đã đóng.",
           "amount_mismatch": "Số tiền cổng thanh toán ghi nhận không khớp với đơn hàng.",
           "duplicate_payment": "Đơn hàng này đã được thanh toán trước đó nên khoản thanh toán thứ hai được hoàn lại.",
-          "other": "Đơn hàng không còn hợp lệ vào lúc thanh toán được xác nhận."
+          "other": "Đơn hàng không còn hợp lệ vào lúc thanh toán được xác nhận.",
+          "admin_refund": "Quản trị viên đã hoàn tiền đơn hàng này theo yêu cầu."
         }
       },
       "refunded": {
@@ -445,7 +446,8 @@
       "orders": "Đơn hàng",
       "notifications": "Thông báo",
       "profile": "Hồ sơ",
-      "waitlist": "Danh sách chờ"
+      "waitlist": "Danh sách chờ",
+      "organizer": "Trở thành nhà tổ chức"
     },
     "greeting": "Xin chào, {name}",
     "explore": "Khám phá sự kiện",
@@ -465,7 +467,23 @@
       "empty": "Bạn chưa theo dõi sự kiện nào."
     },
     "profileTitle": "Hồ sơ",
-    "profileDescription": "Thông tin cá nhân dùng khi mua vé."
+    "profileDescription": "Thông tin cá nhân dùng khi mua vé.",
+    "organizer": {
+      "title": "Trở thành nhà tổ chức",
+      "intro": "Gửi thông tin công ty để TicketRush duyệt. Khi được duyệt, bạn có thể tạo và mở bán sự kiện.",
+      "already": "Tài khoản của bạn đã có quyền nhà tổ chức.",
+      "open": "Vào khu nhà tổ chức",
+      "company": "Tên công ty",
+      "phone": "Số điện thoại liên hệ",
+      "description": "Giới thiệu (loại sự kiện, quy mô)",
+      "submit": "Gửi đơn đăng ký",
+      "reason": "Ghi chú của quản trị viên: {reason}",
+      "status": {
+        "Pending": "Đang chờ duyệt",
+        "Approved": "Đã duyệt",
+        "Rejected": "Chưa được duyệt"
+      }
+    }
   },
   "waitlist": {
     "loadFailed": "Không tải được trạng thái danh sách chờ.",

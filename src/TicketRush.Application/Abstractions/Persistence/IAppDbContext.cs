@@ -54,6 +54,13 @@ public interface IAppDbContext
     /// <summary>Sales per minute per tier (spec 15).</summary>
     DbSet<TicketRush.Domain.Dashboard.SalesMinute> SalesPerMinute { get; }
 
+    /// <summary>The append-only audit log (spec 16): read it, never change it.</summary>
+    DbSet<TicketRush.Domain.Audit.AuditEntry> AuditEntries { get; }
+
+    DbSet<TicketRush.Domain.Users.AccountFlag> AccountFlags { get; }
+
+    DbSet<TicketRush.Domain.Users.OrganizerApplication> OrganizerApplications { get; }
+
     DbSet<GateAssignment> GateAssignments { get; }
 
     /// <summary>The log of every gate scan (spec 11).</summary>

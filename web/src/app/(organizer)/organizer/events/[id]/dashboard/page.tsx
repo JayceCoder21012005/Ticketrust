@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardView } from "@/features/dashboard/dashboard-view";
+import { OrganizerShell } from "@/features/organizer/organizer-shell";
 
 export const metadata: Metadata = { title: "Bảng điều khiển", robots: { index: false } };
 
@@ -18,5 +19,11 @@ export default function DashboardPage({ params }: Params) {
 
 async function DashboardContent({ params }: Params) {
   const { id } = await params;
-  return <DashboardView eventId={id} />;
+  return (
+    <OrganizerShell breadcrumbs={[{ label: "Dashboard", href: "/organizer/dashboard" }, { label: "Bán vé trực tiếp" }]}>
+      <div className="p-4 md:p-6">
+        <DashboardView eventId={id} />
+      </div>
+    </OrganizerShell>
+  );
 }

@@ -42,6 +42,21 @@ public sealed class AccountFlag : Entity
     /// <summary>Set by the admin review (spec 16); an open flag has none.</summary>
     public DateTimeOffset? ResolvedAt { get; private set; }
 
+    /// <summary><c>dismissed</c> or <c>locked</c>, with the admin's reason.</summary>
+    public string? Resolution { get; private set; }
+
+    /// <summary>The admin reviewed the flag (spec 16): dismissed it, or locked the account.</summary>
+    public void Resolve(string resolution, DateTimeOffset now)
+    {
+        if (ResolvedAt is not null)
+        {
+            throw new DomainException("account_flag.resolved", "This flag was already reviewed.");
+        }
+
+        Resolution = resolution.Length > DetailMaxLength ? resolution[..DetailMaxLength] : resolution;
+        ResolvedAt = now;
+    }
+
     public static AccountFlag Raise(Guid userId, string reason, string detail, DateTimeOffset now)
     {
         if (userId == Guid.Empty || reason is not (SharedPhone or SubnetJoinBurst))

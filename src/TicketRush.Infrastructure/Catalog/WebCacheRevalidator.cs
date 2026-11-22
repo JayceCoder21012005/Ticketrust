@@ -43,8 +43,13 @@ public sealed partial class WebCacheRevalidator(HttpClient http, IOptions<Fronte
 /// harmless, so at-least-once delivery needs no extra idempotency.
 /// </summary>
 internal sealed class CatalogRevalidationHandler(IAppDbContext db, IWebCacheRevalidator revalidator)
-    : IIntegrationEventHandler<EventPublished>, IIntegrationEventHandler<EventCancelled>, IIntegrationEventHandler<EventDetailsChanged>
+    : IIntegrationEventHandler<EventPublished>, IIntegrationEventHandler<EventCancelled>, IIntegrationEventHandler<EventDetailsChanged>,
+        IIntegrationEventHandler<EventSuspended>, IIntegrationEventHandler<EventRestored>
 {
+    public Task HandleAsync(EventSuspended message, IntegrationEventContext context, CancellationToken ct) => RevalidateAsync(message.EventId, ct);
+
+    public Task HandleAsync(EventRestored message, IntegrationEventContext context, CancellationToken ct) => RevalidateAsync(message.EventId, ct);
+
     public Task HandleAsync(EventPublished message, IntegrationEventContext context, CancellationToken ct) => RevalidateAsync(message.EventId, ct);
 
     public Task HandleAsync(EventCancelled message, IntegrationEventContext context, CancellationToken ct) => RevalidateAsync(message.EventId, ct);

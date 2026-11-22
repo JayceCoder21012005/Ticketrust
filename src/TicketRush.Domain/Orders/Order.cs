@@ -25,6 +25,7 @@ namespace TicketRush.Domain.Orders;
 /// <see cref="IsTerminalForPayment"/> tells the handler when to skip.
 /// </para>
 /// </summary>
+[TicketRush.Domain.Audit.Audited(nameof(Status), nameof(RefundReason), Creates = false)]
 public sealed class Order : AggregateRoot, IAuditable, IRefundable
 {
     /// <summary>
@@ -237,6 +238,9 @@ public sealed class Order : AggregateRoot, IAuditable, IRefundable
 
         RequestRefund(Trigger.MarkUnfulfillable, reason);
     }
+
+    /// <summary>Paid → RefundPending by an admin (spec 16 manual refund); the caller voids the tickets in the same save.</summary>
+    public void RequestAdminRefund() => RequestRefund(Trigger.RequestRefundForCancelledEvent, RefundReasons.AdminRefund);
 
     /// <summary>Paid → RefundPending because the organizer cancelled the event.</summary>
     public void RequestRefundForCancelledEvent() => RequestRefund(Trigger.RequestRefundForCancelledEvent, RefundReasons.EventCancelled);

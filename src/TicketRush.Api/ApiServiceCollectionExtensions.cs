@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
@@ -19,6 +20,7 @@ using TicketRush.Api.Features.Queue;
 using TicketRush.Api.Features.ServerTime;
 using TicketRush.Api.Features.Storage;
 using TicketRush.Api.Features.Tickets;
+using TicketRush.Api.Features.Admin;
 using TicketRush.Api.Features.Dashboard;
 using TicketRush.Api.Features.Resale;
 using TicketRush.Api.Features.Waitlist;
@@ -37,6 +39,10 @@ public static class ApiServiceCollectionExtensions
     public static IServiceCollection AddApi(this IServiceCollection services)
     {
         services.AddProblemDetails(options => options.CustomizeProblemDetails = ProblemDetailsCustomizer.Customize);
+        services.AddHttpContextAccessor();
+        services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationMiddlewareResultHandler, AdminNotFoundResultHandler>();
+        // Spec 16: audit entries written during a request carry its user, IP and correlation id.
+        services.Replace(ServiceDescriptor.Singleton<TicketRush.Application.Abstractions.Audit.IAuditContext, Common.Audit.HttpAuditContext>());
         services.AddExceptionHandler<GlobalExceptionHandler>();
         services.AddOpenApi();
         services.ConfigureHttpJsonOptions(options =>
@@ -120,6 +126,7 @@ public static class ApiServiceCollectionExtensions
         v1.MapWaitlistEndpoints();
         v1.MapResaleEndpoints();
         v1.MapDashboardEndpoints();
+        v1.MapAdminEndpoints();
         v1.MapMockGatewayEndpoints();
         v1.MapPaymentWebhookEndpoints();
         v1.MapLocalStorageEndpoints();

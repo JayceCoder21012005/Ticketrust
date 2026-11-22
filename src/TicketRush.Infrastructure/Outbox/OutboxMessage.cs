@@ -37,7 +37,39 @@ public sealed class OutboxMessage
 
     public string? LastError { get; private set; }
 
-    public bool IsDeadLettered => ProcessedAt is not null && LastError is not null;
+    public bool IsDeadLettered => ProcessedAt is not null && LastError is not null && DiscardedAt is null;
+
+    /// <summary>An admin gave up on this dead letter (spec 16); the reason is kept here and in the audit log.</summary>
+    public DateTimeOffset? DiscardedAt { get; private set; }
+
+    public string? DiscardReason { get; private set; }
+
+    /// <summary>
+    /// An admin sends a dead letter back to the queue (spec 16): due now with fresh attempts. Handlers that already succeeded for it
+    /// have a consumer receipt and are skipped, so each handler still runs at most once.
+    /// </summary>
+    public void Retry(DateTimeOffset now)
+    {
+        if (!IsDeadLettered)
+        {
+            throw new InvalidOperationException("Only a dead letter can be retried.");
+        }
+
+        ProcessedAt = null;
+        Attempts = 0;
+        NextAttemptAt = now;
+    }
+
+    public void Discard(string reason, DateTimeOffset now)
+    {
+        if (!IsDeadLettered)
+        {
+            throw new InvalidOperationException("Only a dead letter can be discarded.");
+        }
+
+        DiscardedAt = now;
+        DiscardReason = reason.Length > 500 ? reason[..500] : reason;
+    }
 
     public void MarkProcessed(DateTimeOffset now)
     {

@@ -80,7 +80,7 @@ internal static class TicketQueries
 public static class TicketDisplay
 {
     public static bool CanShowQr(TicketStatus ticket, EventStatus evt, DateTimeOffset eventEndsAt, DateTimeOffset now) =>
-        ticket == TicketStatus.Valid && evt == EventStatus.Published && eventEndsAt > now;
+        ticket == TicketStatus.Valid && evt is EventStatus.Published or EventStatus.Suspended && eventEndsAt > now;
 }
 
 /// <summary>Turns <see cref="TicketRow"/>s into <see cref="TicketItem"/>s: tier names, seat labels (from <see cref="SeatLabels"/>) and the holder's name.</summary>

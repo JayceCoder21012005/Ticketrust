@@ -3,6 +3,7 @@ using TicketRush.Domain.Primitives;
 namespace TicketRush.Domain.Events;
 
 /// <summary>A sale window of an event. Owned by <see cref="Event"/>; only created through it.</summary>
+[TicketRush.Domain.Audit.Audited]
 public sealed class SalePhase : Entity
 {
     public const int MinTicketsPerUser = 1;

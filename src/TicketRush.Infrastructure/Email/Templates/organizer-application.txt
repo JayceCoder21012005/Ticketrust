@@ -1,0 +1,15 @@
+Subject: {{ if decision == "approved" }}Bạn đã trở thành nhà tổ chức trên TicketRush{{ else }}Đơn đăng ký nhà tổ chức chưa được duyệt{{ end }}
+
+Xin chào {{ name }},
+
+{{ if decision == "approved" }}Đơn đăng ký nhà tổ chức của bạn trên TicketRush đã được duyệt. Bạn có thể tạo và mở bán sự kiện ngay.
+
+Ghi chú của quản trị viên: {{ reason }}
+
+Vào khu nhà tổ chức:
+{{ link }}{{ else }}Đơn đăng ký nhà tổ chức của bạn trên TicketRush chưa được duyệt.
+
+Lý do: {{ reason }}
+
+Bạn có thể bổ sung thông tin và gửi lại đơn bất cứ lúc nào:
+{{ link }}{{ end }}

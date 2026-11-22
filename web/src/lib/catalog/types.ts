@@ -2,7 +2,7 @@
  * Catalog shapes as the api serializes them (spec 04). Hand-written instead of the generated `schema.d.ts`
  * types because those widen every int64 to `number | string` (the api only ever sends numbers).
  */
-export type EventStatus = "Draft" | "Published" | "Ended" | "Cancelled";
+export type EventStatus = "Draft" | "Published" | "Ended" | "Cancelled" | "Suspended";
 export type TicketKind = "Seated" | "GeneralAdmission";
 
 export type EventSummary = {

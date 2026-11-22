@@ -7,7 +7,7 @@ using TicketRush.Infrastructure.Persistence;
 
 namespace TicketRush.Infrastructure.Identity;
 
-internal sealed class IdentityService(UserManager<AppUser> users, AppDbContext db) : IIdentityService
+internal sealed class IdentityService(UserManager<AppUser> users, AppDbContext db, TicketRush.Application.Abstractions.Audit.IAuditLogger audit) : IIdentityService
 {
     // Unknown emails are checked against this hash so they cost as much time as a wrong password.
     private static readonly PasswordHasher<AppUser> Hasher = new();
@@ -56,18 +56,23 @@ internal sealed class IdentityService(UserManager<AppUser> users, AppDbContext d
         if (user is null)
         {
             Hasher.VerifyHashedPassword(new AppUser(), DummyHash.Value, password);
+            await audit.LogAsync("auth.login_failed", "user", null, new { email }, ct);
             return AuthErrors.InvalidCredentials;
         }
 
         if (await users.IsLockedOutAsync(user))
         {
+            await audit.LogAsync("auth.locked_out", "user", user.Id.ToString(), new { email }, ct);
             return AuthErrors.LockedOut;
         }
 
         if (!await users.CheckPasswordAsync(user, password))
         {
             await users.AccessFailedAsync(user);
-            return await users.IsLockedOutAsync(user) ? AuthErrors.LockedOut : AuthErrors.InvalidCredentials;
+            var locked = await users.IsLockedOutAsync(user);
+            // Spec 16: every failed sign-in, and the one that locks the account, is on the record.
+            await audit.LogAsync(locked ? "auth.locked_out" : "auth.login_failed", "user", user.Id.ToString(), new { email }, ct);
+            return locked ? AuthErrors.LockedOut : AuthErrors.InvalidCredentials;
         }
 
         await users.ResetAccessFailedCountAsync(user);
