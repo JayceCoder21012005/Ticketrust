@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Hourglass, LayoutDashboard, ReceiptText, Ticket, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, Building2, Hourglass, LayoutDashboard, ReceiptText, Ticket, UserRound, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { t } from "@/lib/i18n.buyer";
@@ -13,6 +13,7 @@ const ITEMS: { href: string; key: string; icon: LucideIcon }[] = [
   { href: "/account/waitlist", key: "accountHub.nav.waitlist", icon: Hourglass },
   { href: "/account/notifications", key: "accountHub.nav.notifications", icon: Bell },
   { href: "/account/profile", key: "accountHub.nav.profile", icon: UserRound },
+  { href: "/account/organizer", key: "accountHub.nav.organizer", icon: Building2 },
 ];
 
 const isCurrent = (pathname: string, href: string) => (href === "/account" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`));

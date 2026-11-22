@@ -227,7 +227,8 @@
           "order_closed": "The payment arrived after the order was closed.",
           "amount_mismatch": "The amount the gateway recorded does not match the order.",
           "duplicate_payment": "This order was already paid, so the second payment is refunded.",
-          "other": "The order was no longer valid when the payment was confirmed."
+          "other": "The order was no longer valid when the payment was confirmed.",
+          "admin_refund": "An admin refunded this order on request."
         }
       },
       "refunded": {
@@ -445,7 +446,8 @@
       "orders": "Orders",
       "notifications": "Notifications",
       "profile": "Profile",
-      "waitlist": "Waitlist"
+      "waitlist": "Waitlist",
+      "organizer": "Become an organizer"
     },
     "greeting": "Hello, {name}",
     "explore": "Explore events",
@@ -465,7 +467,23 @@
       "empty": "You do not follow any event yet."
     },
     "profileTitle": "Profile",
-    "profileDescription": "Personal details used when you buy tickets."
+    "profileDescription": "Personal details used when you buy tickets.",
+    "organizer": {
+      "title": "Become an organizer",
+      "intro": "Send your company details for TicketRush to review. Once approved you can create and sell events.",
+      "already": "Your account is an organizer already.",
+      "open": "Open the organizer area",
+      "company": "Company name",
+      "phone": "Contact phone",
+      "description": "About you (kind and size of events)",
+      "submit": "Send application",
+      "reason": "Admin note: {reason}",
+      "status": {
+        "Pending": "Waiting for review",
+        "Approved": "Approved",
+        "Rejected": "Not approved"
+      }
+    }
   },
   "waitlist": {
     "loadFailed": "Could not load your waitlist status.",

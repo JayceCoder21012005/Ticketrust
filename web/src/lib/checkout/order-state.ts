@@ -36,6 +36,7 @@ export function isPastDeadline(order: Pick<Order, "expiresAt" | "serverNow">): b
 
 const REFUND_REASONS = new Set([
   "event_cancelled",
+  "admin_refund",
   "event_ended",
   "seats_unavailable",
   "purchase_limit_exceeded",
