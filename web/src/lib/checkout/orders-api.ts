@@ -1,6 +1,7 @@
 import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { ApiError, type ProblemDetails } from "@/lib/errors";
+import { currentPurchaseTrace, traceHeader } from "./purchase-trace";
 import type { CreateOrderBody, MockOutcome, MockSession, Order, OrderPage, PayResult } from "./types";
 
 type RawOrder = components["schemas"]["OrderResponse"];
@@ -39,7 +40,7 @@ const normaliseSession = (raw: RawSession): MockSession => ({ ...raw, amount: Nu
  * only goes on to `/checkout/{id}`. Reuse `idempotencyKey` when retrying the same request (C2).
  */
 export async function createOrder(body: CreateOrderBody, idempotencyKey: string): Promise<Order> {
-  const result = await api.POST("/api/v1/orders", { headers: { "Idempotency-Key": idempotencyKey }, body });
+  const result = await api.POST("/api/v1/orders", { headers: { "Idempotency-Key": idempotencyKey, ...traceHeader(currentPurchaseTrace()) }, body });
   if (result.data === undefined) {
     throw fail(result.response.status, result.error);
   }
@@ -58,7 +59,10 @@ export async function getOrder(id: string, signal?: AbortSignal): Promise<Order>
 
 /** `POST /orders/{id}/pay`: where to send the buyer. The caller owns the Idempotency-Key policy (see idempotency.ts). */
 export async function payOrder(id: string, idempotencyKey: string): Promise<PayResult> {
-  const result = await api.POST("/api/v1/orders/{id}/pay", { params: { path: { id } }, headers: { "Idempotency-Key": idempotencyKey } });
+  const result = await api.POST("/api/v1/orders/{id}/pay", {
+    params: { path: { id } },
+    headers: { "Idempotency-Key": idempotencyKey, ...traceHeader(currentPurchaseTrace()) },
+  });
   if (result.data === undefined) {
     throw fail(result.response.status, result.error);
   }

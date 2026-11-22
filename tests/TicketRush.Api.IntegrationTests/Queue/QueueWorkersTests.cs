@@ -31,7 +31,10 @@ public sealed class QueueWorkersTests(ContainersFixture containers)
         new(live, new WaitingRoomOpener(h.Redis, h.Keys), LockFor(h), time ?? h.Time, NullLogger<QueueOpenerService>.Instance);
 
     private static QueueAdmitterService AdmitterFor(QueueRoomHarness h, LiveSales live, TimeProvider? time = null) =>
-        new(live, new WaitingRoomAdmitter(h.Redis, h.Keys, Options.Create(h.Options), time ?? h.Time), LockFor(h), time ?? h.Time, NullLogger<QueueAdmitterService>.Instance);
+        AdmitterFor(h, live, new RecordingSalesMetrics(), time);
+
+    private static QueueAdmitterService AdmitterFor(QueueRoomHarness h, LiveSales live, RecordingSalesMetrics metrics, TimeProvider? time = null) =>
+        new(live, new WaitingRoomAdmitter(h.Redis, h.Keys, Options.Create(h.Options), time ?? h.Time), metrics, LockFor(h), time ?? h.Time, NullLogger<QueueAdmitterService>.Instance);
 
     [Fact]
     public async Task Opener_opens_phase_at_opensAt()
@@ -62,15 +65,20 @@ public sealed class QueueWorkersTests(ContainersFixture containers)
         await using var h = await QueueRoomHarness.CreateAsync(containers);
         var sale = h.Sale(TimeSpan.FromMinutes(-1), lasts: TimeSpan.FromHours(1));
         await h.Room.JoinAsync(sale, Guid.NewGuid(), Ct);
-        var admitter = AdmitterFor(h, LiveFor(h, sale));
+        var metrics = new RecordingSalesMetrics();
+        var admitter = AdmitterFor(h, LiveFor(h, sale), metrics);
 
         await admitter.RunOnceAsync(Ct);
         ((long)await h.Db.StringGetAsync(h.Keys.QueueAdmitted(sale.PhaseId))).ShouldBe(1);
+        metrics.AdmittedTotal.ShouldBe(1);
+        // Nobody waits any more; the admitted buyer counts as shopping once they claim their turn.
+        metrics.Queues[sale.PhaseId].ShouldBe((0L, 0L));
 
         h.Time.Advance(TimeSpan.FromHours(2));
         await admitter.RunOnceAsync(Ct);
 
         (await h.Db.HashGetAsync(h.Keys.QueueState(sale.PhaseId), "status")).ToString().ShouldBe("Closed");
+        metrics.Closed.ShouldContain(sale.PhaseId);
     }
 
     [Fact]

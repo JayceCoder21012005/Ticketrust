@@ -9,6 +9,7 @@ builder.AddServiceDefaults();
 builder.AddInfrastructure();
 builder.Services.AddApplication();
 builder.Services.AddApi();
+TicketRush.Api.Features.LoadTest.LoadTestEndpoints.AddLoadTestFixtures(builder.Services, builder.Environment);
 builder.Services.AddTicketRushSignalR(builder.Configuration);
 
 var app = builder.Build();

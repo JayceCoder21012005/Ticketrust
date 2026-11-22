@@ -90,6 +90,9 @@ public static class DependencyInjection
         services.AddSingleton<IDistributedLock, RedisDistributedLock>();
         services.AddSingleton<DomainEventTypeRegistry>();
         services.AddSingleton<OutboxMetrics>();
+        services.AddScoped<OutboxStats>();
+        services.AddSingleton<Observability.SalesMetrics>();
+        services.AddSingleton<Application.Abstractions.Observability.ISalesMetrics>(provider => provider.GetRequiredService<Observability.SalesMetrics>());
         services.AddSingleton<OutboxProcessor>();
 
         services.AddSingleton<IAdmissionTokenFactory, AdmissionTokenFactory>();
@@ -140,6 +143,10 @@ public static class DependencyInjection
         services.AddIntegrationEventHandler<OrderPaid, OrderPaidWaitlistHandler>();
         // Spec 15: after everything that changes a ticket or a seat; the dashboard is only a view of what already happened.
         services.AddIntegrationEventHandler<OrderPaid, Dashboard.DashboardOrderPaidHandler>();
+        // Spec 17: the sale metrics count a message once its real work is done, so they come after every other handler.
+        services.AddIntegrationEventHandler<OrderPaid, Application.Features.Observability.OrderPaidMetricHandler>();
+        services.AddIntegrationEventHandler<RefundRequested, Application.Features.Observability.RefundRequestedMetricHandler>();
+        services.AddIntegrationEventHandler<PaymentRefundRequested, Application.Features.Observability.PaymentRefundRequestedMetricHandler>();
 
         PersistDataProtectionKeysToRedis(services);
         AddAccounts(services);
@@ -310,7 +317,13 @@ public static class DependencyInjection
         services.AddScoped<EventCatalogReader>();
 
         // Spec 05: after publish / cancel / edit, the worker refreshes the web's ISR pages through the outbox.
-        services.AddHttpClient<IWebCacheRevalidator, WebCacheRevalidator>(client => client.Timeout = TimeSpan.FromSeconds(10));
+        // Called from outbox handlers, which run one message after another: a web host that does not answer must not hold the
+        // whole outbox for a client-side retry budget. One short attempt; the outbox retries the message with its own backoff
+        // (spec 17 load test finding).
+#pragma warning disable EXTEXP0001 // Experimental only in name; it is the supported way to opt a client out of ConfigureHttpClientDefaults.
+        services.AddHttpClient<IWebCacheRevalidator, WebCacheRevalidator>(client => client.Timeout = TimeSpan.FromSeconds(3))
+            .RemoveAllResilienceHandlers();
+#pragma warning restore EXTEXP0001
         services.AddIntegrationEventHandler<EventPublished, CatalogRevalidationHandler>();
         services.AddIntegrationEventHandler<EventCancelled, CatalogRevalidationHandler>();
         services.AddIntegrationEventHandler<EventDetailsChanged, CatalogRevalidationHandler>();

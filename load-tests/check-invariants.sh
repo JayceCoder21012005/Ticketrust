@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs load-tests/sql/sale-invariants.sql and exits non-zero when any invariant is violated.
+# Runs load-tests/check-invariants.sql and exits non-zero when any invariant is violated.
 #
 #   0  every invariant holds (the query returned zero rows)
 #   1  at least one violation (the rows are printed)
@@ -15,7 +15,7 @@ set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd "$here/.." && pwd)"
-sql="$here/sql/sale-invariants.sql"
+sql="$here/check-invariants.sql"
 
 if [[ -n "${PSQL_CMD:-}" ]]; then
   if [[ "${LOADTEST_CONFIRM:-}" != "loadtest" ]]; then
@@ -34,12 +34,19 @@ if ! rows="$("${psql[@]}" -X -v ON_ERROR_STOP=1 -A -t -F ' | ' <"$sql")"; then
   exit 2
 fi
 
-if [[ -z "$rows" ]]; then
-  echo "sale invariants: OK (0 violations)"
-  exit 0
+if [[ -n "$rows" ]]; then
+  echo "sale invariants: VIOLATED" >&2
+  echo "check_name | subject | detail" >&2
+  echo "$rows" >&2
+  exit 1
 fi
 
-echo "sale invariants: VIOLATED" >&2
-echo "check_name | subject | detail" >&2
-echo "$rows" >&2
-exit 1
+echo "sale invariants: OK (0 violations)"
+
+# Spec 17: with an EVENT_ID (the runner passes the seeded event), Redis must agree with the database too.
+if [[ -n "${EVENT_ID:-}" && -z "${PSQL_CMD:-}" ]]; then
+  "$here/check-redis-sold.sh"
+  exit $?
+fi
+
+exit 0

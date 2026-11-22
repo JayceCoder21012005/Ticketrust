@@ -44,7 +44,8 @@ public sealed record MockSession(
     DateTimeOffset ExpiresAt,
     DateTimeOffset CreatedAt,
     MockSessionStatus Status,
-    long RefundedAmount)
+    long RefundedAmount,
+    string? TraceParent = null)
 {
     /// <summary>The status a caller sees: a pending session past its expiry is expired.</summary>
     public PaymentStatus EffectiveStatus(DateTimeOffset now) => Status switch
@@ -56,7 +57,8 @@ public sealed record MockSession(
 }
 
 /// <summary>One webhook waiting in the delivery queue. The body is signed fresh on every attempt, never stored signed.</summary>
-public sealed record MockDelivery(string DeliveryId, string Body, int Attempt);
+/// <summary>One webhook to send; <see cref="TraceParent"/> is the pay request's trace, which the delivery continues (spec 17).</summary>
+public sealed record MockDelivery(string DeliveryId, string Body, int Attempt, string? TraceParent = null);
 
 /// <summary>The JSON body of every mock webhook. Field names are the mock provider's contract with <c>VerifyAndParse</c>.</summary>
 public sealed record MockWebhookPayload(

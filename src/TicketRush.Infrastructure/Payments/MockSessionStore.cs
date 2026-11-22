@@ -129,6 +129,7 @@ public sealed class MockSessionStore(
             new("createdAt", session.CreatedAt.ToUnixTimeMilliseconds()),
             new("status", nameof(MockSessionStatus.Pending)),
             new("refunded", 0),
+            new("traceParent", session.TraceParent ?? string.Empty),
         ]);
         _ = transaction.KeyExpireAsync(key, ttl);
         return transaction.ExecuteAsync();
@@ -144,7 +145,8 @@ public sealed class MockSessionStore(
         expiresAt,
         now,
         MockSessionStatus.Pending,
-        0);
+        0,
+        Observability.TraceContext.CurrentParent());
 
     private static MockSession Parse(string sessionId, Dictionary<string, string> fields) => new(
         sessionId,
@@ -156,5 +158,6 @@ public sealed class MockSessionStore(
         DateTimeOffset.FromUnixTimeMilliseconds(long.Parse(fields["expiresAt"], CultureInfo.InvariantCulture)),
         DateTimeOffset.FromUnixTimeMilliseconds(long.Parse(fields["createdAt"], CultureInfo.InvariantCulture)),
         Enum.Parse<MockSessionStatus>(fields["status"]),
-        long.Parse(fields["refunded"], CultureInfo.InvariantCulture));
+        long.Parse(fields["refunded"], CultureInfo.InvariantCulture),
+        fields.TryGetValue("traceParent", out var traceParent) && traceParent.Length > 0 ? traceParent : null);
 }

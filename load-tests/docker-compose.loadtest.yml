@@ -1,29 +1,49 @@
-# Overlay for running load-tests/sale.js against the compose stack. Use it TOGETHER with the prod file; never on a real deployment:
+# Overlay for the spec 17 load tests. Use it TOGETHER with the prod file; never on a real deployment:
 #   docker compose -p ticketrush-loadtest -f docker-compose.prod.yml -f load-tests/docker-compose.loadtest.yml --env-file .env up -d --build
-# ALWAYS pass `-p ticketrush-loadtest`: the project name prefixes the volumes (ticketrush-loadtest_postgres-data, ...) and
-# containers, so this stack can never reuse or overwrite the volumes of a real `ticketrush` deployment on the same Docker host.
-# (-p on the command line beats `name:` in a file; the `name:` below is only a second line of defence.) Caddy is switched
-# off (its ports 80/443 belong to a real deployment); the api is reached directly on :8080.
-# - seeds the dev data (the event the scenario buys, customer@ticketrush.dev) and publishes the api on :8080;
+# (load-tests/run.sh does all of this.) ALWAYS pass `-p ticketrush-loadtest`: the project name prefixes the volumes
+# (ticketrush-loadtest_postgres-data, ...) and containers, so this stack can never reuse or overwrite the volumes of a real
+# `ticketrush` deployment on the same Docker host. (-p on the command line beats `name:` in a file; the `name:` below is only a
+# second line of defence.) Caddy is switched off (its ports 80/443 belong to a real deployment); the api is reached on :8080.
+# - api and worker run in the `LoadTest` environment: only there does POST /api/v1/loadtest/seed exist, and only with
+#   LOADTEST_KEY (run.sh makes a fresh random one per run);
 # - turns the mock gateway's control endpoints and webhook delivery worker on (they refuse to start in Production otherwise);
 # - shortens the hold to 60 s and delays "succeeded_delayed" webhooks by 90 s, so a delayed payment arrives AFTER its
-#   hold and order expired (spec 08 C3): the seat may be resold in between, which exercises the late-payment refund path.
+#   hold and order expired (spec 08 C3): the seat may be resold in between, which exercises the late-payment refund path;
+# - the CAPTCHA is the fake verifier (Turnstile's test token), so no request goes to Cloudflare;
+# - lifts the per-IP global rate limit: every virtual buyer comes from the one load generator's address, where real buyers
+#   come from as many addresses as there are buyers. Every per-user limit (queue, holds, checkout) stays as in production;
+# - access tokens live 60 min (the most the api allows): every scenario seeds fresh tokens and none runs longer;
+# - Postgres takes 300 connections: two .NET pools (api + worker) of up to 100 each overran the default 100 at VUS=100.
 name: ticketrush-loadtest
 
 x-sale-env: &sale-env
+  ASPNETCORE_ENVIRONMENT: LoadTest
+  DOTNET_ENVIRONMENT: LoadTest
+  LoadTest__Key: ${LOADTEST_KEY:-}
   Payments__Mock__Enabled: "true"
   Payments__Mock__AllowInProduction: "true"
   Payments__Mock__DelayedWebhookDelay: "00:01:30"
   Holds__TtlSeconds: "60"
+  RateLimits__Global__Permit: "100000000"
+  Jwt__AccessTokenMinutes: "60"
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
 
 services:
   caddy:
     profiles: [never]
+  postgres:
+    command: ["postgres", "-c", "max_connections=300"]
   migrations:
     environment:
       Migrations__SeedDevData: "true"
   api:
     ports: ["8080:8080"]
-    environment: *sale-env
+    environment:
+      <<: *sale-env
+      # The scenarios send Turnstile's test token: no call leaves the machine, and the real secret is never used.
+      Captcha__Provider: Fake
   worker:
-    environment: *sale-env
+    environment:
+      <<: *sale-env
+      # No web container in this stack: page revalidation is off instead of failing on every publish.
+      Frontend__RevalidateUrl: ""

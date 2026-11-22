@@ -8,6 +8,7 @@
         "http://localhost:3200/events",
         "http://localhost:3200/events/son-tung-mtp-live",
         "http://localhost:3200/login",
+        "http://localhost:3200/lab",
         "http://localhost:3200/design"
       ],
       "numberOfRuns": 5,

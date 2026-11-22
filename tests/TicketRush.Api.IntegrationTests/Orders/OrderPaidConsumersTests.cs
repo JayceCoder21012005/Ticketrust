@@ -327,7 +327,7 @@ public sealed class OrderPaidConsumersTests(ContainersFixture containers) : IAsy
 
         // The outbox runs handlers in this order and stops at the first failure: the buyer's notice (spec 09) comes first, then the
         // commit, which must not wait behind the leave.
-        handlers.ShouldBe([typeof(OrderPaidNotificationHandler), typeof(OrderPaidInventoryCommitHandler), typeof(OrderPaidLeaveQueueHandler), typeof(OrderPaidWaitlistHandler), typeof(TicketRush.Infrastructure.Dashboard.DashboardOrderPaidHandler)]);
+        handlers.ShouldBe([typeof(OrderPaidNotificationHandler), typeof(OrderPaidInventoryCommitHandler), typeof(OrderPaidLeaveQueueHandler), typeof(OrderPaidWaitlistHandler), typeof(TicketRush.Infrastructure.Dashboard.DashboardOrderPaidHandler), typeof(TicketRush.Application.Features.Observability.OrderPaidMetricHandler)]);
         _factory.Services.GetRequiredService<DomainEventTypeRegistry>().TryResolve(nameof(OrderPaid), out _).ShouldBeTrue();
     }
 
@@ -388,7 +388,7 @@ public sealed class OrderPaidConsumersTests(ContainersFixture containers) : IAsy
         snapshot.GaRemaining[_ga.Id].ShouldBe(gaBefore - 2);
         (await BoughtAsync(user)).ShouldBe(3);
         (await InAnyRoomAsync(user)).ShouldBeFalse();
-        (await ReceiptsAsync(orderId)).ShouldBe([typeof(OrderPaidNotificationHandler).FullName!, typeof(OrderPaidInventoryCommitHandler).FullName!, typeof(OrderPaidLeaveQueueHandler).FullName!, typeof(OrderPaidWaitlistHandler).FullName!, typeof(TicketRush.Infrastructure.Dashboard.DashboardOrderPaidHandler).FullName!], ignoreOrder: true);
+        (await ReceiptsAsync(orderId)).ShouldBe([typeof(OrderPaidNotificationHandler).FullName!, typeof(OrderPaidInventoryCommitHandler).FullName!, typeof(OrderPaidLeaveQueueHandler).FullName!, typeof(OrderPaidWaitlistHandler).FullName!, typeof(TicketRush.Infrastructure.Dashboard.DashboardOrderPaidHandler).FullName!, typeof(TicketRush.Application.Features.Observability.OrderPaidMetricHandler).FullName!], ignoreOrder: true);
     }
 
     [Fact]

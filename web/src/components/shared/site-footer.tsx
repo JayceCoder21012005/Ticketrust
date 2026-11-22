@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { t } from "@/lib/i18n";
 
 type SiteFooterProps = {
@@ -11,6 +12,9 @@ export function SiteFooter({ year = new Date().getFullYear() }: SiteFooterProps)
       <div className="mx-auto flex max-w-content flex-col gap-1 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:justify-between">
         <p>{t("footer.tagline")}</p>
         <p className="flex flex-col gap-1 sm:items-end">
+          <Link href="/lab" className="underline-offset-4 hover:text-foreground hover:underline">
+            {t("footer.lab")}
+          </Link>
           <span>{t("footer.rights", "vi", { year })}</span>
           <span className="text-xs">{t("footer.photos")}</span>
         </p>

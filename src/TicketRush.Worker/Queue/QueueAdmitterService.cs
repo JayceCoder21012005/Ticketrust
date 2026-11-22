@@ -1,4 +1,5 @@
 using TicketRush.Application.Abstractions.Locking;
+using TicketRush.Application.Abstractions.Observability;
 using TicketRush.Infrastructure.Queue;
 using TicketRush.Worker.Common;
 
@@ -11,6 +12,7 @@ namespace TicketRush.Worker.Queue;
 public sealed class QueueAdmitterService(
     LiveSales sales,
     WaitingRoomAdmitter admitter,
+    ISalesMetrics metrics,
     IDistributedLock distributedLock,
     TimeProvider time,
     ILogger<QueueAdmitterService> logger)
@@ -46,10 +48,13 @@ public sealed class QueueAdmitterService(
             if (now >= sale.ClosesAt)
             {
                 await admitter.CloseAsync(sale.PhaseId, ct);
+                metrics.QueueClosed(sale.PhaseId);
             }
             else if (now >= sale.OpensAt)
             {
-                await admitter.TickAsync(sale.PhaseId, ct);
+                var tick = await admitter.TickAsync(sale.PhaseId, ct);
+                metrics.Admitted((int)(tick.AdmittedAfter - tick.AdmittedBefore));
+                metrics.QueueObserved(sale.PhaseId, tick.Seq - tick.AdmittedAfter, tick.ActiveCount);
             }
         }
 

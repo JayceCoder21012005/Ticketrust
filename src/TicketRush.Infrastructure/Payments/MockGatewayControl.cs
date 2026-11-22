@@ -60,7 +60,7 @@ public sealed class MockGatewayControl(
             now);
         var body = payload.ToJson();
         var copies = outcome == MockOutcome.SucceededTwice ? 2 : 1;
-        return Enumerable.Range(0, copies).Select(_ => new MockDelivery(Guid.NewGuid().ToString("N"), body, 0)).ToList();
+        return Enumerable.Range(0, copies).Select(_ => new MockDelivery(Guid.NewGuid().ToString("N"), body, 0, session.TraceParent)).ToList();
     }
 
     private static MockSessionView ToView(MockSession session, DateTimeOffset now) => new(

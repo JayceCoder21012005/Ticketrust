@@ -14,6 +14,7 @@ internal sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outb
         builder.Property(m => m.Type).HasMaxLength(200);
         builder.Property(m => m.Payload).HasColumnType("jsonb");
         builder.Property(m => m.LastError).HasMaxLength(2000);
+        builder.Property(m => m.TraceParent).HasMaxLength(Observability.TraceContext.MaxLength);
         builder.Ignore(m => m.IsDeadLettered);
 
         // Dispatcher scan: only pending rows, in dispatch order.

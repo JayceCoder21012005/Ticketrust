@@ -183,25 +183,35 @@ npm run test:e2e                    # axe, font tiếng Việt, INP, đăng nh�
 npm run lighthouse                  # budget LCP/TBT/CLS/JS (cần Chrome)
 ```
 
-### Load test bán vé và kiểm tra bất biến
+### Load test, bất biến và observability (spec 17)
 
-`load-tests/sale.js` (k6) cho nhiều người mua cùng lúc đi hết luồng admission, giữ ghế, tạo đơn, thanh toán và nhận webhook
-(thành công, thất bại, trễ, gửi 2 lần, bỏ dở), có chủ ý tranh nhau ghế nóng và đòi vé GA nhiều hơn sức chứa. Sau đó
-`load-tests/check-sale-invariants.sh` chạy `load-tests/sql/sale-invariants.sql` và thoát với mã khác 0 nếu có vi phạm:
-một ghế có hơn một vé chưa bị huỷ, `sold_count` vượt sức chứa hoặc lệch số vé GA, đơn `Paid` thiếu vé, đơn chưa trả tiền hoặc
-đang hoàn tiền mà còn vé. Hướng dẫn đầy đủ (stack compose, dữ liệu mẫu, biến môi trường) nằm ở [load-tests/README.md](load-tests/README.md).
+`make load-test` (trên Windows không có make: `bash load-tests/run.sh` trong Git Bash) dựng stack compose riêng cho load test,
+chạy 5 kịch bản k6 và kiểm tra bất biến sau từng kịch bản, rồi ghi `web/src/features/lab/results.json` cho trang công khai
+[`/lab`](http://localhost:3000/lab). `make load-test-quick` chạy cùng quy trình ở quy mô nhỏ trong vài phút.
 
-> ⚠️ Luôn thêm `-p ticketrush-loadtest` vào mọi lệnh `docker compose` của load test: tên project khác làm volume và container tách hẳn khỏi stack `ticketrush` thật (volume thành `ticketrush-loadtest_postgres-data`, ...), nên không thể dùng lại hay ghi đè dữ liệu thật. Không bao giờ chạy overlay này trên máy chủ production; script k6 và script kiểm tra từ chối host/CSDL tự chọn nếu thiếu `LOADTEST_CONFIRM=loadtest`.
+| Kịch bản | Làm gì |
+|---|---|
+| `01-sale-open-spike` | người mua vào phòng chờ trong lúc pre-queue rồi hỏi trạng thái đúng nhịp server bảo |
+| `02-buy-flow` | admission → giữ ghế (tranh ghế nóng) → tạo đơn và thanh toán, mỗi bước bấm đúp → mock gateway |
+| `03-webhook-storm` | mỗi webhook thanh toán gửi 3 lần song song, rồi thêm 3 lần sau 0–5 phút |
+| `04-soak` | tải vừa trong 30 phút, một nửa số chỗ giữ bị bỏ cho hết hạn; lấy mẫu bộ nhớ, GC, khoá Redis |
+| `05-chaos` | luồng mua trong lúc tắt cưỡng bức worker leader, khởi động lại Redis, tạm dừng Postgres 10 s |
 
-```bash
-docker compose -p ticketrush-loadtest -f docker-compose.prod.yml -f load-tests/docker-compose.loadtest.yml --env-file .env up -d --build
-k6 run -e EVENT_ID=<uuid> -e GA_TIER_ID=<uuid> -e BUYERS=500 -e VUS=100 load-tests/sale.js
-ENV_FILE=.env load-tests/check-sale-invariants.sh      # exit 0 = mọi bất biến đúng (mặc định nhắm vào project ticketrush-loadtest)
-```
+Dữ liệu mỗi kịch bản đến từ `POST /api/v1/loadtest/seed`, endpoint chỉ tồn tại trong environment `LoadTest` và chỉ chạy với khoá
+`LOADTEST_KEY` mà runner tạo mới mỗi lần. `load-tests/check-invariants.sh` chạy `load-tests/check-invariants.sql` (cùng truy vấn với
+`SaleInvariantTests`): không ghế nào có hai vé, không hạng vé nào vượt sức chứa, đơn đã trả có đúng số vé, không ai vượt giới hạn
+vé; khi hệ thống đã lắng thì so thêm Redis với cơ sở dữ liệu. Ngân sách độ trễ là của spec cho máy riêng; trên laptop có thể không
+đạt và `/lab` ghi đúng như vậy. Chi tiết: [load-tests/README.md](load-tests/README.md).
 
-Bản tự động của cùng truy vấn là `SaleInvariantTests` (dòng `dotnet test` ở trên). Lần chạy k6 thật (2026-11-10, laptop, một node, `BUYERS=500 VUS=50`, GA thu nhỏ còn 60): 253 đơn `Paid`, 64 `Expired`, 2 `Refunded`, mỗi ghế tối đa 1 vé, `sold_count` GA 52/60, `sale_unexpected_responses` = 0, 
-`check-sale-invariants.sh` thoát với mã 0 (ngay sau khi chạy và 3 phút sau, khi webhook trễ đã về). p99 giữ ghế 244 ms và checkout 764 ms nên chỉ qua với ngưỡng cho laptop (`HOLD_P99_MS=1000 CHECKOUT_P99_MS=2000`); mức mặc định 150/300 ms là ngân sách spec 17 cho máy riêng. 
-Với `VUS=100` bất biến vẫn đúng nhưng 6 lần đăng nhập trả 500 vì Postgres hết kết nối (`max_connections` 100): giữ `VUS` ở 50 với cấu hình mặc định. Chi tiết và ghi chú chạy ở [load-tests/README.md](load-tests/README.md).
+> ⚠️ Mọi lệnh compose của load test đều có `-p ticketrush-loadtest`: volume và container tách hẳn khỏi stack `ticketrush` thật.
+> Không bao giờ chạy overlay này trên máy chủ production; script k6 và script kiểm tra từ chối host/CSDL tự chọn nếu thiếu `LOADTEST_CONFIRM=loadtest`.
+
+**Observability.** Mỗi lượt mua là một trace (giữ chỗ → đơn → thanh toán → webhook → outbox → email): trang checkout gửi một
+`traceparent`, outbox, hàng đợi email và mock gateway lưu nó để bước sau nối tiếp. Meter `TicketRush` có các metric của spec
+(`ticketrush.queue.length`, `ticketrush.holds.created_total{result}`, `ticketrush.payment.gateway.duration`, `ticketrush.outbox.lag_seconds`, ...).
+Trên VPS: `docker compose -f docker-compose.prod.yml -f docker-compose.observability.yml --env-file .env up -d` bật OTel Collector,
+Prometheus, Tempo và Grafana (dashboard "Flash sale" và 4 cảnh báo của spec, nạp sẵn từ file). Các cổng chỉ mở trên `127.0.0.1`:
+vào Grafana qua SSH tunnel (`ssh -L 3001:127.0.0.1:3001 vps`).
 
 CI (`.github/workflows/ci.yml`) gồm tất cả các bước trên (trừ lần chạy k6). Nó cũng kiểm tra API client không bị lệch so với
 OpenAPI, và audit dependency: code ship ra production không được có lỗ hổng nào, công cụ dev không được có

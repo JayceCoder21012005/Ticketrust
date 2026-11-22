@@ -18,6 +18,7 @@ public sealed class HoldWorkersTests(ContainersFixture containers) : IAsyncLifet
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
     private InventoryHarness _h = null!;
+    private readonly RecordingSalesMetrics _metrics = new();
 
     public async ValueTask InitializeAsync() => _h = await InventoryHarness.CreateAsync(containers, gaCapacity: 10);
 
@@ -60,10 +61,10 @@ public sealed class HoldWorkersTests(ContainersFixture containers) : IAsyncLifet
 
     private HoldExpiryService Sweeper(TimeProvider? time = null) =>
         new(new LiveInventoryEvents(new FixedEvents(new LiveInventoryEvent(_h.EventId, _h.GaTiers)), Options.Create(new QueueOptions()), time ?? _h.Time),
-            _h.Store, Lock(), time ?? _h.Time, NullLogger<HoldExpiryService>.Instance);
+            _h.Store, _metrics, Lock(), time ?? _h.Time, NullLogger<HoldExpiryService>.Instance);
 
     private InventoryReconcilerService Reconciler(ISoldInventorySource? sold = null) =>
-        new(Live(), _h.Store, Scopes(sold), Lock(), _h.Time, NullLogger<InventoryReconcilerService>.Instance);
+        new(Live(), _h.Store, Scopes(sold), _metrics, Lock(), _h.Time, NullLogger<InventoryReconcilerService>.Instance);
 
     [Fact]
     public async Task A_quick_pass_warms_cold_live_events()
@@ -85,9 +86,11 @@ public sealed class HoldWorkersTests(ContainersFixture containers) : IAsyncLifet
 
         await reconciler.RunOnceAsync(full: false, Ct);
         ((int)await _h.Db.StringGetAsync(_h.Keys.InvGa(_h.EventId, _h.GaTier))).ShouldBe(99);
+        _metrics.Drift.ShouldBe(0);
 
         await reconciler.RunOnceAsync(full: true, Ct);
         ((int)await _h.Db.StringGetAsync(_h.Keys.InvGa(_h.EventId, _h.GaTier))).ShouldBe(10);
+        _metrics.Drift.ShouldBe(1);
     }
 
     [Theory]
@@ -121,6 +124,7 @@ public sealed class HoldWorkersTests(ContainersFixture containers) : IAsyncLifet
         await Sweeper().RunOnceAsync(Ct);
 
         (await _h.Store.GetSnapshotAsync(_h.EventId, _h.GaTiers, Ct)).Held.ShouldBe([2]);
+        _metrics.Expired.ShouldBe(1);
         (await _h.OwnerOfAsync(2)).ShouldBe(kept.HoldId!.Value.ToString("N"));
         var deadline = DateTime.UtcNow.AddSeconds(5);
         while (messages.IsEmpty && DateTime.UtcNow < deadline)

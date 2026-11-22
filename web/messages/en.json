@@ -35,7 +35,8 @@
   "footer": {
     "tagline": "Fast, fair tickets. Never the same seat twice.",
     "rights": "© {year} TicketRush",
-    "photos": "Backdrop photos: Unsplash"
+    "photos": "Backdrop photos: Unsplash",
+    "lab": "Load test results"
   },
   "event": {
     "buy": "Buy tickets"

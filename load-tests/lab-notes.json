@@ -1,0 +1,20 @@
+{
+  "scaleNote": "Laptop scale: scenario 01 ran 2,000 virtual buyers instead of the spec's 20,000; the others ran at the shape the spec gives. All virtual buyers come from one address, so the per-IP global limit is lifted for the run; every per-user limit (waiting room, holds, checkout) stays as in production.",
+  "brokeAndFixed": [
+    {
+      "title": "An unreachable web host stalled the whole outbox",
+      "what": "In the first webhook-storm run, 59 outbox messages were still waiting a minute after the load, and Redis had not yet counted a single seat sold. The page-revalidation call (after an event is published) went to a web host that did not answer; its HTTP client retried within a 30 s budget, and the outbox handles messages one after another, so inventory commits, emails and refunds queued behind it.",
+      "fix": "The revalidation call gets one 3 s attempt with no client-side retries; the outbox already retries a failed message with its own backoff. Pinned by an integration test against a host that accepts connections and never answers. The outbox lag gauge and its Grafana alert (> 30 s) now make this visible during a sale."
+    },
+    {
+      "title": "Postgres ran out of connections at 100 buyers",
+      "what": "The first sale run (spec 08, 2026-11-10) at 100 concurrent buyers answered 6 logins with 500 (53300 too many clients): two .NET connection pools of up to 100 each, against Postgres' default of 100. The invariants still held.",
+      "fix": "The load-test stack runs Postgres with max_connections = 300. In production the same sizing rule applies: pool size × services must stay under max_connections."
+    },
+    {
+      "title": "Latency budgets missed on the laptop",
+      "what": "With 100 concurrent buyers in the buy flow, hold p99 was about 620 ms and checkout p99 about 920 ms against budgets of 150 and 300 ms; at the soak's steady 2 buyers per second they were 51 and 35 ms. The stack, Postgres, Redis, the observability stack and k6 share one laptop's CPU.",
+      "fix": "Not fixed, and not hidden: the budgets are the spec's for a dedicated machine and are shown as missed. Correctness did not depend on it: every invariant held in every scenario."
+    }
+  ]
+}

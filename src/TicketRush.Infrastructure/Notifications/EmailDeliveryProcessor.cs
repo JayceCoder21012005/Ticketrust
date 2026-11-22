@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -41,6 +42,8 @@ public sealed partial class EmailDeliveryProcessor(
     IOptions<EmailDeliveryOptions> options,
     ILogger<EmailDeliveryProcessor> logger)
 {
+    public static readonly ActivitySource ActivitySource = new("TicketRush.Email");
+
     private enum RowResult
     {
         NothingDue,
@@ -95,6 +98,10 @@ public sealed partial class EmailDeliveryProcessor(
             return RowResult.NothingDue;
         }
 
+        // Spec 17: the send joins the trace of whatever queued the email (an outbox handler of the purchase, usually).
+        var parent = db.Entry(delivery).Property<string?>(Persistence.Configurations.EmailDeliveryConfiguration.TraceParentProperty).CurrentValue;
+        using var activity = ActivitySource.StartActivity($"email send {delivery.Template}", ActivityKind.Producer, Observability.TraceContext.ParentOf(parent));
+        activity?.SetTag("email.delivery.id", delivery.Id);
         var result = await HandleOneAsync(delivery, ct);
         await db.SaveChangesAsync(CancellationToken.None);
         await transaction.CommitAsync(CancellationToken.None);

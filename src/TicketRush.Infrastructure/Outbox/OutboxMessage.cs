@@ -8,9 +8,10 @@ namespace TicketRush.Infrastructure.Outbox;
 /// </summary>
 public sealed class OutboxMessage
 {
-    public OutboxMessage(Guid id, string type, string payload, Guid? aggregateId, DateTimeOffset occurredAt)
+    public OutboxMessage(Guid id, string type, string payload, Guid? aggregateId, DateTimeOffset occurredAt, string? traceParent = null)
     {
         Id = id;
+        TraceParent = traceParent;
         Type = type;
         Payload = payload;
         AggregateId = aggregateId;
@@ -19,6 +20,9 @@ public sealed class OutboxMessage
     }
 
     public Guid Id { get; private set; }
+
+    /// <summary>The W3C traceparent of the work that wrote the message (spec 17), so its handling joins that trace.</summary>
+    public string? TraceParent { get; private set; }
 
     public string Type { get; private set; }
 
