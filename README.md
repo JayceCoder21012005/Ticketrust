@@ -25,12 +25,18 @@ nhanh và **không bao giờ bán trùng một ghế**. Toàn bộ đặc tả n
 | [03](specs/03-auth-and-user-accounts.md) | Đăng ký, đăng nhập, refresh token, hồ sơ, phân quyền | ✅ Hoàn thành |
 | [04](specs/04-event-catalog-and-search.md) | Trang chủ, danh sách và tìm kiếm sự kiện, trang chi tiết, cache | ✅ Hoàn thành |
 | [05](specs/05-organizer-event-management.md) | Khu nhà tổ chức: địa điểm, wizard tạo sự kiện, sơ đồ ghế, đợt mở bán, xuất bản, huỷ | ✅ Hoàn thành |
-| [06](specs/06-virtual-waiting-room.md) | Phòng chờ: hàng đợi ngẫu nhiên trước giờ mở bán, nhận người theo tốc độ, admission token gắn với tài khoản, trạng thái phòng theo kho vé. Còn CAPTCHA (12), waitlist (13) | 🟡 Gần xong |
+| [06](specs/06-virtual-waiting-room.md) | Phòng chờ: hàng đợi ngẫu nhiên trước giờ mở bán, nhận người theo tốc độ, admission token gắn với tài khoản, trạng thái phòng theo kho vé, CAPTCHA khi vào hàng (12), waitlist khi hết vé (13) | ✅ Hoàn thành |
 | [07](specs/07-seat-selection-and-hold.md) | Chọn ghế trên sơ đồ trực tiếp, giữ ghế 8 phút bằng Lua nguyên tử trên Redis, cập nhật thời gian thực qua SignalR | ✅ Hoàn thành |
-| [08](specs/08-checkout-and-payment.md) | Thanh toán: đơn hàng từ lượt giữ ghế, cổng thanh toán giả lập (ký webhook, chống gửi trùng, thanh toán trễ), phát vé đúng một lần, hoàn tiền tự động, các trang checkout và `/account/orders`. Đã chạy k6 `load-tests/sale.js` trên stack compose (50 người mua đồng thời, 0 vi phạm bất biến) | ✅ Hoàn thành |
-| [09](specs/09-notifications-and-email.md) | Thông báo và email: chuông thông báo, trang `/account/notifications`, toast thời gian thực qua SignalR, email giao qua bảng `email_deliveries` và worker (thử lại, dead-letter), 8 mẫu email tiếng Việt kiểm tra bằng Mailpit, nút "Nhắc tôi" và nhắc lịch (mở bán trước 30 phút, sự kiện trước 24 giờ). Xem [runbook email](docs/runbooks/email-delivery.md). Còn lại cho spec 13 và 14: thông báo waitlist và chuyển vé | ✅ Hoàn thành |
-| [10](specs/10-e-tickets-and-rotating-qr.md) | Vé điện tử: trang `/account/tickets`, ví vé `/tickets/[id]` với mã QR đổi mỗi 15 giây (tính phía trình duyệt bằng Web Crypto, bộ mã hoá QR viết trong repo, kiểm tra bằng zxing-cpp 1049/1049), `GET /me/tickets`, `/tickets/{id}`, `/tickets/{id}/qr-key` (chỉ chủ vé, giới hạn 10 lần/phút), dùng được khi mất mạng nhờ kho khoá IndexedDB và service worker (chỉ vé đã mở khi có mạng trên thiết bị đó). Xem [runbook khoá QR](docs/runbooks/ticket-qr-keys.md). Còn lại cho spec 11 (quét tại cổng, giờ check-in), 12 (giới hạn tốc độ `qr-key` thay bản Redis tạm) và 14 (đổi bí mật khi chuyển vé) | ✅ Hoàn thành |
-| [11](specs/11-gate-check-in.md) – [17](specs/17-load-testing-and-observability.md) | Quét vé tại cổng… (spec 17 mới có kịch bản bán vé và bộ kiểm tra bất biến trong `load-tests/`) | ⏳ Chưa làm |
+| [08](specs/08-checkout-and-payment.md) | Thanh toán: đơn hàng từ lượt giữ ghế, cổng thanh toán giả lập (ký webhook, chống gửi trùng, thanh toán trễ), phát vé đúng một lần, hoàn tiền tự động, các trang checkout và `/account/orders`. Lần chạy k6 đầu tiên trên stack compose: 50 người mua đồng thời, 0 vi phạm bất biến (spec 17 thay bằng bộ load test đầy đủ) | ✅ Hoàn thành |
+| [09](specs/09-notifications-and-email.md) | Thông báo và email: chuông thông báo, trang `/account/notifications`, toast thời gian thực qua SignalR, email giao qua bảng `email_deliveries` và worker (thử lại, dead-letter), 8 mẫu email tiếng Việt kiểm tra bằng Mailpit, nút "Nhắc tôi" và nhắc lịch (mở bán trước 30 phút, sự kiện trước 24 giờ). Xem [runbook email](docs/runbooks/email-delivery.md) | ✅ Hoàn thành |
+| [10](specs/10-e-tickets-and-rotating-qr.md) | Vé điện tử: trang `/account/tickets`, ví vé `/tickets/[id]` với mã QR đổi mỗi 15 giây (tính phía trình duyệt bằng Web Crypto, bộ mã hoá QR viết trong repo, kiểm tra bằng zxing-cpp 1049/1049), `GET /me/tickets`, `/tickets/{id}`, `/tickets/{id}/qr-key` (chỉ chủ vé, giới hạn 10 lần/phút), dùng được khi mất mạng nhờ kho khoá IndexedDB và service worker (chỉ vé đã mở khi có mạng trên thiết bị đó). Xem [runbook khoá QR](docs/runbooks/ticket-qr-keys.md) | ✅ Hoàn thành |
+| [11](specs/11-gate-check-in.md) | Soát vé tại cổng: nhà tổ chức phân công nhân viên cổng, trang `/gate` quét QR bằng camera điện thoại, trả lời xanh/đỏ, mỗi vé chỉ vào cổng một lần, ghi lại mọi lượt quét, số liệu check-in theo sự kiện | ✅ Hoàn thành |
+| [12](specs/12-anti-bot-and-rate-limiting.md) | Chống bot: Cloudflare Turnstile khi đăng ký, khi đăng nhập sai 3 lần và khi vào hàng chờ; giới hạn tốc độ trên Redis theo từng loại request; honeypot; giới hạn vé mỗi người; tự gắn cờ tài khoản đáng ngờ cho admin xem | ✅ Hoàn thành |
+| [13](specs/13-sold-out-waitlist.md) | Waitlist khi hết vé: vé trả lại hoặc vé đăng bán lại được mời người chờ theo thứ tự đến trước, kèm thời hạn nhận; trang `/account/waitlist` và `/waitlist/offers/[id]` | ✅ Hoàn thành |
+| [14](specs/14-ticket-resale-and-transfer.md) | Bán lại vé (giá không vượt mệnh giá) và chuyển vé cho bạn bè qua email; đổi chủ thì vé cũ bị huỷ và QR mới được tạo | ✅ Hoàn thành |
+| [15](specs/15-organizer-realtime-dashboard.md) | Dashboard nhà tổ chức theo thời gian thực: vé bán, doanh thu, phễu chuyển đổi, hàng chờ, biểu đồ theo phút, sơ đồ nhiệt ghế, xuất CSV người tham dự | ✅ Hoàn thành |
+| [16](specs/16-admin-and-audit-log.md) | Khu Admin (`/admin`): người dùng và vai trò, duyệt đơn đăng ký nhà tổ chức, tạm ngưng sự kiện, hoàn tiền thủ công, message outbox lỗi, cờ rủi ro; audit log chỉ ghi thêm, không sửa được | ✅ Hoàn thành |
+| [17](specs/17-load-testing-and-observability.md) | Load test 5 kịch bản k6 chạy thật, kiểm tra bất biến, metric và trace OpenTelemetry, Grafana/Prometheus/Tempo, trang kết quả công khai `/lab`. Xem [Load test](#load-test-bất-biến-và-observability-spec-17) | ✅ Hoàn thành |
 | [18](docs/superpowers/specs/2026-11-22-momo-payment-design.md) | Thanh toán MoMo ở môi trường sandbox: chuyển sang trang của MoMo, IPN có ký (trả 204), xác nhận khi người mua quay về, hoàn tiền qua MoMo. Xem [Thanh toán MoMo](#thanh-toán-momo-sandbox) | ✅ Hoàn thành |
 
 ## Yêu cầu
@@ -68,7 +74,7 @@ Các resource Aspire khởi động:
 | `mailpit` | Hộp thư giả: mọi email của hệ thống đều nằm ở đây, không gửi ra ngoài |
 | `migrations` | Chạy migration và nạp dữ liệu mẫu, rồi dừng |
 | `api` | ASP.NET Core Minimal API (`/api/v1/*`) |
-| `worker` | Background service: gửi outbox và email, hết hạn đơn hàng, hoàn tiền, giao webhook của cổng thanh toán giả lập |
+| `worker` | Background service: gửi outbox và email, nhận người từ hàng chờ, hết hạn lượt giữ ghế và đơn hàng, hoàn tiền, mời người trong waitlist, dọn tin bán lại, đẩy số liệu dashboard, giao webhook của cổng thanh toán giả lập |
 | `web-installer` | Chạy `npm install` cho `web/` trước khi `web` khởi động |
 | `web` | Next.js (`npm run dev`); chuyển tiếp `/api`, `/hubs`, `/media` sang `api` |
 
@@ -97,8 +103,8 @@ Tất cả dùng chung mật khẩu **`Dev@12345`** và đều đã xác nhận 
 | `admin@ticketrush.dev` | Lê Quản Trị | `Admin` | Quản trị: hoàn tiền, audit log |
 | `gate@ticketrush.dev` | Phạm Soát Vé | `GateStaff` | Nhân viên soát vé tại cổng |
 
-Khu nhà tổ chức (`/organizer`) có từ spec 05; khu Admin và GateStaff sẽ có từ spec 16 và 11. Các policy phân
-quyền đã có sẵn ở API từ spec 03.
+Khu nhà tổ chức là `/organizer`, khu Admin là `/admin` và trang soát vé là `/gate`. Tài khoản `gate@ticketrush.dev` chỉ thấy
+những sự kiện mà nhà tổ chức đã phân công cho nó, ở mục nhân viên cổng của sự kiện đó.
 
 **Tạo tài khoản mới:** đăng ký tại `/register`. Mật khẩu cần ít nhất 10 ký tự, gồm cả chữ và số, và không
 trùng với email. Email xác nhận nằm trong **Mailpit** (mở từ dashboard); bấm link trong email để xác nhận.
@@ -137,13 +143,23 @@ Tài khoản chưa xác nhận vẫn đăng nhập được, nhưng sẽ không 
 | `/events/{slug}/seats` | Chọn ghế (cần lượt vào từ phòng chờ). Bấm "Mua vé" ở trang sự kiện → phòng chờ → tự chuyển sang trang này. Chọn ghế trên sơ đồ (chuột hoặc phím mũi tên + Enter), hoặc "Chọn chỗ tốt nhất", rồi "Tiếp tục" để giữ ghế 8 phút. Ghế người khác vừa giữ đổi trạng thái ngay, không cần tải lại |
 | `/events/{slug}/queue` | Phòng chờ (cần đăng nhập và email đã xác nhận). Sự kiện mẫu "Hà Anh Tuấn" mở bán sau 5 phút, "Vũ Cát Tường" sau 20 phút: vào phòng chờ trước giờ mở để được xếp ngẫu nhiên, khi mở bán sẽ được nhận dần 50 người/giây (cấu hình `Queue` trong `appsettings.json`) |
 | `/events/{slug}/checkout` | Bước người mua (sau khi giữ ghế): tên, email, số điện thoại, đếm ngược giữ chỗ. Bấm "Tiếp tục" tạo đơn hàng rồi chuyển sang `/checkout/{orderId}` |
-| `/checkout/{orderId}` | Tóm tắt đơn, điều khoản, "Thanh toán" (bấm đúp vẫn chỉ tạo một phiên), "Huỷ đơn" khi đơn còn `Pending`. Chuyển sang cổng thanh toán giả lập `/mock-gateway/{sessionId}`: *Thành công*, *Thất bại*, *Thành công – webhook trễ 3 phút*, *Gửi webhook 2 lần*. Trang chỉ có khi cổng giả lập bật (mặc định bật ở dev, tắt ở production: trả 404) |
-| `/checkout/{orderId}/result` | Kết quả: đang xác nhận, thành công, thất bại (thử lại), hết hạn, đang hoàn tiền (kèm lý do), đã hoàn tiền |
+| `/checkout/{orderId}` | Tóm tắt đơn, điều khoản, "Thanh toán" (bấm đúp vẫn chỉ tạo một phiên), "Huỷ đơn" khi đơn còn `Pending`. Mặc định chuyển sang cổng giả lập `/mock-gateway/{sessionId}`: *Thành công*, *Thất bại*, *Thành công – webhook trễ 3 phút*, *Gửi webhook 2 lần*. Trang này chỉ có khi cổng giả lập bật (mặc định bật ở dev, tắt ở production: trả 404). Khi bật MoMo thì chuyển sang trang sandbox của MoMo (xem [Thanh toán MoMo](#thanh-toán-momo-sandbox)) |
+| `/checkout/{orderId}/result` | Kết quả: đang xác nhận, thành công, thất bại (thử lại), hết hạn, đang hoàn tiền (kèm lý do), đã hoàn tiền. Khi mới quay về, trang nhờ server hỏi lại cổng thanh toán, nên không phải chờ webhook |
 | `/account/orders` | Đơn hàng của tôi (danh sách, "Xem thêm") và chi tiết có dòng thời gian trạng thái |
+| `/account/tickets`, `/tickets/{id}` | Vé của tôi và ví vé với mã QR đổi mỗi 15 giây (dùng được khi mất mạng nếu đã mở vé một lần). Từ ví vé: đăng bán lại hoặc chuyển cho bạn |
+| `/events/{slug}` khi có vé bán lại | Danh sách vé người khác đang bán lại, mua như mua vé thường |
+| `/transfers/{id}` | Người nhận mở link trong email để nhận vé được chuyển |
+| `/account/waitlist`, `/waitlist/offers/{id}` | Các waitlist đang tham gia; lời mời mua khi có vé trả lại, kèm đếm ngược thời hạn nhận |
+| `/account/notifications` | Thông báo: chuông trên header và toast thời gian thực |
+| `/account/organizer` | Gửi đơn đăng ký làm nhà tổ chức (admin duyệt) |
 | `/design` | Design system: token màu, component dùng chung, màu ghế trên sơ đồ |
 | `/organizer/events` | Đăng nhập bằng `organizer@ticketrush.dev`. Danh sách sự kiện (lọc theo trạng thái, tìm không dấu), nút "Tạo sự kiện" (5 trường, tạo ngay bản nháp) |
 | `/organizer/events/{id}/info` → `review` | Wizard 5 bước, tự lưu: thông tin và ảnh cover cắt 16:9 → hạng vé → sơ đồ (mẫu dựng sẵn, xem trước SVG) → đợt mở bán (dòng thời gian, mã presale) → checklist, xem trước trang người mua, xuất bản, huỷ |
 | `/organizer/venues` | Địa điểm dùng chung và địa điểm riêng, "Thêm địa điểm" |
+| `/organizer/dashboard`, `/organizer/events/{id}/dashboard` | Dashboard bán vé cập nhật mỗi giây: vé bán, doanh thu, phễu, hàng chờ, biểu đồ theo phút, sơ đồ nhiệt ghế, xuất CSV |
+| `/gate`, `/gate/{eventId}` | Đăng nhập bằng `gate@ticketrush.dev` (cần được phân công trước). Quét QR trên vé bằng camera (hoặc nhập mã tay), xanh là cho vào, đỏ kèm lý do; số người đã vào |
+| `/admin` | Đăng nhập bằng `admin@ticketrush.dev`. Người dùng (khoá, cấp/thu vai trò), đơn đăng ký nhà tổ chức, sự kiện (tạm ngưng), đơn hàng (hoàn tiền thủ công), outbox lỗi (thử lại, bỏ qua), cờ rủi ro, audit log có so sánh trước/sau. `Ctrl K` để tìm nhanh |
+| `/lab` | Kết quả load test thật: máy chạy, 5 kịch bản, độ trễ p50/p95/p99, bất biến, soak, chaos, một trace mua vé hoàn chỉnh |
 
 ## Chạy frontend riêng
 
@@ -257,9 +273,11 @@ CI trên GitHub, khôi phục trigger `pull_request` và `push` ở đầu `ci.y
 | `src/TicketRush.AppHost`, `src/TicketRush.ServiceDefaults` | Điều phối Aspire, OpenTelemetry, health check |
 | `web/` | Next.js 16; `/api/*` được chuyển tiếp sang `api` (cùng origin) |
 | `tests/` | Unit, architecture và integration test (.NET) |
-| `load-tests/` | Kịch bản k6 bán vé, truy vấn SQL kiểm tra bất biến, compose overlay cho load test |
+| `load-tests/` | 5 kịch bản k6, truy vấn SQL kiểm tra bất biến, script chaos, compose overlay cho load test |
+| `observability/` | Cấu hình OTel Collector, Prometheus, Tempo, Grafana (dashboard "Flash sale" và cảnh báo) |
 | `docs/runbooks/` | Quy trình vận hành (hoàn tiền bị treo: [parked-refunds.md](docs/runbooks/parked-refunds.md); giao email: [email-delivery.md](docs/runbooks/email-delivery.md); khoá QR của vé: [ticket-qr-keys.md](docs/runbooks/ticket-qr-keys.md)) |
 | `specs/` | Đặc tả cho từng phần, từ 00 đến 17 |
+| `docs/superpowers/` | Thiết kế và kế hoạch triển khai của từng spec; spec 18 (MoMo) chỉ có ở đây: [thiết kế](docs/superpowers/specs/2026-11-22-momo-payment-design.md) |
 
 ## Triển khai production
 
