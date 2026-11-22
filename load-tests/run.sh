@@ -95,9 +95,15 @@ k6run() { # k6run <name> <script> <fixtures name> [k6 -e args...]
   echo "${PIPESTATUS[0]}" >"$results/$name.exit"
 }
 
-rm -f "$results"/*.invariants.json
-
 for s in $scenarios; do
+  # A scenario run again replaces its own verdicts only; the other scenarios' results stay for collect-results.mjs.
+  case "$s" in
+    01) rm -f "$results/01-sale-open-spike.invariants.json" ;;
+    02) rm -f "$results/02-buy-flow.invariants.json" ;;
+    03) rm -f "$results/03-webhook-storm.invariants.json" ;;
+    04) rm -f "$results/04-soak.invariants.json" ;;
+    05) rm -f "$results/05-chaos.invariants.json" ;;
+  esac
   case "$s" in
     01)
       vus="${SPIKE_VUS:-2000}"
@@ -153,6 +159,21 @@ for s in $scenarios; do
     *) echo "run.sh: unknown scenario $s" >&2; exit 2 ;;
   esac
 done
+
+# Spec 17 acceptance: one real purchase's trace, hold to email, out of Tempo (reached from the Grafana container).
+if [[ "${OBSERVABILITY:-1}" != "0" ]]; then
+  echo "==> trace sample"
+  ids=$("${compose[@]}" exec -T grafana wget -qO- "http://tempo:3200/api/search?q=%7B%20name%20%3D%20%22outbox%20OrderPaid%22%20%7D&limit=20" \
+    | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{console.log(JSON.parse(s).traces.map(t=>t.traceID).join(' '))}catch{}})")
+  for id in $ids; do
+    "${compose[@]}" exec -T grafana wget -qO- "http://tempo:3200/api/traces/$id" >"$results/trace-raw.json"
+    if node "$(native "$here/trace-sample.mjs")" "$nresults/trace-raw.json" >"$results/trace.json"; then
+      echo "    trace $id: hold to email, connected"
+      break
+    fi
+  done
+  rm -f "$results/trace-raw.json"
+fi
 
 echo "==> results"
 node "$(native "$here/collect-results.mjs")" "$nresults" "$(native "$repo/web/src/features/lab/results.json")"

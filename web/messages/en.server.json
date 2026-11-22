@@ -115,6 +115,9 @@
     },
     "broke": "What broke and how we fixed it",
     "redisOk": "Redis matches the database",
-    "redisDiffers": "Redis differs from the database"
+    "redisDiffers": "Redis differs from the database",
+    "soakGc": "api GC heap",
+    "trace": "One purchase, one trace",
+    "traceHint": "A real trace from Tempo after the run: {spans} spans across {services}, connected from the hold to the email."
   }
 }

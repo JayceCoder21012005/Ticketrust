@@ -32,17 +32,22 @@ mib() { # "123.4MiB / 7.6GiB" -> 123.4
 
 while [[ ! -f "$stop" ]]; do
   api=$("${compose[@]}" ps -q api | head -n1)
-  worker=$("${compose[@]}" ps -q worker | head -n1)
   api_mem=$(mib "$(docker stats --no-stream --format '{{.MemUsage}}' "$api" 2>/dev/null)")
-  worker_mem=$(mib "$(docker stats --no-stream --format '{{.MemUsage}}' "$worker" 2>/dev/null)")
+  # Every worker, summed: with two of them, work (and memory) moves with the leader locks, and one alone would look like growth.
+  worker_mem=0
+  for worker in $("${compose[@]}" ps -q worker); do
+    worker_mem=$(awk -v a="$worker_mem" -v b="$(mib "$(docker stats --no-stream --format '{{.MemUsage}}' "$worker" 2>/dev/null)")" 'BEGIN { printf "%.1f", a + b }')
+  done
   holds=$("${compose[@]}" exec -T redis redis-cli --no-auth-warning ${password:+-a "$password"} --scan --pattern 'tr:*:inv:*:hold:*' 2>/dev/null | wc -l | tr -d ' ')
   keys=$("${compose[@]}" exec -T redis redis-cli --no-auth-warning ${password:+-a "$password"} DBSIZE 2>/dev/null | tr -d '\r ')
-  heap=$(curl -s --max-time 3 "$prom/api/v1/query" --data-urlencode 'query=sum(dotnet_gc_heap_size_bytes{job=~".*api.*"})' 2>/dev/null \
+  heap=$(curl -s --max-time 3 "$prom/api/v1/query" --data-urlencode 'query=sum(dotnet_gc_last_collection_heap_size_bytes{service_name="api"})' 2>/dev/null \
     | sed -n 's/.*"value":\[[^,]*,"\([0-9.e+]*\)"\].*/\1/p')
-  gcs=$(curl -s --max-time 3 "$prom/api/v1/query" --data-urlencode 'query=sum(dotnet_gc_collections_total{job=~".*api.*"})' 2>/dev/null \
+  gcs=$(curl -s --max-time 3 "$prom/api/v1/query" --data-urlencode 'query=sum(dotnet_gc_collections_total{service_name="api"})' 2>/dev/null \
     | sed -n 's/.*"value":\[[^,]*,"\([0-9.e+]*\)"\].*/\1/p')
-  printf '{"t":%d,"apiMiB":%s,"workerMiB":%s,"holdKeys":%s,"redisKeys":%s,"gcHeapBytes":%s,"gcCollections":%s}\n' \
-    "$(( $(date +%s) - start ))" "${api_mem:-0}" "${worker_mem:-0}" "${holds:-0}" "${keys:-0}" "${heap:-null}" "${gcs:-null}" >>"$out"
+  worker_heap=$(curl -s --max-time 3 "$prom/api/v1/query" --data-urlencode 'query=sum(dotnet_gc_last_collection_heap_size_bytes{service_name="worker"})' 2>/dev/null \
+    | sed -n 's/.*"value":\[[^,]*,"\([0-9.e+]*\)"\].*/\1/p')
+  printf '{"t":%d,"apiMiB":%s,"workerMiB":%s,"holdKeys":%s,"redisKeys":%s,"gcHeapBytes":%s,"workerGcHeapBytes":%s,"gcCollections":%s}\n' \
+    "$(( $(date +%s) - start ))" "${api_mem:-0}" "${worker_mem:-0}" "${holds:-0}" "${keys:-0}" "${heap:-null}" "${worker_heap:-null}" "${gcs:-null}" >>"$out"
   for ((i = 0; i < interval; i++)); do
     [[ -f "$stop" ]] && break
     sleep 1

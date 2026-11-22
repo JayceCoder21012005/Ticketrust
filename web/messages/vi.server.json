@@ -115,6 +115,9 @@
     },
     "broke": "Hỏng gì và đã sửa thế nào",
     "redisOk": "Redis khớp cơ sở dữ liệu",
-    "redisDiffers": "Redis lệch cơ sở dữ liệu"
+    "redisDiffers": "Redis lệch cơ sở dữ liệu",
+    "soakGc": "GC heap của api",
+    "trace": "Một lượt mua, một trace",
+    "traceHint": "Một trace thật lấy từ Tempo sau lần chạy: {spans} span trên {services}, nối liền từ giữ chỗ tới email."
   }
 }

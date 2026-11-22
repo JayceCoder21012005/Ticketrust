@@ -65,17 +65,33 @@ function slope(points) {
 function soak() {
   const samples = lines('soak-samples.jsonl');
   if (samples.length === 0) return null;
-  const tail = samples.filter((s) => s.t >= (samples.at(-1).t - 1200)); // the last 20 minutes
-  const per10min = (key) => round((slope(tail.map((s) => [s.t, Number(s[key])]).filter((p) => Number.isFinite(p[1]))) ?? 0) * 600);
-  const mean = (key) => tail.reduce((a, s) => a + Number(s[key] || 0), 0) / Math.max(tail.length, 1);
+  // The trend is judged while the load runs (the sampler goes on through the settle afterwards, when memory falls back),
+  // over its last 20 minutes; the hold keys are judged at the very end, once the leftover holds have expired.
+  const loadSeconds = (read('04-soak.json')?.state?.testRunDurationMs ?? Infinity) / 1000;
+  const loaded = samples.filter((s) => s.t <= loadSeconds);
+  const tail = loaded.filter((s) => s.t >= loaded.at(-1).t - 1200);
+  const value = (s, key) => (s[key] === null || s[key] === undefined ? NaN : Number(s[key]));
+  const per10min = (key, scale = 1) => {
+    const points = tail.map((s) => [s.t, value(s, key) / scale]).filter((p) => Number.isFinite(p[1]));
+    return points.length < 3 ? null : round(slope(points) * 600);
+  };
+  const mean = (key) => {
+    const known = tail.map((s) => value(s, key)).filter(Number.isFinite);
+    return known.reduce((a, v) => a + v, 0) / Math.max(known.length, 1);
+  };
   const api = per10min('apiMiB');
   const worker = per10min('workerMiB');
+  const gcHeap = per10min('gcHeapBytes', 1048576);
+  const workerGcHeap = per10min('workerGcHeapBytes', 1048576);
   const holdKeysEnd = samples.at(-1).holdKeys;
   const stable = (s, key) => s !== null && Math.abs(s) * 2 <= 0.05 * mean(key); // < 5 % growth over the 20 minutes
   return {
     samples: samples.map((s) => ({ t: s.t, apiMiB: s.apiMiB, workerMiB: s.workerMiB, holdKeys: s.holdKeys, gcHeapMiB: s.gcHeapBytes ? round(s.gcHeapBytes / 1048576) : null })),
+    loadSeconds: Number.isFinite(loadSeconds) ? round(loadSeconds, 0) : null,
     apiMiBPer10Min: api,
     workerMiBPer10Min: worker,
+    gcHeapMiBPer10Min: gcHeap,
+    workerGcHeapMiBPer10Min: workerGcHeap,
     holdKeysPeak: Math.max(...samples.map((s) => s.holdKeys)),
     holdKeysEnd,
     memoryStable: stable(api, 'apiMiB') && stable(worker, 'workerMiB'),
@@ -130,6 +146,7 @@ const results = {
   scenarios,
   soak: soak(),
   chaos: lines('chaos.jsonl'),
+  trace: read('trace.json'),
   brokeAndFixed: notes.brokeAndFixed,
 };
 

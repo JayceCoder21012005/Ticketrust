@@ -44,6 +44,8 @@ export type LabResults = {
   soak: {
     apiMiBPer10Min: number | null;
     workerMiBPer10Min: number | null;
+    gcHeapMiBPer10Min?: number | null;
+    loadSeconds?: number | null;
     holdKeysPeak: number;
     holdKeysEnd: number;
     memoryStable: boolean;
@@ -51,5 +53,12 @@ export type LabResults = {
     samples: { t: number }[];
   } | null;
   chaos: { at: number; fault: string; detail: string }[];
+  /** One real purchase's trace from Tempo (spec 17 acceptance), or null without the observability overlay. */
+  trace?: {
+    complete: boolean;
+    spanCount: number;
+    services: string[];
+    steps: { step: string; service: string; name: string; atMs: number; durationMs: number }[];
+  } | null;
   brokeAndFixed: { title: string; what: string; fix: string }[];
 };

@@ -176,6 +176,8 @@ export function LabView({ results }: { results: LabResults }) {
             <dd className="tabular-nums">{`${num(results.soak.apiMiBPer10Min)} MiB / 10 ${t("lab.minutes")}`}</dd>
             <dt className="text-muted-foreground">{t("lab.soakWorker")}</dt>
             <dd className="tabular-nums">{`${num(results.soak.workerMiBPer10Min)} MiB / 10 ${t("lab.minutes")}`}</dd>
+            <dt className="text-muted-foreground">{t("lab.soakGc")}</dt>
+            <dd className="tabular-nums">{`${num(results.soak.gcHeapMiBPer10Min)} MiB / 10 ${t("lab.minutes")}`}</dd>
             <dt className="text-muted-foreground">{t("lab.soakHolds")}</dt>
             <dd className="tabular-nums">{t("lab.soakHoldsValue", "vi", { peak: num(results.soak.holdKeysPeak), end: num(results.soak.holdKeysEnd) })}</dd>
             <dt className="text-muted-foreground">{t("lab.verdict")}</dt>
@@ -191,6 +193,20 @@ export function LabView({ results }: { results: LabResults }) {
           <ol className="flex flex-col gap-1 text-sm">
             {results.chaos.map((f) => (
               <li key={`${f.at}${f.fault}`} className="tabular-nums">{`${f.at} s · ${t(`lab.faults.${f.fault}`)} (${f.detail})`}</li>
+            ))}
+          </ol>
+        </Section>
+      ) : null}
+
+      {results.trace?.complete ? (
+        <Section title={t("lab.trace")} hint={t("lab.traceHint", "vi", { spans: String(results.trace.spanCount), services: results.trace.services.join(", ") })}>
+          <ol className="flex flex-col gap-1 text-sm">
+            {results.trace.steps.map((s) => (
+              <li key={s.step} className="grid grid-cols-[4.5rem_4rem_1fr] gap-2 tabular-nums">
+                <span className="text-muted-foreground">{`+${num(s.atMs)} ms`}</span>
+                <span className="text-muted-foreground">{s.service}</span>
+                <span className="break-all">{`${s.name} · ${ms(s.durationMs)}`}</span>
+              </li>
             ))}
           </ol>
         </Section>
