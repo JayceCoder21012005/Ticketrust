@@ -143,6 +143,10 @@ public static class DependencyInjection
         services.AddIntegrationEventHandler<OrderPaid, OrderPaidWaitlistHandler>();
         // Spec 15: after everything that changes a ticket or a seat; the dashboard is only a view of what already happened.
         services.AddIntegrationEventHandler<OrderPaid, Dashboard.DashboardOrderPaidHandler>();
+        // Spec 17: the sale metrics count a message once its real work is done, so they come after every other handler.
+        services.AddIntegrationEventHandler<OrderPaid, Application.Features.Observability.OrderPaidMetricHandler>();
+        services.AddIntegrationEventHandler<RefundRequested, Application.Features.Observability.RefundRequestedMetricHandler>();
+        services.AddIntegrationEventHandler<PaymentRefundRequested, Application.Features.Observability.PaymentRefundRequestedMetricHandler>();
 
         PersistDataProtectionKeysToRedis(services);
         AddAccounts(services);
@@ -290,11 +294,6 @@ public static class DependencyInjection
         services.AddIntegrationEventHandler<OrderRefunded, OrderRefundedNotificationHandler>();
         services.AddIntegrationEventHandler<PaymentRefunded, PaymentRefundedNotificationHandler>();
         services.AddIntegrationEventHandler<TicketReturned, TicketReturnedWaitlistHandler>();
-
-        // Spec 17: registered last, so a message counts once its real work is done.
-        services.AddIntegrationEventHandler<OrderPaid, Application.Features.Observability.OrderPaidMetricHandler>();
-        services.AddIntegrationEventHandler<RefundRequested, Application.Features.Observability.RefundRequestedMetricHandler>();
-        services.AddIntegrationEventHandler<PaymentRefundRequested, Application.Features.Observability.PaymentRefundRequestedMetricHandler>();
     }
 
     /// <summary>Spec 09: the notification writer and the email delivery worker's processor.</summary>
