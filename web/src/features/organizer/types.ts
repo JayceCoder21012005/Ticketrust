@@ -2,7 +2,7 @@
  * The organizer api's shapes (spec 05) with plain numbers: the generated schema types every integer as
  * `number | string`, but the api always sends JSON numbers.
  */
-export type EventStatus = "Draft" | "Published" | "Ended" | "Cancelled";
+export type EventStatus = "Draft" | "Published" | "Ended" | "Cancelled" | "Suspended";
 export type TicketKind = "Seated" | "GeneralAdmission";
 export type SectionKind = "seated" | "standing";
 

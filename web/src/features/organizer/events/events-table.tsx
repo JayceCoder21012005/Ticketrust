@@ -17,7 +17,7 @@ import { STATUS_LABELS, StatusBadge } from "../status-badge";
 import type { EventStatus } from "../types";
 import { useDebouncedValue } from "../use-debounced-value";
 
-const TABS: (EventStatus | "all")[] = ["all", "Draft", "Published", "Ended", "Cancelled"];
+const TABS: (EventStatus | "all")[] = ["all", "Draft", "Published", "Suspended", "Ended", "Cancelled"];
 
 export function EventsTable() {
   const [query, setQuery] = useState("");
@@ -94,7 +94,7 @@ export function EventsTable() {
                   <TableCell>
                     <span className="flex flex-wrap items-center gap-2">
                       <StatusBadge status={event.status} />
-                      {event.status === "Published" || event.status === "Ended" ? (
+                      {event.status === "Published" || event.status === "Ended" || event.status === "Suspended" ? (
                         <Link href={`/organizer/events/${event.id}/dashboard`} prefetch={false} className="text-xs text-primary hover:underline">
                           Bảng điều khiển
                         </Link>
