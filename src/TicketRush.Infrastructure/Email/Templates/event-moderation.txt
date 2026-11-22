@@ -1,0 +1,12 @@
+Subject: {{ if action == "suspended" }}Sự kiện đã bị tạm ẩn: {{ eventTitle }}{{ else }}Sự kiện đã được mở lại: {{ eventTitle }}{{ end }}
+
+Xin chào {{ name }},
+
+{{ if action == "suspended" }}Sự kiện {{ eventTitle }} đã bị quản trị viên tạm ẩn. Sự kiện không còn hiển thị và tạm ngừng bán; vé đã bán vẫn có hiệu lực.
+
+Lý do: {{ reason }}{{ else }}Sự kiện {{ eventTitle }} đã được quản trị viên mở lại và tiếp tục bán vé.
+
+Ghi chú: {{ reason }}{{ end }}
+
+Xem sự kiện:
+{{ link }}

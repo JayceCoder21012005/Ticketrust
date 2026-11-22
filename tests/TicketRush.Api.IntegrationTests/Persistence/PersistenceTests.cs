@@ -51,7 +51,8 @@ public sealed class PersistenceTests(ContainersFixture containers) : IAsyncLifet
         (await db.Events.CountAsync(Ct)).ShouldBe(15);
         (await db.Events.Select(e => e.Category).Distinct().CountAsync(Ct)).ShouldBe(EventCategories.All.Count);
         (await db.Events.Select(e => e.City).Distinct().CountAsync(Ct)).ShouldBe(3);
-        (await db.Events.Select(e => e.Status).Distinct().CountAsync(Ct)).ShouldBe(Enum.GetValues<EventStatus>().Length);
+        // Every status but Suspended, which only admin moderation produces (spec 16).
+        (await db.Events.Select(e => e.Status).Distinct().CountAsync(Ct)).ShouldBe(Enum.GetValues<EventStatus>().Length - 1);
         var openingSoon = await db.Events.Include(e => e.Phases).SingleAsync(e => e.Slug == "ha-anh-tuan-chan-troi-ruc-ro", Ct);
         openingSoon.Phases.ShouldHaveSingleItem().OpensAt.ShouldBe(DateTimeOffset.UtcNow.AddMinutes(5), TimeSpan.FromMinutes(1));
     }

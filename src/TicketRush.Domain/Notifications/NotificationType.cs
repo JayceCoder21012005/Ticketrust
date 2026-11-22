@@ -11,4 +11,6 @@ public enum NotificationType
     SaleOpensSoon,
     EventStartsSoon,
     WaitlistOffer,
+    OrganizerApplication,
+    EventModeration,
 }

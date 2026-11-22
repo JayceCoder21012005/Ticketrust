@@ -254,4 +254,35 @@ public sealed class EventEditingTests
         Venue.Create("Sân khấu riêng", "1 Lê Lợi", "Huế", null, 300, organizerId: owner).OrganizerId.ShouldBe(owner);
         Venue.OrganizerId.ShouldBeNull();
     }
+
+    [Fact]
+    public void An_admin_suspends_a_published_event_and_restores_it_and_the_organizer_hears_why_both_times()
+    {
+        var evt = Published();
+
+        evt.Suspend("Nội dung vi phạm");
+        evt.Status.ShouldBe(EventStatus.Suspended);
+        evt.DomainEvents.OfType<EventSuspended>().Single().Reason.ShouldBe("Nội dung vi phạm");
+        Should.Throw<DomainException>(() => evt.Suspend("lại")).Code.ShouldBe("event.not_suspendable");
+
+        evt.Restore("Đã sửa");
+        evt.Status.ShouldBe(EventStatus.Published);
+        evt.DomainEvents.OfType<EventRestored>().Single().Reason.ShouldBe("Đã sửa");
+        Should.Throw<DomainException>(() => evt.Restore("lại")).Code.ShouldBe("event.not_restorable");
+        Should.Throw<DomainException>(() => NewDraft().Suspend("x")).Code.ShouldBe("event.not_suspendable");
+    }
+
+    [Fact]
+    public void A_suspended_event_can_still_be_cancelled_or_end()
+    {
+        var cancelled = Published();
+        cancelled.Suspend("x");
+        cancelled.Cancel();
+        cancelled.Status.ShouldBe(EventStatus.Cancelled);
+
+        var ended = Published();
+        ended.Suspend("x");
+        ended.MarkEnded();
+        ended.Status.ShouldBe(EventStatus.Ended);
+    }
 }

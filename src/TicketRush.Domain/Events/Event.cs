@@ -267,16 +267,32 @@ public sealed class Event : AggregateRoot, IAuditable
         Raise(new EventPublished(Id, OrganizerId));
     }
 
+    /// <summary>Published → Suspended by an admin (spec 16 moderation). The organizer is told why.</summary>
+    public void Suspend(string reason)
+    {
+        EnsureStatus("event.not_suspendable", EventStatus.Published);
+        Status = EventStatus.Suspended;
+        Raise(new EventSuspended(Id, OrganizerId, reason));
+    }
+
+    /// <summary>Suspended → Published again by an admin.</summary>
+    public void Restore(string reason)
+    {
+        EnsureStatus("event.not_restorable", EventStatus.Suspended);
+        Status = EventStatus.Published;
+        Raise(new EventRestored(Id, OrganizerId, reason));
+    }
+
     public void Cancel()
     {
-        EnsureStatus("event.not_cancellable", EventStatus.Draft, EventStatus.Published);
+        EnsureStatus("event.not_cancellable", EventStatus.Draft, EventStatus.Published, EventStatus.Suspended);
         Status = EventStatus.Cancelled;
         Raise(new EventCancelled(Id, OrganizerId));
     }
 
     public void MarkEnded()
     {
-        EnsureStatus("event.not_endable", EventStatus.Published);
+        EnsureStatus("event.not_endable", EventStatus.Published, EventStatus.Suspended);
         Status = EventStatus.Ended;
         Raise(new EventEnded(Id));
     }

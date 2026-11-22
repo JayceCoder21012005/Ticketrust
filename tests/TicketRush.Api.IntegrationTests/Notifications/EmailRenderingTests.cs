@@ -29,6 +29,8 @@ public sealed partial class EmailRenderingTests
         "reminder-event-starts",
         "waitlist-offer",
         "ticket-transfer",
+        "organizer-application",
+        "event-moderation",
     ];
 
     private static object Model(string name = "Nguyễn Văn Đạt", bool resale = false) => new
@@ -36,6 +38,9 @@ public sealed partial class EmailRenderingTests
         name,
         offerKind = resale ? "resale" : "returned",
         fromName = "Trần Thị Bình",
+        decision = "approved",
+        action = "suspended",
+        reason = "Nội dung vi phạm điều khoản",
         eventTitle = "Đêm nhạc Mùa Thu",
         orderCode = "TR-20261111-0042",
         amount = "1.250.000 ₫",
@@ -126,6 +131,7 @@ public sealed partial class EmailRenderingTests
         "reminder-event-starts",
         "waitlist-offer",
         "ticket-transfer",
+        "event-moderation",
     ];
 
     [Theory]
@@ -138,6 +144,9 @@ public sealed partial class EmailRenderingTests
             name = "Nguyễn Văn Đạt",
             offerKind = "returned",
             fromName = "Trần Thị Bình",
+            decision = "approved",
+            action = "suspended",
+            reason = "Nội dung vi phạm điều khoản",
             eventTitle = EventTitle,
             orderCode = "TR-20261111-0042",
             amount = "1.250.000 ₫",
