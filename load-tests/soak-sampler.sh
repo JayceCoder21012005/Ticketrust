@@ -43,5 +43,8 @@ while [[ ! -f "$stop" ]]; do
     | sed -n 's/.*"value":\[[^,]*,"\([0-9.e+]*\)"\].*/\1/p')
   printf '{"t":%d,"apiMiB":%s,"workerMiB":%s,"holdKeys":%s,"redisKeys":%s,"gcHeapBytes":%s,"gcCollections":%s}\n' \
     "$(( $(date +%s) - start ))" "${api_mem:-0}" "${worker_mem:-0}" "${holds:-0}" "${keys:-0}" "${heap:-null}" "${gcs:-null}" >>"$out"
-  for ((i = 0; i < interval && ! -f "$stop"; i++)); do sleep 1; done
+  for ((i = 0; i < interval; i++)); do
+    [[ -f "$stop" ]] && break
+    sleep 1
+  done
 done

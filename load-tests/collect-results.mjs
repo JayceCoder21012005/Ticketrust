@@ -39,6 +39,8 @@ function verdicts(file) {
     ok: v.exitCode === 0,
     violations: v.exitCode === 1 ? v.output.split('\n').filter((l) => l.includes(' | ') && !l.startsWith('check_name')) : [],
     note: v.exitCode === 2 ? 'the checker could not run' : null,
+    // Redis = database, compared once settled only (null = not compared in this phase).
+    redis: v.redisExitCode === undefined || v.redisExitCode < 0 ? null : { ok: v.redisExitCode === 0, detail: v.redisOutput.trim() },
   }));
 }
 

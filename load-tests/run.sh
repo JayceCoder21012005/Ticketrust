@@ -68,17 +68,23 @@ seed() {
     fs.unlinkSync(dir + '/raw.json'); process.stdout.write(d.eventId);" "$(native "$dir")"
 }
 
-# check <name> <event id> <phase>: runs the invariant checker and stores its verdict for collect-results.mjs.
+# check <name> <event id> <phase>: the SQL invariants, and once settled also Redis against the database (Redis learns a sale
+# from the outbox a moment after the database, so right after a run it may still be catching up; that is not a violation).
 check() {
-  local output code
-  output="$(EVENT_ID="$2" "$here/check-invariants.sh" 2>&1)"
+  local output code redis_output="" redis_code=-1
+  output="$("$here/check-invariants.sh" 2>&1)"
   code=$?
   echo "$output"
+  if [[ "$3" == "settled" ]]; then
+    redis_output="$(EVENT_ID="$2" SETTLE_SECONDS="$settle" "$here/check-redis-sold.sh" 2>&1)"
+    redis_code=$?
+    echo "$redis_output"
+  fi
   node -e "
-    const fs = require('fs'); const [output, f, phase, code] = process.argv.slice(1);
+    const fs = require('fs'); const [output, f, phase, code, redisOutput, redisCode] = process.argv.slice(1);
     const all = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : [];
-    all.push({ phase, exitCode: Number(code), output });
-    fs.writeFileSync(f, JSON.stringify(all, null, 2));" "$output" "$nresults/$1.invariants.json" "$3" "$code"
+    all.push({ phase, exitCode: Number(code), output, redisExitCode: Number(redisCode), redisOutput });
+    fs.writeFileSync(f, JSON.stringify(all, null, 2));" "$output" "$nresults/$1.invariants.json" "$3" "$code" "$redis_output" "$redis_code"
 }
 
 k6run() { # k6run <name> <script> <fixtures name> [k6 -e args...]
@@ -98,7 +104,7 @@ for s in $scenarios; do
       event=$(seed spike "{\"users\":$vus,\"seats\":5000,\"gaTiers\":2,\"gaCapacity\":2000,\"opensInSeconds\":${SPIKE_OPENS_IN:-90},\"queueEnabled\":true}") || exit 2
       echo "==> 01-sale-open-spike ($vus VUs, event $event)"
       k6run 01-sale-open-spike 01-sale-open-spike.js spike -e VUS="$vus" -e ARRIVAL_SECONDS="${SPIKE_ARRIVAL:-60}"
-      check 01-sale-open-spike "$event" "after"
+      check 01-sale-open-spike "$event" "settled"
       ;;
     02)
       buyers="${BUY_BUYERS:-2000}"

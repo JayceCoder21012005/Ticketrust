@@ -43,4 +43,7 @@ services:
       # The scenarios send Turnstile's test token: no call leaves the machine, and the real secret is never used.
       Captcha__Provider: Fake
   worker:
-    environment: *sale-env
+    environment:
+      <<: *sale-env
+      # No web container in this stack: page revalidation is off instead of failing on every publish.
+      Frontend__RevalidateUrl: ""

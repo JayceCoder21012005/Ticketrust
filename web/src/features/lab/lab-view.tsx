@@ -159,6 +159,7 @@ export function LabView({ results }: { results: LabResults }) {
                         {v.ok ? "✓" : "✗"}
                       </span>
                       <span>{v.ok ? t("lab.holds") : v.note ?? t("lab.violations", "vi", { count: String(v.violations.length) })}</span>
+                      {v.redis ? <span className={v.redis.ok ? "text-success" : "text-danger"}>{v.redis.ok ? t("lab.redisOk") : t("lab.redisDiffers")}</span> : null}
                     </span>
                   ))
                 )}

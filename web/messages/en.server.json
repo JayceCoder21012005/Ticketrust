@@ -113,6 +113,8 @@
       "postgres_paused": "Paused Postgres",
       "postgres_resumed": "Postgres resumed"
     },
-    "broke": "What broke and how we fixed it"
+    "broke": "What broke and how we fixed it",
+    "redisOk": "Redis matches the database",
+    "redisDiffers": "Redis differs from the database"
   }
 }

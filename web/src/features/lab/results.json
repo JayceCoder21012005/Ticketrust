@@ -1,16 +1,336 @@
 {
-  "generatedAt": null,
-  "commit": null,
-  "machine": null,
+  "generatedAt": "2026-11-22T10:46:36.312Z",
+  "commit": "a0bfa02",
+  "machine": {
+    "cpu": "11th Gen Intel(R) Core(TM) i5-11400H @ 2.70GHz",
+    "threads": 12,
+    "memoryGiB": 15.8,
+    "os": "Windows_NT 10.0.26200",
+    "docker": {
+      "cpus": 12,
+      "memoryGiB": 7.6,
+      "version": "29.6.1"
+    },
+    "k6": "k6.exe v2.2.0",
+    "note": "One laptop runs everything: the compose stack in Docker Desktop and k6 on the host, so they share the CPU."
+  },
   "scaleNote": null,
   "scenarios": [
-    { "id": "01", "title": "Sale-open spike", "shape": "Buyers join during the pre-queue, then poll as the server says", "budget": "Queue status p99 < 50 ms, no error other than 429", "ran": false },
-    { "id": "02", "title": "Buy flow", "shape": "Admitted buyers: hold (30 % on the same hot seats) → order → mock pay, double clicks included", "budget": "Hold p99 < 150 ms, checkout p99 < 300 ms", "ran": false },
-    { "id": "03", "title": "Webhook storm", "shape": "Every payment webhook 3× in parallel, then 3× again after a random 0–5 min delay", "budget": "Tickets issued once per order", "ran": false },
-    { "id": "04", "title": "Soak", "shape": "Moderate constant load; half the holds are left to expire", "budget": "Memory and GC stable, no growth in Redis hold keys", "ran": false },
-    { "id": "05", "title": "Chaos", "shape": "Buy flow while the worker leader is killed, Redis restarts and Postgres pauses 10 s", "budget": "The system recovers and the invariants hold", "ran": false }
+    {
+      "id": "01",
+      "title": "Sale-open spike",
+      "shape": "Buyers join during the pre-queue, then poll as the server says",
+      "budget": "Queue status p99 < 50 ms, no error other than 429",
+      "ran": true,
+      "scale": {
+        "vusMax": 200,
+        "iterations": 200,
+        "seconds": 42
+      },
+      "requests": 567,
+      "rps": 13.3,
+      "latency": [
+        {
+          "label": "Queue status",
+          "p50": 3.7,
+          "p95": 5.8,
+          "p99": 8
+        }
+      ],
+      "errors": {
+        "unexpected": 0,
+        "rateLimited": 0
+      },
+      "thresholds": [
+        {
+          "metric": "queue_status_duration",
+          "rule": "p(99)<50",
+          "ok": true
+        },
+        {
+          "metric": "unexpected_responses",
+          "rule": "count==0",
+          "ok": true
+        }
+      ],
+      "invariants": [
+        {
+          "phase": "after",
+          "ok": true,
+          "violations": [],
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "02",
+      "title": "Buy flow",
+      "shape": "Admitted buyers: hold (30 % on the same hot seats) → order → mock pay, double clicks included",
+      "budget": "Hold p99 < 150 ms, checkout p99 < 300 ms",
+      "ran": true,
+      "scale": {
+        "vusMax": 100,
+        "iterations": 200,
+        "seconds": 41
+      },
+      "requests": 3419,
+      "rps": 82.7,
+      "latency": [
+        {
+          "label": "Hold",
+          "p50": 53.2,
+          "p95": 496.9,
+          "p99": 671
+        },
+        {
+          "label": "Checkout",
+          "p50": 30.8,
+          "p95": 805.6,
+          "p99": 1060.3
+        }
+      ],
+      "errors": {
+        "unexpected": 0,
+        "rateLimited": 0
+      },
+      "thresholds": [
+        {
+          "metric": "double_click_disagreements",
+          "rule": "count==0",
+          "ok": true
+        },
+        {
+          "metric": "unexpected_responses",
+          "rule": "count==0",
+          "ok": true
+        },
+        {
+          "metric": "checkout_duration",
+          "rule": "p(99)<300",
+          "ok": false
+        },
+        {
+          "metric": "hold_duration",
+          "rule": "p(99)<150",
+          "ok": false
+        }
+      ],
+      "invariants": [
+        {
+          "phase": "after",
+          "ok": false,
+          "violations": [],
+          "note": null
+        },
+        {
+          "phase": "settled",
+          "ok": true,
+          "violations": [],
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "03",
+      "title": "Webhook storm",
+      "shape": "Every payment webhook 3× in parallel, then 3× again after a random 0–5 min delay",
+      "budget": "Tickets issued once per order",
+      "ran": true,
+      "scale": {
+        "vusMax": 40,
+        "iterations": 40,
+        "seconds": 22
+      },
+      "requests": 602,
+      "rps": 26.9,
+      "latency": [
+        {
+          "label": "All requests",
+          "p50": 17.2,
+          "p95": 73.8,
+          "p99": 111.4
+        }
+      ],
+      "errors": {
+        "unexpected": 0,
+        "rateLimited": 0
+      },
+      "thresholds": [
+        {
+          "metric": "storm_webhooks_unacknowledged",
+          "rule": "count==0",
+          "ok": true
+        },
+        {
+          "metric": "unexpected_responses",
+          "rule": "count==0",
+          "ok": true
+        }
+      ],
+      "invariants": [
+        {
+          "phase": "after",
+          "ok": false,
+          "violations": [],
+          "note": null
+        },
+        {
+          "phase": "settled",
+          "ok": true,
+          "violations": [],
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "04",
+      "title": "Soak",
+      "shape": "Moderate constant load; half the holds are left to expire",
+      "budget": "Memory and GC stable, no growth in Redis hold keys",
+      "ran": true,
+      "scale": {
+        "vusMax": 100,
+        "iterations": 241,
+        "seconds": 132
+      },
+      "requests": 1786,
+      "rps": 13.5,
+      "latency": [
+        {
+          "label": "Hold",
+          "p50": 17.1,
+          "p95": 77.1,
+          "p99": 138
+        },
+        {
+          "label": "Checkout",
+          "p50": 14.2,
+          "p95": 59.6,
+          "p99": 96.4
+        }
+      ],
+      "errors": {
+        "unexpected": 0,
+        "rateLimited": 0
+      },
+      "thresholds": [
+        {
+          "metric": "unexpected_responses",
+          "rule": "count==0",
+          "ok": true
+        }
+      ],
+      "invariants": [
+        {
+          "phase": "settled",
+          "ok": true,
+          "violations": [],
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "05",
+      "title": "Chaos",
+      "shape": "Buy flow while the worker leader is killed, Redis restarts and Postgres pauses 10 s",
+      "budget": "The system recovers and the invariants hold",
+      "ran": true,
+      "scale": {
+        "vusMax": 60,
+        "iterations": 230,
+        "seconds": 301
+      },
+      "requests": 3500,
+      "rps": 11.6,
+      "latency": [
+        {
+          "label": "Hold",
+          "p50": 12.1,
+          "p95": 33.8,
+          "p99": 60
+        },
+        {
+          "label": "Checkout",
+          "p50": 9.4,
+          "p95": 34.8,
+          "p99": 64.4
+        }
+      ],
+      "errors": {
+        "unexpected": 0,
+        "rateLimited": 0
+      },
+      "thresholds": [
+        {
+          "metric": "unexpected_responses{scenario:after}",
+          "rule": "count==0",
+          "ok": true
+        },
+        {
+          "metric": "rate_limited_responses{scenario:after}",
+          "rule": "count==0",
+          "ok": true
+        },
+        {
+          "metric": "double_click_disagreements",
+          "rule": "count==0",
+          "ok": true
+        }
+      ],
+      "invariants": [
+        {
+          "phase": "after",
+          "ok": true,
+          "violations": [],
+          "note": null
+        },
+        {
+          "phase": "settled",
+          "ok": true,
+          "violations": [],
+          "note": null
+        }
+      ]
+    }
   ],
-  "soak": null,
-  "chaos": [],
+  "soak": {
+    "samples": [
+      {
+        "t": 5,
+        "apiMiB": 505.1,
+        "workerMiB": 146.3,
+        "holdKeys": 6,
+        "gcHeapMiB": null
+      }
+    ],
+    "apiMiBPer10Min": 0,
+    "workerMiBPer10Min": 0,
+    "holdKeysPeak": 6,
+    "holdKeysEnd": 6,
+    "memoryStable": true,
+    "holdKeysBackToBaseline": false
+  },
+  "chaos": [
+    {
+      "at": 49,
+      "fault": "worker_leader_killed",
+      "detail": "d8907912cfa4"
+    },
+    {
+      "at": 101,
+      "fault": "redis_restarted",
+      "detail": "compose restart redis"
+    },
+    {
+      "at": 161,
+      "fault": "postgres_paused",
+      "detail": "10s"
+    },
+    {
+      "at": 171,
+      "fault": "postgres_resumed",
+      "detail": "after 10s"
+    }
+  ],
   "brokeAndFixed": []
 }

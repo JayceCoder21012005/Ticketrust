@@ -1,7 +1,14 @@
 /** What load-tests/collect-results.mjs writes (spec 17). Every number comes from a real run; `ran: false` = not measured. */
 export type LabLatency = { label: string; p50: number | null; p95: number | null; p99: number | null };
 
-export type LabInvariant = { phase: string; ok: boolean; violations: string[]; note: string | null };
+export type LabInvariant = {
+  phase: string;
+  ok: boolean;
+  violations: string[];
+  note: string | null;
+  /** Redis against the database, compared once the run settled (null in the other phase). */
+  redis?: { ok: boolean; detail: string } | null;
+};
 
 export type LabScenario =
   | { id: string; title: string; shape: string; budget: string; ran: false }
