@@ -130,6 +130,7 @@ public static class ApiServiceCollectionExtensions
         v1.MapMockGatewayEndpoints();
         v1.MapPaymentWebhookEndpoints();
         v1.MapLocalStorageEndpoints();
+        Features.LoadTest.LoadTestEndpoints.MapLoadTestEndpoints(v1, app.Environment);
 
         app.MapHub<EventsHub>(EventsHub.Path);
         app.MapHub<UserHub>(UserHub.Path);
