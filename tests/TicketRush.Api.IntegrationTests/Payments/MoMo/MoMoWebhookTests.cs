@@ -160,6 +160,22 @@ public sealed class MoMoWebhookTests(ContainersFixture containers) : IAsyncLifet
     }
 
     [Fact]
+    public async Task An_api_that_does_not_use_MoMo_refuses_MoMo_IPNs_with_401_not_a_server_error()
+    {
+        // MoMo is always registered (late IPNs and refunds of MoMo orders after a switch back), but unconfigured it trusts nothing.
+        await using var mockOnly = new ApiFactory(await containers.CreateDatabaseAsync(), containers.RedisConnectionString);
+        using var client = mockOnly.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        var request = new HttpRequestMessage(HttpMethod.Post, Path)
+        {
+            Content = new StringContent(FakeMoMo.SignedIpn("TRabc", 10_000, 1, 0, DateTimeOffset.UtcNow), Encoding.UTF8, "application/json"),
+        };
+
+        using var response = await client.SendAsync(request, Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
     public async Task Mock_webhooks_still_answer_200_with_a_receipt()
     {
         var placed = await PlaceAsync(provider: "mock");

@@ -151,7 +151,13 @@ public sealed class MoMoPaymentGateway(
         ArgumentNullException.ThrowIfNull(headers);
         ArgumentNullException.ThrowIfNull(body);
         var o = options.CurrentValue;
-        ArgumentException.ThrowIfNullOrWhiteSpace(o.SecretKey, nameof(MoMoOptions.SecretKey));
+        if (string.IsNullOrWhiteSpace(o.SecretKey) || string.IsNullOrWhiteSpace(o.PartnerCode))
+        {
+            // Not a misconfiguration: MoMo is registered on every host but only configured where it is the provider (the options
+            // validator demands the keys there). Without keys nothing can be authentic, and nobody may turn that into 500s.
+            throw new InvalidWebhookSignatureException("MoMo is not configured on this host.");
+        }
+
         var ipn = MoMoIpn.Parse(body);
         if (!string.Equals(ipn.PartnerCode, o.PartnerCode, StringComparison.Ordinal))
         {
