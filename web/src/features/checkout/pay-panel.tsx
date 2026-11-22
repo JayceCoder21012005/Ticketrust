@@ -10,6 +10,7 @@ import { HoldCountdown } from "@/features/seats/hold-panel";
 import { Button } from "@/components/ui/button";
 import { isCancellable, orderCode } from "@/lib/checkout/order-state";
 import { cancelOrder } from "@/lib/checkout/orders-api";
+import { MOMO_TEST_GUIDE_URL, paymentProvider } from "@/lib/checkout/payment-provider";
 import type { RememberedEvent } from "@/lib/checkout/event-memory";
 import type { Order } from "@/lib/checkout/types";
 import { ApiError, toFriendlyMessage } from "@/lib/errors";
@@ -133,6 +134,7 @@ function PayCard({ order, pay, onCancelled }: { order: Order; pay: ReturnType<ty
           </p>
         ) : null}
       </div>
+      {paymentProvider() === "momo" ? <MoMoSandboxNote /> : null}
       <FormAlert message={message} />
       <Button ref={button} size="lg" disabled={pay.busy} onClick={onPay}>
         {pay.busy ? <Loader2 aria-hidden className="animate-spin" /> : null}
@@ -140,6 +142,18 @@ function PayCard({ order, pay, onCancelled }: { order: Order; pay: ReturnType<ty
       </Button>
       {isCancellable(order.status) ? <CancelOrder orderId={order.id} onFailed={onCancelled} /> : null}
     </aside>
+  );
+}
+
+/** Spec 18: the demo pays through MoMo's sandbox; say so, and where MoMo lists its test cards. */
+function MoMoSandboxNote() {
+  return (
+    <p role="note" className="rounded-md border bg-muted/50 px-3 py-2 text-sm">
+      {t("checkout.momoSandbox.note")}{" "}
+      <a href={MOMO_TEST_GUIDE_URL} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline underline-offset-4">
+        {t("checkout.momoSandbox.link")}
+      </a>
+    </p>
   );
 }
 

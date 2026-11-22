@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }));
 const auth = vi.hoisted(() => ({ status: "authenticated" }));
 vi.mock("@/components/auth/auth-provider", () => ({ useAuth: () => ({ status: auth.status }) }));
 
-const orders = vi.hoisted(() => ({ getOrder: vi.fn() }));
+const orders = vi.hoisted(() => ({ getOrder: vi.fn(), confirmPayment: vi.fn() }));
 vi.mock("@/lib/checkout/orders-api", () => orders);
 
 const { ResultView } = await import("./result-view");
@@ -197,11 +197,40 @@ describe("ResultView", () => {
     expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
   });
 
+  it("asks the server to confirm the payment while the order awaits it, at most three times, and never once it is paid", async () => {
+    orders.getOrder.mockResolvedValue(order("AwaitingPayment"));
+    orders.confirmPayment.mockResolvedValue(order("AwaitingPayment"));
+    render(<ResultView orderId="o1" />);
+    await flush();
+    await flush(1);
+    expect(orders.confirmPayment).toHaveBeenCalledWith("o1");
+
+    await flush(10_000);
+    expect(orders.confirmPayment).toHaveBeenCalledTimes(3);
+
+    vi.clearAllMocks();
+    orders.getOrder.mockResolvedValue(order("Paid", { paidAt: new Date(NOW).toISOString(), ticketCount: 2 }));
+    render(<ResultView orderId="o1" />);
+    await flush(5_000);
+    expect(orders.confirmPayment).not.toHaveBeenCalled();
+  });
+
+  it("shows the paid order as soon as the confirm call says so, and ignores a failing confirm call", async () => {
+    orders.getOrder.mockResolvedValueOnce(order("AwaitingPayment")).mockResolvedValue(order("Paid", { paidAt: new Date(NOW).toISOString(), ticketCount: 2 }));
+    orders.confirmPayment.mockRejectedValueOnce(new TypeError("offline")).mockResolvedValue(order("Paid", { paidAt: new Date(NOW).toISOString(), ticketCount: 2 }));
+    render(<ResultView orderId="o1" />);
+    await flush();
+    await flush(1_600);
+
+    expect(screen.getByRole("heading", { level: 1, name: "Thanh toán thành công" })).toBeInTheDocument();
+  });
+
   it("does not ask the api before the session is known", async () => {
     auth.status = "loading";
     render(<ResultView orderId="o1" />);
     await flush(5_000);
 
     expect(orders.getOrder).not.toHaveBeenCalled();
+    expect(orders.confirmPayment).not.toHaveBeenCalled();
   });
 });

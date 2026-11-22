@@ -155,6 +155,10 @@
     "pay": "Pay now",
     "paying": "Taking you to the payment gateway…",
     "previousFailed": "The last payment did not go through. Your seats are still held, you can try again.",
+    "momoSandbox": {
+      "note": "Payment goes through MoMo's test environment: no real money moves. Choose ATM or international card and use one of MoMo's test cards.",
+      "link": "See test cards"
+    },
     "cancel": {
       "action": "Cancel order",
       "title": "Cancel this order?",

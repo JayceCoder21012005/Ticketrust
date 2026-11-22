@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useUserHub } from "@/features/notifications/use-user-hub";
 import { loginRedirectUrl } from "@/lib/api/session";
 import { recallEvent } from "@/lib/checkout/event-memory";
+import { confirmPayment } from "@/lib/checkout/orders-api";
 import { isPastDeadline, refundReasonKey, resultKindOf, type ResultKind } from "@/lib/checkout/order-state";
 import type { Order } from "@/lib/checkout/types";
 import { useOrderPolling } from "@/lib/checkout/use-order-polling";
@@ -40,6 +41,7 @@ export function ResultView({ orderId }: { orderId: string }) {
 
 function PollingResult({ orderId }: { orderId: string }) {
   const { order, phase, refresh, refetch } = useOrderPolling(orderId);
+  useConfirmOnReturn(orderId, order, refetch);
 
   // The user hub (buyer layout) says the moment the order changes (spec 09): read it now instead of at the next beat.
   // Polling stays as it was: with no hub, or one that never connects, nothing is pushed and the beats do the work.
@@ -71,6 +73,41 @@ function PollingResult({ orderId }: { orderId: string }) {
       <StateCard key={view} view={view} order={order} onRefresh={refresh} />
     </div>
   );
+}
+
+/**
+ * When the result page asks the server to confirm the payment (spec 18), counted from the moment the order is seen awaiting
+ * it: at once, then twice more while the gateway may still be finishing. After that, polling and webhooks carry on alone.
+ */
+export const CONFIRM_DELAYS_MS = [0, 3_000, 8_000] as const;
+
+/**
+ * Back from the gateway (spec 18): while the order awaits its payment, ask the server to confirm it with the gateway, on the
+ * {@link CONFIRM_DELAYS_MS} schedule and one call at a time. A failure is ignored (polling goes on); an answer that moved the
+ * order on is read at once. Nothing is asked once the order has moved on.
+ */
+function useConfirmOnReturn(orderId: string, order: Order | null, refetch: () => void) {
+  const awaiting = order?.status === "AwaitingPayment";
+
+  useEffect(() => {
+    if (!awaiting) return;
+    let inFlight = false;
+    const confirm = () => {
+      if (inFlight) return;
+      inFlight = true;
+      Promise.resolve()
+        .then(() => confirmPayment(orderId))
+        .then((confirmed) => {
+          if (confirmed && confirmed.status !== "AwaitingPayment") refetch();
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          inFlight = false;
+        });
+    };
+    const timers = CONFIRM_DELAYS_MS.map((delay) => setTimeout(confirm, delay));
+    return () => timers.forEach(clearTimeout);
+  }, [orderId, awaiting, refetch]);
 }
 
 const ICONS: Record<View, { icon: LucideIcon; tone: string; spin?: boolean }> = {

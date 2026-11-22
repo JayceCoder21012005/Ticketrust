@@ -155,6 +155,10 @@
     "pay": "Thanh toán",
     "paying": "Đang chuyển đến cổng thanh toán…",
     "previousFailed": "Lần thanh toán trước không thành công. Ghế vẫn được giữ cho bạn, bạn có thể thử lại.",
+    "momoSandbox": {
+      "note": "Thanh toán qua MoMo ở môi trường thử nghiệm: không trừ tiền thật. Hãy chọn thẻ ATM/thẻ quốc tế và dùng thẻ test của MoMo.",
+      "link": "Xem thẻ test"
+    },
     "cancel": {
       "action": "Huỷ đơn",
       "title": "Huỷ đơn hàng?",

@@ -81,6 +81,26 @@ describe("CheckoutView", () => {
     await waitFor(() => expect(screen.getByRole("timer")).toHaveTextContent("08:00"));
   });
 
+  it("says payment goes through MoMo's test environment only when MoMo is the provider", async () => {
+    orders.getOrder.mockResolvedValue(order());
+    renderView();
+    await payButton();
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+
+    vi.stubEnv("NEXT_PUBLIC_PAYMENT_PROVIDER", "momo");
+    try {
+      renderView();
+      const note = await screen.findByRole("note");
+      expect(note).toHaveTextContent(/MoMo/);
+      const link = within(note).getByRole("link", { name: "Xem thẻ test" });
+      expect(link).toHaveAttribute("href", "https://developers.momo.vn/v3/docs/payment/onboarding/test-instructions/");
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("names the event when the seat flow left it behind", async () => {
     rememberEvent();
     orders.getOrder.mockResolvedValue(order());

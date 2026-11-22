@@ -12,7 +12,9 @@ ARG API_URL=http://api:8080
 # Turnstile site key (spec 12): public, inlined into the client bundle. Without it the web sends Cloudflare's test token,
 # which a production api refuses.
 ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY=
-ENV API_URL=$API_URL NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
+# Payment provider (spec 18): "momo" shows the MoMo sandbox note on the pay panel; anything else is the mock.
+ARG NEXT_PUBLIC_PAYMENT_PROVIDER=mock
+ENV API_URL=$API_URL NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY     NEXT_PUBLIC_PAYMENT_PROVIDER=$NEXT_PUBLIC_PAYMENT_PROVIDER
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

@@ -70,6 +70,19 @@ export async function payOrder(id: string, idempotencyKey: string): Promise<PayR
   return result.data;
 }
 
+/**
+ * `POST /orders/{id}/payment/confirm` (spec 18): back from the gateway's page, the server asks the gateway now instead of
+ * waiting for its webhook. Answers the order as it stands afterwards.
+ */
+export async function confirmPayment(id: string): Promise<Order> {
+  const result = await api.POST("/api/v1/orders/{id}/payment/confirm", { params: { path: { id } } });
+  if (result.data === undefined) {
+    throw fail(result.response.status, result.error);
+  }
+
+  return normaliseOrder(result.data);
+}
+
 /** `POST /orders/{id}/cancel`: only a `Pending` order can be cancelled (else 409 `order.not_payable`). */
 export async function cancelOrder(id: string): Promise<Order> {
   const result = await api.POST("/api/v1/orders/{id}/cancel", { params: { path: { id } }, headers: { "Idempotency-Key": crypto.randomUUID() } });
