@@ -43,7 +43,7 @@ public sealed class PaymentOptions
     public const string SectionName = "Payment";
 
     [Required]
-    [RegularExpression("^(Mock|VnPay)$")]
+    [RegularExpression("^(Mock|MoMo|VnPay)$")]
     public string Provider { get; set; } = "Mock";
 
     /// <summary>Must stay below the seat hold TTL (C3).</summary>
